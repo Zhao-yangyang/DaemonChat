@@ -118,4 +118,54 @@ describe("chat usecases", () => {
 
     expect(memoryMessage?.content).toContain("likes sushi");
   });
+
+  test("chatTurnStream yields chunks and appends events", async () => {
+    const { ports, stores } = createTestPorts({
+      llm: {
+        streamChat: async function* () {
+          yield "hello ";
+          yield "world";
+        },
+      },
+    });
+
+    const service = createChatService({
+      sessions: ports.sessions,
+      transcripts: ports.transcripts,
+      memory: ports.memory,
+      usage: ports.usage,
+      llm: ports.llm,
+      clock: ports.clock,
+    });
+
+    const result = await service.chatTurnStream("agent-1", "main", "hi", {
+      system: "system",
+      constraints: [],
+      taskState: null,
+      memoryTopK: 2,
+      recentMessages: 5,
+      budget: {
+        modelWindow: 100,
+        reserveOutputTokens: 0,
+        reserveToolTokens: 0,
+        memoryTopK: 2,
+        recentMessages: 5,
+      },
+    });
+
+    let combined = "";
+    for await (const chunk of result.stream) {
+      combined += chunk;
+    }
+
+    expect(combined).toBe("hello world");
+
+    const events = await stores.transcripts.listRecentEvents({
+      agentId: "agent-1",
+      sessionId: result.sessionId,
+      limit: 10,
+    });
+
+    expect(events.some((event) => event.type === "assistant_message")).toBe(true);
+  });
 });
