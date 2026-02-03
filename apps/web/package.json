@@ -4,7 +4,31 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"lint not configured\""
+  },
+  "dependencies": {
+    "@daemon/api": "workspace:*",
+    "@daemon/domain": "workspace:*",
+    "@daemon/sdk": "workspace:*",
+    "@daemon/hooks": "workspace:*",
+    "@daemon/ui": "workspace:*",
+    "@daemon/adapters-supabase": "workspace:*",
+    "@daemon/adapters-queue": "workspace:*",
+    "@daemon/adapters-llm-vercel": "workspace:*",
+    "@supabase/auth-ui-react": "^0.4.7",
+    "@supabase/auth-ui-shared": "^0.1.8",
+    "@supabase/supabase-js": "^2.49.1",
+    "@trpc/client": "^11.0.0",
+    "@trpc/react-query": "^11.0.0",
+    "@trpc/server": "^11.0.0",
+    "@tanstack/react-query": "^5.59.20",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   }
+}
 }
