@@ -1,0 +1,145 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "daemonchat",
+      "devDependencies": {
+        "bun-types": "^1.3.8",
+        "turbo": "^2.0.0",
+        "typescript": "^5.5.0",
+      },
+    },
+    "apps/desktop": {
+      "name": "@daemon/desktop",
+      "version": "0.0.0",
+    },
+    "apps/extension": {
+      "name": "@daemon/extension",
+      "version": "0.0.0",
+    },
+    "apps/mobile": {
+      "name": "@daemon/mobile",
+      "version": "0.0.0",
+    },
+    "apps/web": {
+      "name": "@daemon/web",
+      "version": "0.0.0",
+    },
+    "apps/worker": {
+      "name": "@daemon/worker",
+      "version": "0.0.0",
+    },
+    "packages/adapters/llm-vercel": {
+      "name": "@daemon/adapters-llm-vercel",
+      "version": "0.0.0",
+    },
+    "packages/adapters/queue": {
+      "name": "@daemon/adapters-queue",
+      "version": "0.0.0",
+    },
+    "packages/adapters/supabase": {
+      "name": "@daemon/adapters-supabase",
+      "version": "0.0.0",
+    },
+    "packages/api": {
+      "name": "@daemon/api",
+      "version": "0.0.0",
+    },
+    "packages/domain": {
+      "name": "@daemon/domain",
+      "version": "0.0.0",
+    },
+    "packages/hooks": {
+      "name": "@daemon/hooks",
+      "version": "0.0.0",
+    },
+    "packages/platform/capabilities": {
+      "name": "@daemon/platform-capabilities",
+      "version": "0.0.0",
+    },
+    "packages/platform/expo": {
+      "name": "@daemon/platform-expo",
+      "version": "0.0.0",
+    },
+    "packages/platform/tauri": {
+      "name": "@daemon/platform-tauri",
+      "version": "0.0.0",
+    },
+    "packages/platform/web": {
+      "name": "@daemon/platform-web",
+      "version": "0.0.0",
+    },
+    "packages/platform/wxt": {
+      "name": "@daemon/platform-wxt",
+      "version": "0.0.0",
+    },
+    "packages/sdk": {
+      "name": "@daemon/sdk",
+      "version": "0.0.0",
+    },
+    "packages/ui": {
+      "name": "@daemon/ui",
+      "version": "0.0.0",
+    },
+  },
+  "packages": {
+    "@daemon/adapters-llm-vercel": ["@daemon/adapters-llm-vercel@workspace:packages/adapters/llm-vercel"],
+
+    "@daemon/adapters-queue": ["@daemon/adapters-queue@workspace:packages/adapters/queue"],
+
+    "@daemon/adapters-supabase": ["@daemon/adapters-supabase@workspace:packages/adapters/supabase"],
+
+    "@daemon/api": ["@daemon/api@workspace:packages/api"],
+
+    "@daemon/desktop": ["@daemon/desktop@workspace:apps/desktop"],
+
+    "@daemon/domain": ["@daemon/domain@workspace:packages/domain"],
+
+    "@daemon/extension": ["@daemon/extension@workspace:apps/extension"],
+
+    "@daemon/hooks": ["@daemon/hooks@workspace:packages/hooks"],
+
+    "@daemon/mobile": ["@daemon/mobile@workspace:apps/mobile"],
+
+    "@daemon/platform-capabilities": ["@daemon/platform-capabilities@workspace:packages/platform/capabilities"],
+
+    "@daemon/platform-expo": ["@daemon/platform-expo@workspace:packages/platform/expo"],
+
+    "@daemon/platform-tauri": ["@daemon/platform-tauri@workspace:packages/platform/tauri"],
+
+    "@daemon/platform-web": ["@daemon/platform-web@workspace:packages/platform/web"],
+
+    "@daemon/platform-wxt": ["@daemon/platform-wxt@workspace:packages/platform/wxt"],
+
+    "@daemon/sdk": ["@daemon/sdk@workspace:packages/sdk"],
+
+    "@daemon/ui": ["@daemon/ui@workspace:packages/ui"],
+
+    "@daemon/web": ["@daemon/web@workspace:apps/web"],
+
+    "@daemon/worker": ["@daemon/worker@workspace:apps/worker"],
+
+    "@types/node": ["@types/node@25.2.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-DZ8VwRFUNzuqJ5khrvwMXHmvPe+zGayJhr2CDNiKB1WBE1ST8Djl00D0IC4vvNmHMdj6DlbYRIaFE7WHjlDl5w=="],
+
+    "bun-types": ["bun-types@1.3.8", "", { "dependencies": { "@types/node": "*" } }, "sha512-fL99nxdOWvV4LqjmC+8Q9kW3M4QTtTR1eePs94v5ctGqU8OeceWrSUaRw3JYb7tU3FkMIAjkueehrHPPPGKi5Q=="],
+
+    "turbo": ["turbo@2.8.2", "", { "optionalDependencies": { "turbo-darwin-64": "2.8.2", "turbo-darwin-arm64": "2.8.2", "turbo-linux-64": "2.8.2", "turbo-linux-arm64": "2.8.2", "turbo-windows-64": "2.8.2", "turbo-windows-arm64": "2.8.2" }, "bin": { "turbo": "bin/turbo" } }, "sha512-biW/S5hENCcJ5vxxJszCozEKcXtwGK29vxXzNbdfY/0q7QpYTCoyKdj0e8k/ADA6qkqaKDJwgrrHbC8Vy6wszg=="],
+
+    "turbo-darwin-64": ["turbo-darwin-64@2.8.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-sumREbxABHxrWIwlK67sZEaDRE7+BFSU8gZj8OK+X7dLpgW1vTjsHzTECB5m2qzWlXHRdueAk8sKv7wyHqv9jw=="],
+
+    "turbo-darwin-arm64": ["turbo-darwin-arm64@2.8.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-J3zoDkf+k9yozdJmdNUOc9YfIoFs01Zm+GgNyfY8pU6siMWlPlgdt+3ezbIMeOns6CAQUzUcqo9awowykAS9Vw=="],
+
+    "turbo-linux-64": ["turbo-linux-64@2.8.2", "", { "os": "linux", "cpu": "x64" }, "sha512-iVYUM+tyNAPd34HhMSjYWi7OSXnxnDhPjFKVvzSb7cZmQS6GlDSr7MALc5Wt/zn6/7jm1FuS7c5Wffg9WD2e1Q=="],
+
+    "turbo-linux-arm64": ["turbo-linux-arm64@2.8.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-v7FJAHUhY2nSEE87mr5ZBO51GmsFKp0EmK2P6rO+vGimCPmnGlLNj1at/eVcnp/cHRDnJj8J+b3QHWdUzTPTkg=="],
+
+    "turbo-windows-64": ["turbo-windows-64@2.8.2", "", { "os": "win32", "cpu": "x64" }, "sha512-d1X+U5JLhyAse0VXM0rpmu6iLbBTAvjwc7MX0PBkEaTz2aZQqOHBpQkkrxia7bZzRNbfXHbGSqY/vbE3GSFWzw=="],
+
+    "turbo-windows-arm64": ["turbo-windows-arm64@2.8.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-fMln07/l/5kscs79V0kTwdf17gkZW+E2iyqnzz691gLM7Jf6la0afd3IMsNtLzUh+dxKIFCswNiFVmHe8g+2jA=="],
+
+    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
+  }
+}
