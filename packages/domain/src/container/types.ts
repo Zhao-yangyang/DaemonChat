@@ -107,4 +107,10 @@ export interface Ports {
 
 export interface Services {
   ports: Ports;
+  agent: ReturnType<typeof import("../usecases/agent").createAgentService>;
+  session: ReturnType<typeof import("../usecases/session").createSessionService>;
+  transcript: ReturnType<typeof import("../usecases/transcript").createTranscriptService>;
+  memory: ReturnType<typeof import("../usecases/memory").createMemoryService>;
+  compaction: ReturnType<typeof import("../usecases/compaction").createCompactionService>;
+  chat: ReturnType<typeof import("../usecases/chat").createChatService>;
 }
