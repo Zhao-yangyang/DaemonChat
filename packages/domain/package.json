@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint not configured\"",
-    "test": "bun test"
+    "lint": "echo \"lint not configured\""
   }
 }
