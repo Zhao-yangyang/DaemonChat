@@ -57,6 +57,7 @@ export interface MemoryStore {
       now: Timestamp;
     }
   ): Promise<MemoryItem>;
+  listMemoryItems(input: { agentId: UUID; limit: number }): Promise<MemoryItem[]>;
   queryTopK(input: {
     agentId: UUID;
     embedding: number[];

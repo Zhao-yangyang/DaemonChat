@@ -57,5 +57,9 @@ export function createMemoryService(ports: {
         contextEligible: filters?.contextEligible ?? true,
       });
     },
+
+    async listMemoryItems(agentId: string, limit: number): Promise<MemoryItem[]> {
+      return ports.memory.listMemoryItems({ agentId, limit });
+    },
   };
 }

@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { createMemoryService } from "../usecases/memory";
 import { createTestPorts } from "../testing/fixtures";
+import { ManualClock } from "../testing/clock";
+import { createInMemoryStores } from "../testing/memoryStores";
+import type { LlmPort } from "../container/types";
 
 describe("memory usecases", () => {
   test("writeMemoryItem embeds when missing embedding", async () => {
@@ -74,5 +77,47 @@ describe("memory usecases", () => {
 
     expect(results).toHaveLength(1);
     expect(results[0]?.content).toBe("likes coffee");
+  });
+
+  test("listMemoryItems returns recent items", async () => {
+    const stores = createInMemoryStores();
+    const clock = new ManualClock("2026-02-03T00:00:00Z");
+    const llm: LlmPort = {
+      streamChat: async function* () {
+        yield "";
+      },
+      completeChat: async () => "",
+      embed: async () => [1, 0],
+    };
+
+    const service = createMemoryService({ memory: stores.memory, llm, clock });
+
+    await service.writeMemoryItem("agent-1", {
+      scopeType: "user",
+      scopeId: "user-1",
+      type: "fact",
+      content: "first",
+      tags: [],
+      sensitivity: "public",
+      contextEligible: true,
+      embedding: [1, 0],
+    });
+
+    clock.set("2026-02-03T01:00:00Z");
+
+    await service.writeMemoryItem("agent-1", {
+      scopeType: "user",
+      scopeId: "user-1",
+      type: "fact",
+      content: "second",
+      tags: [],
+      sensitivity: "public",
+      contextEligible: true,
+      embedding: [1, 0],
+    });
+
+    const items = await service.listMemoryItems("agent-1", 1);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.content).toBe("second");
   });
 });

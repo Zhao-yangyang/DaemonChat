@@ -177,6 +177,13 @@ export function createInMemoryStores(): {
       return item;
     },
 
+    async listMemoryItems({ agentId, limit }) {
+      return memoryItems
+        .filter((item) => item.agentId === agentId)
+        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
+        .slice(0, limit);
+    },
+
     async queryTopK({ agentId, embedding, topK, sensitivity, contextEligible }) {
       const filtered = memoryItems.filter((item) => {
         if (item.agentId !== agentId) return false;

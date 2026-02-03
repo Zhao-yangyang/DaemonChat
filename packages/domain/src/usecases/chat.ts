@@ -10,6 +10,7 @@ import type {
 } from "../container/types";
 import { createSessionService } from "./session";
 import { createMemoryService } from "./memory";
+import { createCompactionService } from "./compaction";
 
 const defaultApproxTokens = (text: string): number => Math.ceil(text.length / 4);
 
@@ -23,6 +24,11 @@ export function createChatService(ports: {
 }) {
   const sessions = createSessionService({ sessions: ports.sessions, clock: ports.clock });
   const memory = createMemoryService({ memory: ports.memory, llm: ports.llm, clock: ports.clock });
+  const compaction = createCompactionService({
+    transcripts: ports.transcripts,
+    llm: ports.llm,
+    clock: ports.clock,
+  });
 
   return {
     async chatTurn(
@@ -44,6 +50,16 @@ export function createChatService(ports: {
     }> {
       const session = await sessions.resolveSession(agentId, sessionKey);
 
+      const memoryItems = await memory.retrieveTopMemory(agentId, userInput, options.memoryTopK, {
+        contextEligible: true,
+      });
+
+      const recentMessages = await ports.transcripts.listRecentEvents({
+        agentId,
+        sessionId: session.id,
+        limit: options.recentMessages,
+      });
+
       const userTokens = defaultApproxTokens(userInput);
       await ports.transcripts.appendEvent({
         agentId,
@@ -53,16 +69,6 @@ export function createChatService(ports: {
         tokensIn: userTokens,
         tokensOut: null,
         createdAt: ports.clock.now(),
-      });
-
-      const memoryItems = await memory.retrieveTopMemory(agentId, userInput, options.memoryTopK, {
-        contextEligible: true,
-      });
-
-      const recentMessages = await ports.transcripts.listRecentEvents({
-        agentId,
-        sessionId: session.id,
-        limit: options.recentMessages,
       });
 
       const context = buildContextPack({
@@ -102,6 +108,11 @@ export function createChatService(ports: {
         costEstimate: null,
         meta: { model: "" },
         createdAt: ports.clock.now(),
+      });
+
+      await compaction.compactIfNeeded(agentId, session.id, {
+        shouldCompact: context.shouldCompact,
+        messages: context.messages,
       });
 
       return {
