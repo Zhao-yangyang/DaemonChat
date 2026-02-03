@@ -6,5 +6,11 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"lint not configured\""
+  },
+  "dependencies": {
+    "@daemon/api": "workspace:*",
+    "@tanstack/react-query": "^5.59.20",
+    "@trpc/react-query": "^11.0.0",
+    "react": "^19.0.0"
   }
 }
