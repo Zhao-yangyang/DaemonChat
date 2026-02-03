@@ -1,0 +1,13 @@
+.DS_Store
+node_modules/
+.turbo/
+dist/
+build/
+.next/
+out/
+coverage/
+*.log
+.env
+.env.*
+worktrees/
+.worktrees/

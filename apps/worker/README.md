@@ -1,0 +1,3 @@
+# worker
+
+Placeholder app scaffold.

@@ -1,0 +1,3 @@
+# desktop
+
+Placeholder app scaffold.

@@ -1,0 +1,3 @@
+# web
+
+Placeholder app scaffold.
