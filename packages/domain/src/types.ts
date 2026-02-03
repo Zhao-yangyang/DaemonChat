@@ -74,6 +74,35 @@ export interface UsageSummary {
   costEstimate: number;
 }
 
+export type ContextRole = "system" | "user" | "assistant";
+
+export interface ContextMessage {
+  role: ContextRole;
+  content: string;
+}
+
+export interface ContextBudget {
+  modelWindow: number;
+  reserveOutputTokens: number;
+  reserveToolTokens: number;
+  memoryTopK: number;
+  recentMessages: number;
+}
+
+export interface ContextPack {
+  system: string;
+  constraints: string[];
+  taskState: string | null;
+  memoryTopK: MemoryItem[];
+  recentMessages: TranscriptEvent[];
+  userInput: string;
+  messages: ContextMessage[];
+  maxContextTokens: number;
+  tokenEstimate: number;
+  trimmed: { memory: boolean; recent: boolean };
+  shouldCompact: boolean;
+}
+
 export interface AuditEvent {
   id: UUID;
   tenantId: UUID | null;
