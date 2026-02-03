@@ -68,6 +68,12 @@ export interface UsageEvent {
   createdAt: Timestamp;
 }
 
+export interface UsageSummary {
+  tokensIn: number;
+  tokensOut: number;
+  costEstimate: number;
+}
+
 export interface AuditEvent {
   id: UUID;
   tenantId: UUID | null;

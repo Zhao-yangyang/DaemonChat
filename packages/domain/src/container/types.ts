@@ -5,6 +5,7 @@ import type {
   Session,
   TranscriptEvent,
   UsageEvent,
+  UsageSummary,
   UUID,
   Timestamp,
 } from "../types";
@@ -69,6 +70,7 @@ export interface UsageStore {
   insertUsageEvent(
     input: Omit<UsageEvent, "id" | "createdAt"> & { createdAt: Timestamp }
   ): Promise<UsageEvent>;
+  sumUsage(input: { agentId: UUID; from: Timestamp; to: Timestamp }): Promise<UsageSummary>;
 }
 
 export interface AuditStore {
