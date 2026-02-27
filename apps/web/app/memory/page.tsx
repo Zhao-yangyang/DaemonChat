@@ -31,6 +31,11 @@ export default function MemoryPage() {
   const searchParams = useSearchParams();
   const parsedState = useMemo(() => parseMemoryQueryState(searchParams), [searchParams]);
 
+  const agents = trpc.agent.list.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   const [agentId, setAgentId] = useState(parsedState.agentId);
   const [userId, setUserId] = useState("");
   const [content, setContent] = useState("");
@@ -87,7 +92,9 @@ export default function MemoryPage() {
   }, []);
 
   useEffect(() => {
-    setAgentId((prev) => (prev === parsedState.agentId ? prev : parsedState.agentId));
+    if (parsedState.agentId) {
+      setAgentId((prev) => (prev === parsedState.agentId ? prev : parsedState.agentId));
+    }
     setQuery((prev) => (prev === parsedState.query ? prev : parsedState.query));
     setSensitivityFilter((prev) =>
       prev === parsedState.sensitivityFilter ? prev : parsedState.sensitivityFilter
@@ -97,6 +104,12 @@ export default function MemoryPage() {
     );
     setPage((prev) => (prev === parsedState.page ? prev : parsedState.page));
   }, [parsedState]);
+
+  useEffect(() => {
+    if (!agentId && (agents.data?.length ?? 0) > 0) {
+      setAgentId(agents.data![0]!.id);
+    }
+  }, [agentId, agents.data]);
 
   useEffect(() => {
     if (page !== paged.page) {
@@ -127,28 +140,33 @@ export default function MemoryPage() {
     searchParams,
   ]);
 
+  const hasAgents = (agents.data?.length ?? 0) > 0;
+
   return (
     <DashboardShell
       title="Memory 管理"
-      description="查看与创建可检索记忆，控制敏感级别与上下文参与策略。"
+      description="直接按 Agent 管理记忆，不再手填 ID。"
       actions={
         <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
-          <Link href="/agents">返回 Agent 列表</Link>
+          <Link href="/agents">管理 Agent</Link>
         </Button>
       }
     >
       <section className="space-y-4">
         <Card className="space-y-4 border-[var(--line-soft)] bg-white/92 p-5">
           <div className="grid gap-3 lg:grid-cols-2">
-            <Input
-              value={agentId}
-              onChange={(e) => {
-                setAgentId(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Agent ID"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
+            <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
+              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               value={query}
               onChange={(e) => {
@@ -268,9 +286,9 @@ export default function MemoryPage() {
             </Card>
           ) : null}
 
-          {!memoryList.isLoading && !agentId ? (
+          {!memoryList.isLoading && !hasAgents ? (
             <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-              先输入 Agent ID 后再查看记忆。
+              你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
             </Card>
           ) : null}
         </div>

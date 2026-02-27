@@ -8,7 +8,6 @@ import {
   Badge,
   Button,
   Card,
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -47,6 +46,11 @@ export default function UsagePage() {
   const searchParams = useSearchParams();
   const parsed = useMemo(() => parseUsageQueryState(searchParams), [searchParams]);
 
+  const agents = trpc.agent.list.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   const [agentId, setAgentId] = useState(parsed.agentId);
   const [period, setPeriod] = useState<UsagePeriod>(parsed.period);
 
@@ -60,9 +64,17 @@ export default function UsagePage() {
   );
 
   useEffect(() => {
-    setAgentId((prev) => (prev === parsed.agentId ? prev : parsed.agentId));
+    if (parsed.agentId) {
+      setAgentId((prev) => (prev === parsed.agentId ? prev : parsed.agentId));
+    }
     setPeriod((prev) => (prev === parsed.period ? prev : parsed.period));
   }, [parsed]);
+
+  useEffect(() => {
+    if (!agentId && (agents.data?.length ?? 0) > 0) {
+      setAgentId(agents.data![0]!.id);
+    }
+  }, [agentId, agents.data]);
 
   useEffect(() => {
     const next = toUsageSearchParams({ agentId, period }).toString();
@@ -95,7 +107,7 @@ export default function UsagePage() {
     const points = values.map((value, index) => {
       const x = data.length === 1 ? width / 2 : index * stepX;
       const y = height - (value / maxValue) * height;
-      return { x, y, value };
+      return { x, y };
     });
 
     const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
@@ -119,25 +131,33 @@ export default function UsagePage() {
     return { polyline, fillPath, labels, maxValue };
   }, [trend.data, period]);
 
+  const hasAgents = (agents.data?.length ?? 0) > 0;
+
   return (
     <DashboardShell
       title="Usage & Cost"
-      description="按日或按月追踪 token 消耗与成本估算，观察输入输出结构占比。"
+      description="直接选择 Agent 查看成本，不再需要手动复制 ID。"
       actions={
         <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
-          <Link href="/agents">切换 Agent</Link>
+          <Link href="/agents">管理 Agent</Link>
         </Button>
       }
     >
       <section className="space-y-4">
         <Card className="border-[var(--line-soft)] bg-white/92 p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Input
-              value={agentId}
-              onChange={(e) => setAgentId(e.target.value)}
-              placeholder="Agent ID"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
+          <div className="grid gap-3 md:grid-cols-3">
+            <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
+              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={period} onValueChange={(value) => setPeriod(value as UsagePeriod)}>
               <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
                 <SelectValue placeholder="统计周期" />
@@ -164,7 +184,7 @@ export default function UsagePage() {
         {agentId ? (
           <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
             <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              Agent {agentId}
+              Agent {(agents.data ?? []).find((item) => item.id === agentId)?.name ?? agentId}
             </Badge>
             <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
               范围：{period === "day" ? "今天" : "当月"}
@@ -294,9 +314,9 @@ export default function UsagePage() {
           </Card>
         ) : null}
 
-        {!usage.isLoading && !agentId ? (
+        {!usage.isLoading && !hasAgents ? (
           <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-            先输入 Agent ID 再查看成本与 token 使用情况。
+            你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
           </Card>
         ) : null}
       </section>

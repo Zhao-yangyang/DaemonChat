@@ -30,6 +30,11 @@ export default function TranscriptsPage() {
   const searchParams = useSearchParams();
   const parsedState = useMemo(() => parseTranscriptQueryState(searchParams), [searchParams]);
 
+  const agents = trpc.agent.list.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
   const [agentId, setAgentId] = useState(parsedState.agentId);
   const [sessionId, setSessionId] = useState(parsedState.sessionId);
   const [limit, setLimit] = useState(parsedState.limit);
@@ -44,6 +49,11 @@ export default function TranscriptsPage() {
     | "system"
   >(parsedState.typeFilter);
   const [page, setPage] = useState(parsedState.page);
+
+  const sessionList = trpc.session.list.useQuery(
+    { agentId, limit: 30 },
+    { enabled: Boolean(agentId), refetchOnWindowFocus: false }
+  );
 
   const transcripts = trpc.transcript.list.useQuery(
     { agentId, sessionId, limit },
@@ -69,13 +79,29 @@ export default function TranscriptsPage() {
   );
 
   useEffect(() => {
-    setAgentId((prev) => (prev === parsedState.agentId ? prev : parsedState.agentId));
-    setSessionId((prev) => (prev === parsedState.sessionId ? prev : parsedState.sessionId));
+    if (parsedState.agentId) {
+      setAgentId((prev) => (prev === parsedState.agentId ? prev : parsedState.agentId));
+    }
+    if (parsedState.sessionId) {
+      setSessionId((prev) => (prev === parsedState.sessionId ? prev : parsedState.sessionId));
+    }
     setLimit((prev) => (prev === parsedState.limit ? prev : parsedState.limit));
     setQuery((prev) => (prev === parsedState.query ? prev : parsedState.query));
     setTypeFilter((prev) => (prev === parsedState.typeFilter ? prev : parsedState.typeFilter));
     setPage((prev) => (prev === parsedState.page ? prev : parsedState.page));
   }, [parsedState]);
+
+  useEffect(() => {
+    if (!agentId && (agents.data?.length ?? 0) > 0) {
+      setAgentId(agents.data![0]!.id);
+    }
+  }, [agentId, agents.data]);
+
+  useEffect(() => {
+    if (!sessionId && (sessionList.data?.length ?? 0) > 0) {
+      setSessionId(sessionList.data![0]!.id);
+    }
+  }, [sessionId, sessionList.data]);
 
   useEffect(() => {
     if (page !== paged.page) {
@@ -98,10 +124,13 @@ export default function TranscriptsPage() {
     }
   }, [agentId, sessionId, query, typeFilter, limit, page, pathname, router, searchParams]);
 
+  const hasAgents = (agents.data?.length ?? 0) > 0;
+  const hasSessions = (sessionList.data?.length ?? 0) > 0;
+
   return (
     <DashboardShell
       title="Transcripts"
-      description="按类型与关键词回溯会话轨迹，定位上下文来源与异常路径。"
+      description="先选 Agent，再选会话，直接查看轨迹。"
       actions={
         <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
           <Link href="/chat">回到聊天</Link>
@@ -111,35 +140,63 @@ export default function TranscriptsPage() {
       <section className="space-y-4">
         <Card className="space-y-4 border-[var(--line-soft)] bg-white/92 p-5">
           <div className="grid gap-3 lg:grid-cols-3">
-            <Input
-              value={agentId}
-              onChange={(e) => {
-                setAgentId(e.target.value);
+            <Select
+              value={agentId || undefined}
+              onValueChange={(value) => {
+                setAgentId(value);
+                setSessionId("");
                 setPage(1);
               }}
-              placeholder="Agent ID"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
-            <Input
-              value={sessionId}
-              onChange={(e) => {
-                setSessionId(e.target.value);
+            >
+              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={sessionId || undefined}
+              onValueChange={(value) => {
+                setSessionId(value);
                 setPage(1);
               }}
-              placeholder="Session ID"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
-            <Input
-              value={limit}
-              onChange={(e) => {
-                const parsed = Number(e.target.value);
-                setLimit(Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1);
+              disabled={!agentId || sessionList.isLoading}
+            >
+              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder={sessionList.isLoading ? "加载会话..." : "选择会话"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(sessionList.data ?? []).map((session) => (
+                  <SelectItem key={session.id} value={session.id}>
+                    {session.sessionKey}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={String(limit)}
+              onValueChange={(value) => {
+                setLimit(Number(value));
                 setPage(1);
               }}
-              placeholder="Limit"
-              type="number"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
+            >
+              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder="条数" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50 条</SelectItem>
+                <SelectItem value="100">100 条</SelectItem>
+                <SelectItem value="200">200 条</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Input
               value={query}
               onChange={(e) => {
@@ -179,7 +236,7 @@ export default function TranscriptsPage() {
               </SelectContent>
             </Select>
             <Button onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
-              加载
+              刷新
             </Button>
           </div>
         </Card>
@@ -230,9 +287,15 @@ export default function TranscriptsPage() {
             </Card>
           ) : null}
 
-          {!transcripts.isLoading && (!agentId || !sessionId) ? (
+          {!transcripts.isLoading && !hasAgents ? (
             <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-              先输入 Agent ID 和 Session ID。
+              你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
+            </Card>
+          ) : null}
+
+          {!transcripts.isLoading && hasAgents && !hasSessions ? (
+            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
+              这个 Agent 还没有会话，先去 <Link href={`/chat/${agentId}`} className="text-[var(--brand)] underline">Chat</Link> 发一条消息。
             </Card>
           ) : null}
         </div>
