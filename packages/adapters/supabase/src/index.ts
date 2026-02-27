@@ -5,3 +5,4 @@ export { createTranscriptStore } from "./stores/transcripts";
 export { createMemoryStore } from "./stores/memory";
 export { createUsageStore } from "./stores/usage";
 export { createAuditStore } from "./stores/audit";
+export { createRateLimitStore } from "./stores/rateLimit";

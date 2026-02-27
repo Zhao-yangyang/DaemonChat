@@ -53,13 +53,23 @@ export function createMemoryStore(client: SupabaseClient): MemoryStore {
       return (data ?? []).map(mapMemory);
     },
 
-    async queryTopK({ agentId, embedding, topK, sensitivity, contextEligible }) {
+    async queryTopK({
+      agentId,
+      embedding,
+      topK,
+      sensitivity,
+      contextEligible,
+      scopeType,
+      scopeId,
+    }) {
       const { data, error } = await client.rpc("match_memory_items", {
         query_embedding: embedding,
         match_count: topK,
         filter_agent_id: agentId,
         filter_sensitivity: sensitivity ?? null,
         filter_context_eligible: contextEligible ?? null,
+        filter_scope_type: scopeType ?? null,
+        filter_scope_id: scopeId ?? null,
       });
 
       if (error) throw error;

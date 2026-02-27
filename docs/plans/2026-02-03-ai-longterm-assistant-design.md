@@ -1,331 +1,561 @@
-# AI 长期助手 SaaS 平台开发 Plan（Monorepo + DI）
+# AI 长期助手 SaaS 平台开发总计划（V2）
 
-> 来源：用户提供的整体规划，作为当前项目的设计基线。
+> 状态：可执行基线（用于后续落地与验收）
+> 
+> 更新时间：2026-02-26
+> 
+> 目标：在你原始思路不变的前提下，补全安全、并发、成本、可观测、测试与发布闭环，避免“能跑但不可控”。
 
-## 0. 目标与边界
+---
 
-### MVP 目标（必须做到）
+## 0. 计划定位
 
-- 单用户/多用户均可用：每个用户拥有自己的 Agent（长期存在）
-- 同一个 Agent 可持续对话：支持 transcript、compaction、memory（向量检索 TopK 注入）
-- 成本可控：context budget、token usage 记录、基础限流
-- Web 可用：Next.js + tRPC + streaming chat UI（最小控制面板）
-- 预留多端壳（Tauri/WXT/Expo）：先只搭壳，不做完整功能
+这不是“灵感草稿”，而是后续开发与验收的执行规范。
 
-### MVP 不做（明确推迟）
+执行要求：
+- 每个里程碑必须有入口条件、出口条件、验收证据。
+- 所有“可能会做”的项必须改为“本期做/不做/延期到哪一期”。
+- 所有关键风险必须有明确兜底策略。
 
-- 多 agent 协作编排（后续）
-- 企业级 SSO、全量审计导出（后续）
-- Marketplace（后续）
-- 复杂工作流/自动化（后续）
+---
 
-## 1) Monorepo 结构（推荐定稿）
+## 1. 产品目标与边界
 
-```
+### 1.1 MVP 必须达成
+
+- 每个用户可创建并长期持有自己的 Agent。
+- 同一 Agent 支持长期连续对话（session + transcript + memory + compaction）。
+- 支持流式回复（Web chat streaming）。
+- 具备基础成本控制（token 预算、usage 统计、限额/限流）。
+- 具备最低安全隔离（用户级授权、RLS、敏感记忆过滤、审计事件）。
+
+### 1.2 MVP 明确不做
+
+- 多 Agent 协作编排。
+- 企业 SSO、细粒度 RBAC、组织级审计导出。
+- Marketplace。
+- 复杂自动化工作流编排器。
+
+### 1.3 成功标准（业务）
+
+- 连续 200+ 轮对话不崩溃，不强制切新会话。
+- 关键用户偏好可被稳定回忆（可通过 memory_topK 证据验证）。
+- 单用户成本可预测（可看到日/月 token 与成本估算）。
+- 异常输入不会导致系统失控（超长输入、重复请求、并发请求）。
+
+---
+
+## 2. 架构原则（必须遵守）
+
+- Domain Pure：`packages/domain` 不依赖 Next/tRPC/Vercel/Supabase SDK。
+- Append-only First：`transcript_events` 仅追加，不原地改写历史。
+- Deterministic Context：每轮上下文只能由 Context Builder 按规则组装。
+- Security by Default：不信任前端传入用户标识，服务端必须验证 token。
+- Cost Guardrails：任何模型调用前都经过预算裁剪与限额判断。
+- Idempotent by Design：关键写操作支持幂等键或去重策略。
+
+### 2.1 Gateway 对齐原则（openclaw 灵感来源）
+
+本项目把 openclaw gateway 的核心思想收敛为 6 条工程约束，作为后续评审标准：
+
+1. `Provider Abstraction`
+- 统一模型接入接口（chat stream/complete/embed），业务层不可依赖厂商 SDK 细节。
+- 新增或替换模型提供商时，不改 domain usecase。
+
+2. `Policy Pipeline`
+- 每个请求在进入模型前后都经过策略链：鉴权、配额、敏感过滤、审计。
+- 策略链必须可观测（记录命中策略与拒绝原因）。
+
+3. `Routing & Fallback`
+- 保留模型路由与降级能力：主模型失败时可切备用模型或短答模式。
+- 路由/降级决策写入 `usage_events.meta`，用于复盘。
+
+4. `Idempotency`
+- Chat 请求支持幂等键（或等价去重键），防重试导致重复写 transcript 或重复计费。
+- 幂等冲突返回已存在结果或明确错误码。
+
+5. `Usage Ledger`
+- token、请求数、成本估算统一记账，且以 agent/user 维度可追踪。
+- 限流、hard cap、预算降级都基于同一账本执行。
+
+6. `Traceability`
+- 每轮请求必须可追踪 `request_id/user_id/agent_id/session_id/prompt_version`。
+- 关键路径异常（鉴权失败、预算超限、模型失败、job 失败）可从日志与审计反查。
+
+### 2.2 设计落地映射（MVP）
+
+- `Provider Abstraction`：`packages/domain` + `packages/adapters/llm-vercel` ports 约束。
+- `Policy Pipeline`：`apps/web` API 层 + `packages/api` 输入/权限/预算校验。
+- `Routing & Fallback`：`chatTurn/chatTurnStream` 的模型选择与降级钩子。
+- `Idempotency`：`chat_requests` 或 `transcript_events.request_id` 去重方案。
+- `Usage Ledger`：`usage_events` + `usage.summary` + 限额策略。
+- `Traceability`：结构化日志字段 + `audit_events` 关键事件。
+
+---
+
+## 3. Monorepo 结构（定稿）
+
+```txt
 apps/
-  web/                  # Next.js 16 + React 19 + tRPC host + UI
-  worker/               # Bun worker：后台 jobs/cron/queue consumers
-  desktop/              # Tauri 壳（先空壳）
-  extension/            # WXT 壳（先空壳）
-  mobile/               # Expo 壳（先空壳）
+  web/                  # Next.js 16 + React 19 + tRPC host + streaming route
+  worker/               # Bun worker：jobs 轮询与执行
+  desktop/              # Tauri shell（MVP 空壳）
+  extension/            # WXT shell（MVP 空壳）
+  mobile/               # Expo shell（MVP 空壳）
 
 packages/
-  domain/               # 纯业务内核（无 Next/无 tRPC/无 Vercel 依赖）
+  domain/               # 纯业务内核（ports + usecases）
   adapters/
-    supabase/           # Postgres/Vector/Storage 实现
-    llm-vercel/         # Vercel AI SDK 6.0 适配器
-    queue/              # cron/queue 适配器（先实现最小：定时/任务表轮询）
-  api/                  # tRPC routers + context + input schemas
-  ui/                   # Tailwind 4 + shadcn/ui 组件
-  hooks/                # useAgent/useMemory/useTranscript/useUsage
-  sdk/                  # tRPC client helpers（多端复用）
+    supabase/           # Postgres/Vector/Storage adapter
+    llm-vercel/         # LLM adapter（stream/complete/embed）
+    queue/              # job queue adapter
+  api/                  # tRPC routers/context/schema
+  ui/                   # 共享 UI 组件
+  hooks/                # tRPC hooks
+  sdk/                  # 多端 API client
   platform/
-    capabilities/       # 原生能力接口定义（file/tray/clipboard 等）
-    web/                # web 实现
-    tauri/              # tauri 实现（stub）
-    expo/               # expo 实现（stub）
-    wxt/                # extension 实现（stub）
+    capabilities/       # clipboard/filesystem/tray/notifications 接口
+    web/
+    tauri/
+    expo/
+    wxt/
 ```
 
-## 2) 依赖注入（DI）方案（最小但够用）
+规则：
+- 业务逻辑只在 `domain`。
+- API 只做鉴权、输入校验、调用 domain。
+- adapter 负责外部系统细节与错误翻译。
 
-### DI 规则
+---
 
-- `packages/domain` 只定义 **Ports 接口**（DB/LLM/Storage/Clock/Queue）
-- `packages/adapters/*` 提供 Ports 的具体实现
-- `apps/web` 的 tRPC `createContext()` 创建 request-scope container
-- `apps/worker` 创建 job-scope container
+## 4. 运行时与请求流
 
-### 交付物
+### 4.1 Chat 请求流（同步流式）
 
-- `packages/domain/src/container/types.ts`（Ports & Services 类型）
-- `packages/domain/src/container/createServices.ts`（usecase 构造器，注入 ports）
-- `apps/web/src/server/container.ts`（createContainer(env)）
-- `apps/worker/src/container.ts`（createWorkerContainer(env)）
+1. API 接收请求并验证 access token。
+2. 解析 user identity（服务端可信来源）。
+3. `chatTurnStream()`：
+   - `resolveSession`
+   - 追加 `user_message`
+   - 检索 `memory_topK`（含 sensitivity/contextEligible 过滤）
+   - 载入 recent transcript
+   - `buildContextPack` 按 token budget 裁剪
+   - 调 LLM 流式输出
+   - 追加 `assistant_message`
+   - 写 `usage_events`
+   - `compactIfNeeded`（同步或投递 job）
+4. 返回 SSE chunk + done/error 事件。
 
-## 3) 数据库与存储（Supabase：Postgres + Vector + Storage）
+### 4.2 Worker job 流（异步）
 
-### 3.1 表结构（MVP 必需）
+1. 原子 claim N 个 job（单 SQL，避免重复消费）。
+2. 标记 processing 并记录 attempt。
+3. 执行业务。
+4. 成功标记 completed；失败进入 retry/backoff 或 dead-letter。
 
-#### agents
+---
 
-- `id (uuid pk)`
-- `owner_user_id (uuid)`
-- `name`
-- `created_at`
-- `updated_at`
+## 5. 数据模型（Supabase/Postgres）
 
-#### sessions
+## 5.1 必需表
 
-- `id (uuid pk)`  // sessionId
-- `agent_id (uuid)`
-- `session_key (text)` // “main” / groupId / channelId
-- `current (bool)` 或直接用 `session_key -> current_session_id` 的索引表
-- `created_at`
-- `last_active_at`
+- `agents`
+- `sessions`
+- `transcript_events`（append-only）
+- `memory_items`（vector）
+- `usage_events`
+- `audit_events`
+- `jobs`
 
-#### transcript_events（append-only）
+## 5.2 约束与索引要求（新增补充）
 
-- `id (uuid pk)`
-- `agent_id`
-- `session_id`
-- `type (text)` // user_message/assistant_message/tool_call/compaction/memory_flush/system
-- `content (jsonb)` // 事件载荷
-- `tokens_in (int)`
-- `tokens_out (int)`
-- `created_at`
-- 索引：`(agent_id, session_id, created_at)`
+- `sessions`：`(agent_id, session_key)` 对当前会话唯一。
+- `transcript_events`：索引 `(agent_id, session_id, created_at)`。
+- `memory_items`：
+  - `context_eligible` 默认 true。
+  - `sensitivity` 限定值：`public|private|secret`。
+  - `type` 限定值：`fact|rule|preference|task`。
+  - vector 索引按 embedding 维度一致。
+- `jobs`：索引 `(status, run_at)`。
+- `usage_events`：索引 `(agent_id, created_at)`。
 
-#### memory_items（结构化记忆 + 向量）
+## 5.3 append-only 的数据库级保障
 
-- `id (uuid pk)`
-- `agent_id`
-- `scope_type (text)` // user/team/org（先 user）
-- `scope_id (uuid)`   // 先=owner_user_id
-- `type (text)` // fact/rule/preference/task
-- `content (text)`
-- `tags (text[])`
-- `sensitivity (text)` // public/private/secret
-- `context_eligible (bool)`
-- `embedding (vector)` // Supabase Vector
-- `created_at`
-- `updated_at`
-- 索引：`(agent_id, created_at)` + vector index（按 Supabase 建议）
+- 对 `transcript_events` 禁止 update/delete（仅 insert/select policy）。
+- 审计事件可追加，不允许修改历史 payload。
 
-#### usage_events（计费/限流）
+## 5.4 幂等与去重（新增）
 
-- `id`
-- `agent_id`
-- `event_type` // llm/tool/storage
-- `tokens_in`
-- `tokens_out`
-- `cost_estimate`
-- `meta (jsonb)`
-- `created_at`
+新增一项（MVP 可选其一）：
+- 方案 A：`chat_requests` 表记录 `idempotency_key` + 状态。
+- 方案 B：`transcript_events` 增加 `request_id` 并建立去重唯一索引。
 
-#### audit_events（MVP 先简化）
+---
 
-- `id`
-- `tenant_id(optional)`
-- `agent_id`
-- `event_type`
-- `payload (jsonb)`
-- `created_at`
+## 6. 安全与权限模型（必须补齐）
 
-### 3.2 RLS（Supabase 行级权限）
+## 6.1 身份可信链
 
-- agents：owner 才能读写
-- sessions/transcript/memory：通过 agent_id join agents.owner_user_id 验证
-- usage/audit：同上
+- 不信任 `x-user-id`。
+- 服务端必须基于 `x-access-token` 解析并校验用户身份。
+- `ctx.user` 仅来自服务端验证结果。
 
-### 3.3 Storage（可选，MVP 可先不用）
+## 6.2 授权
 
-- 后续把 transcript 冷数据归档到 Supabase Storage / R2
+- API 层先做“用户已登录”验证。
+- domain 层关键读写做 owner 校验（防越权调用）。
+- DB 层 RLS 做最后一道隔离（agent owner 才能访问相关数据）。
 
-## 4) Domain Usecases（核心业务用例清单）
+## 6.3 记忆敏感性策略
 
-> 这些用例全部放 `packages/domain`，不出现 Next/tRPC/Vercel 细节。
+- `secret`：默认不进入上下文。
+- `private`：仅在明确允许时进入上下文。
+- `public`：可参与 topK。
 
-### 4.1 Agent
+## 6.4 审计要求
 
-- `createAgent(ownerUserId, name)`
-- `getAgent(agentId, ownerUserId)`
-- `listAgents(ownerUserId)`
+- 记录关键事件：登录失败、权限拒绝、敏感写入、模型调用、job 失败。
+- 审计事件要求具备 `event_type`, `agent_id`, `payload`, `created_at`。
 
-### 4.2 Session
+---
 
-- `resolveSession(agentId, sessionKey)`
-  - 找到 current sessionId；必要时新建
-  - 更新 last_active_at
+## 7. Domain 设计（Ports + Usecases）
 
-### 4.3 Transcript（事件流）
+## 7.1 Ports
 
-- `appendEvent(agentId, sessionId, event)`
-- `loadRecentContext(agentId, sessionId, limit)`
-- `loadLatestCompaction(agentId, sessionId)`（可选：直接从 events 中取最新 compaction）
+- `AgentStore`
+- `SessionStore`
+- `TranscriptStore`
+- `MemoryStore`
+- `UsageStore`
+- `AuditStore`
+- `JobQueue`
+- `LlmPort`
+- `Clock`
 
-### 4.4 Memory（RAG）
+## 7.2 Usecases（MVP）
 
-- `writeMemoryItem(agentId, item)`（带 sensitivity/contextEligible）
-- `retrieveTopMemory(agentId, query, topK, filters)`（向量检索）
-- `maybeMemoryFlush(agentId, sessionId, contextStats)`（压缩前写记忆：MVP 可简化为“遇到阈值就抽取要点写 memory_items”）
+- Agent：`createAgent/getAgent/listAgents`
+- Session：`resolveSession`
+- Transcript：`appendEvent/loadRecentContext/loadLatestCompaction`
+- Memory：`writeMemoryItem/retrieveTopMemory/listMemoryItems`
+- Chat：`chatTurn/chatTurnStream`
+- Compaction：`compactIfNeeded`
 
-### 4.5 Chat Turn（最核心）
+## 7.3 错误模型（新增）
 
-- `chatTurn(agentId, sessionKey, userInput, options)`
-  - resolveSession
-  - append user_message event
-  - buildContextPack（见下一节）
-  - LLM stream/complete
-  - append assistant_message event
-  - record usage_event
-  - compactIfNeeded（同步/或投递 job）
+统一 domain error code：
+- `UNAUTHORIZED`
+- `FORBIDDEN`
+- `NOT_FOUND`
+- `VALIDATION_ERROR`
+- `RATE_LIMITED`
+- `BUDGET_EXCEEDED`
+- `UPSTREAM_ERROR`
 
-### 4.6 Compaction
+API 层负责映射到 HTTP/tRPC 错误。
 
-- `compactIfNeeded(agentId, sessionId, stats)`
-  - 如果 tokens 接近 window → 生成 summary（compaction event）
-  - 只保留最近 N 轮原文，旧对话靠 summary 替代（逻辑上通过 buildContextPack 控制加载）
+---
 
-## 5) Context Pack 规范（决定“不切窗口也准”）
+## 8. Context Pack 规范（升级版）
 
-每一轮送进模型的上下文必须严格由 Context Builder 生成：
+## 8.1 优先级
 
-### ContextPack（按优先级）
+1. `system`
+2. `constraints`
+3. `task_state`
+4. `memory_topK`（带 sensitivity/contextEligible 过滤）
+5. `recent_messages`
+6. `user_input`
 
-1. `system`：产品系统指令（固定）
-2. `constraints`：硬规则（用户明确要求/格式/禁忌）（MVP 可先作为 memory rule）
-3. `task_state`：结构化任务状态（MVP 可先不做复杂，只保留当前会话摘要字段）
-4. `memory_topK`：向量检索出来的记忆条目（过滤 sensitivity/context_eligible）
-5. `recent_messages`：最近 N 条 transcript 原文
-6. `user_input`：本轮问题
-
-### Token 预算规则（MVP 必须）
+## 8.2 Token 预算规则
 
 - `max_context_tokens = modelWindow - reserveOutput - reserveTools`
-- 超预算时：减少 recent_messages 数量、减少 memory_topK、必要时触发 compaction
+- 超预算裁剪顺序：
+  1. 减 recent messages
+  2. 减 memory_topK
+  3. 触发 compaction
+  4. 仍超预算则返回 `BUDGET_EXCEEDED` 或强制短答模式
 
-## 6) API 层（tRPC v11）规划
+## 8.3 估算策略（新增）
 
-`packages/api` 输出 router，`apps/web` 作为 host。
+- MVP 可用近似估算（字符/4），但必须支持可替换 tokenizer。
+- 生产建议引入模型对应 tokenizer 进行精确估算。
 
-### 必需 routes
+## 8.4 Prompt 与策略版本化（新增）
+
+- `prompt_version`、`context_policy_version` 写入 `usage_events.meta`。
+- 便于回归分析和 A/B 对照。
+
+---
+
+## 9. API 层（tRPC + Streaming）
+
+## 9.1 必需 routes
 
 - `agent.create`
 - `agent.list`
 - `agent.get`
-- `chat.turn`（支持 streaming）
-- `memory.list`（控制面板显示）
-- `memory.create`（手动保存记忆）
-- `transcript.list`（按 session 拉取）
-- `usage.summary`（本月/今日 token）
+- `chat.turn`（同步）
+- `memory.list`
+- `memory.create`
+- `transcript.list`
+- `usage.summary`
 
-### tRPC Context
+## 9.2 Streaming 方案
 
-- `user`（来自 Supabase Auth）
-- `container`（DI 注入的 services）
+- 继续保留 `POST /api/chat/stream`（SSE）作为流式主入口。
+- 若后续 tRPC 官方流式方案成熟，再统一收敛。
 
-## 7) Web App（Next.js 16）交付范围
+## 9.3 输入校验要求
 
-### 页面（MVP）
+- 所有 `agentId/sessionId/scopeId` 必须校验格式与归属。
+- `memory.create.scopeId` 在 MVP 中默认强制等于 `ctx.user.id`（scope=user）。
 
-1. 登录/注册（Supabase Auth UI 或自做）
-2. Agent 列表页（创建/选择）
-3. Chat 页（streaming UI + 侧边栏：记忆/用量）
-4. Memory 管理页（查看/新增/标记 contextEligible/sensitivity）
-5. Transcript 查看页（debug 用）
+---
 
-### UI 包
+## 10. Worker 与任务系统
 
-- `packages/ui`：shadcn + Tailwind 4
-- `packages/hooks`：封装 tRPC 调用
+## 10.1 Job 类型
 
-## 8) Worker（Bun）后台任务（MVP 版本）
+- `COMPACTION`
+- `MEMORY_FLUSH`
+- `EMBEDDING_BACKFILL`
 
-> 先做最小，但把接口打通，为后续扩展铺路。
+## 10.2 原子 claim（必须）
 
-### Job 类型
+当前“先 select 再 update”会导致并发重复消费，必须改为原子方案：
+- 方案 A：SQL function + `for update skip locked`。
+- 方案 B：`update ... where id in (subquery) returning *`。
 
-- `COMPACTION`：异步 compaction（可选，MVP 可先同步在 chatTurn 里）
-- `MEMORY_FLUSH`：抽取长期记忆（MVP 可先简化）
-- `EMBEDDING_BACKFILL`：记忆入库后补 embedding（若 embedding 异步）
+## 10.3 重试策略（新增）
 
-### 实现方式（两种选一，MVP 推荐表轮询）
+- `attempts` 超阈值后进入 `dead` 状态。
+- 指数退避：`run_at = now + backoff`。
+- 失败必须写 `audit_events`。
 
-- 方案A：Supabase `jobs` 表 + worker 轮询（最简单）
-- 方案B：Vercel Cron 触发 Next route 推 job（可用但不优雅）
+---
 
-## 9) 多端壳策略（先建骨架）
+## 11. 成本与限流（MVP 必须闭环）
 
-### 共识
+## 11.1 指标
 
-- Web 是“逻辑供应站”
-- Desktop/Extension/Mobile 先只做：
-  - 登录
-  - 选择 agent
-  - 打开 chat（用同一套 `packages/ui + packages/sdk/hooks`）
+- token in/out（按 agent/day/month）
+- 成本估算（按模型单价映射）
+- 请求数、错误率、超预算次数
 
-### 平台能力注入（先 stub）
+## 11.2 限制策略
 
-`packages/platform/capabilities` 定义接口：
+- 用户级 QPS/QPM 限流。
+- 单轮最大输入 tokens。
+- 单日/单月 token hard cap。
+- 超限返回明确错误码，并记录审计。
 
-- `clipboard`
-- `filesystem`
-- `tray`
-- `notifications`
+## 11.3 降级策略
 
-各平台实现先返回 `notSupported`，后续再补齐。
+- 优先缩短输出上限。
+- 减 memory_topK。
+- 仅保留近期消息。
+- 必要时禁用高级特性（如工具调用）。
 
-## 10) 里程碑与验收标准（完成定义）
+---
 
-### Milestone A（能跑内核）
+## 12. 可观测性与运维
 
-- [ ] createAgent / resolveSession / appendEvent
-- [ ] memory_items 写入 + embedding + topK 检索
-- [ ] chatTurn：能流式回复
-- [ ] transcript_events 持久化可回放
-- [ ] buildContextPack 严格按预算裁剪
-- 验收：同一 agent 连续聊 200+ 轮，不需要新会话仍能记住关键点（通过 memory_topK 注入）
+## 12.1 结构化日志
 
-### Milestone B（可用产品）
+统一字段：
+- `request_id`
+- `user_id`
+- `agent_id`
+- `session_id`
+- `route`
+- `latency_ms`
+- `tokens_in/out`
+- `model`
+- `error_code`
 
-- [ ] Web 登录
-- [ ] Agent 管理
-- [ ] Chat UI streaming
-- [ ] Memory 面板（可查看/手动保存/设置 contextEligible）
-- [ ] Usage 面板（token 统计）
-- 验收：用户可注册→创建 agent→持续对话→看到记忆与用量
+## 12.2 指标与告警
 
-### Milestone C（成本安全）
+- `chat_turn_latency_p95`
+- `chat_turn_error_rate`
+- `job_failure_rate`
+- `token_spend_daily`
+- `compaction_trigger_rate`
 
-- [ ] 超预算降级策略（先限制输出长度）
-- [ ] 超 context 自动 compaction
-- [ ] tool call quota 框架（即使 MVP 工具少也要有）
-- 验收：恶意长输入/超长对话不会导致请求失败或成本失控
+## 12.3 SLO（MVP 目标）
 
-## 11) 推荐工作方式（开发指令）
+- Chat 可用性：99.5%
+- p95 首 token 延迟：< 2.5s（按环境可调）
+- Worker job 处理成功率：> 99%
 
-- 创建一个 Bun monorepo，按 Plan 的目录结构生成项目骨架。
-- 实现 packages/domain 的 usecases（Agent/Session/Transcript/Memory/Compaction/ChatTurn）。
-- domain 必须只依赖 typescript 标准库，不允许引用 next、trpc、vercel ai sdk。
-- adapters/supabase 实现 domain ports：db、vector search、storage、auth lookup（从 tRPC context 获取 user）。
-- adapters/llm-vercel 实现 LLM ports：stream、complete、embed（使用 Vercel AI SDK）。
-- packages/api 提供 tRPC routers，并在 apps/web host。
-- apps/web 提供最小 UI：登录、agent 列表、chat、memory、usage。
-- transcript_events 必须 append-only。
-- context builder 必须实现 token budget、TopK memory 注入、recent messages 裁剪与 compaction 触发。
-- 所有关键路径写单元测试（domain）与最小集成测试（api）。
+---
 
-## 12) 开发顺序（强烈建议照这个写，最快不返工）
+## 13. 测试策略（必须覆盖关键路径）
 
-1. Monorepo skeleton + TS 配置
-2. Domain ports & entity models
-3. Supabase schema + RLS
-4. transcript_events append & query
-5. memory_items 写入 + embedding + topK 检索
-6. Context Builder + token budget
-7. ChatTurn（streaming）+ usage_events
-8. Compaction event 写入 + 读取 compaction
-9. tRPC routers 接起来
-10. Web UI（最小可用）
-11. Worker（jobs 表轮询）（可选）
+## 13.1 Domain 单测
+
+- Agent/Session/Transcript/Memory/Chat/Compaction 全覆盖。
+- 覆盖越权、预算超限、空输入、长输入、流式中断。
+
+## 13.2 Adapter 集成测试
+
+- Supabase adapter：CRUD、RLS、RPC vector 检索。
+- LLM adapter：stream/complete/embed 错误映射。
+
+## 13.3 API 集成测试
+
+- 鉴权成功/失败。
+- agent 归属校验。
+- memory sensitivity 过滤。
+- stream route 正常结束与异常中断。
+
+## 13.4 回归与压测（新增）
+
+- 200 轮长会话回归。
+- 并发 20/50 请求下稳定性。
+- worker 多实例并发消费一致性。
+
+现状（2026-02-26）：
+- `packages/api` 已补充路由级测试：`agent.list` 未登录拦截、`usage.summary` day/month 窗口映射、`chat.turn` 幂等冲突映射。
+- API/stream 鉴权已改为服务端 access token 解析（不再信任 `x-user-id`）。
+- `chat.turn` 与 `/api/chat/stream` 已补充 agent 归属校验，越权访问返回 `FORBIDDEN/403`（已补测试）。
+- `chat.turn` 与 `/api/chat/stream` 已接入可配置 token hard cap（`CHAT_DAILY_TOKEN_HARD_CAP` / `CHAT_MONTHLY_TOKEN_HARD_CAP`），超限前置拒绝。
+- `chat.turn` 与 `/api/chat/stream` 已接入可配置 QPS/QPM 限流（`CHAT_QPS_LIMIT` / `CHAT_QPM_LIMIT`），优先使用 DB 原子计数（RPC）并保留进程内兜底。
+- `apps/web` 已补充 `/api/chat/stream` 测试：鉴权失败、幂等冲突、启动失败、SSE 正常输出与 `X-Request-Id` 回传。
+- chat 上下文 memory 注入已默认 `sensitivity=public`，并新增 `scopeType/scopeId` 过滤以限制到当前用户作用域。
+- `chat.turn` 与 `/api/chat/stream` 在 `rate_limit` / `hard_cap` 拒绝路径已补充 `audit_events` 写入（best-effort）。
+- `packages/domain` 已加入 200 轮长会话与并发 20 路 chat 回归测试。
+- worker retry/backoff 已调整为指数退避 + 上限封顶（`JOB_RETRY_BASE_MS` / `JOB_RETRY_MAX_MS` / `JOB_MAX_ATTEMPTS`），并补充 worker 单测。
+- 50 并发与 worker 多实例一致性仍建议在 staging 环境做压测脚本验证。
+- 已提供 staging 压测脚本入口：
+  - `bun run loadtest:chat`（SSE chat 并发/延迟/错误率汇总）
+  - `bun run loadtest:claim`（queue claim 一致性检查，含安全确认门）
+
+---
+
+## 14. 发布与迁移
+
+## 14.1 环境分层
+
+- `dev`
+- `staging`
+- `prod`
+
+## 14.2 数据迁移
+
+- SQL 脚本必须可重复执行（idempotent migration）。
+- 每次变更写迁移说明与回滚策略。
+
+## 14.3 配置管理
+
+必需环境变量：
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`（worker）
+- `OPENAI_MODEL`
+- `OPENAI_EMBED_MODEL`
+- `MODEL_CONTEXT_WINDOW`
+- `RESERVE_OUTPUT_TOKENS`
+- `RESERVE_TOOL_TOKENS`
+- `MEMORY_TOPK`
+- `RECENT_MESSAGES`
+
+---
+
+## 15. 多端壳策略
+
+- Web 是主逻辑承载端。
+- Desktop/Extension/Mobile 在 MVP 只做：登录、Agent 选择、打开 Chat。
+- `platform/capabilities` 先 stub 返回 `notSupported`，并统一错误语义。
+
+---
+
+## 16. 里程碑与 DoD（Definition of Done）
+
+## Milestone A：内核稳定可跑
+
+入口条件：monorepo 可安装并可运行基础测试。
+
+完成项：
+- Agent/Session/Transcript/Memory/Chat/Compaction domain 完成。
+- memory vector topK 可用。
+- Context Builder 预算裁剪可用。
+- transcript append-only 可验证。
+
+出口证据：
+- `packages/domain` 测试全绿。
+- 200 轮长会话回归通过。
+
+## Milestone B：Web 可用产品
+
+入口条件：A 完成。
+
+完成项：
+- 登录、Agent 管理、Chat streaming、Memory 面板、Usage 面板。
+- tRPC + SSE API 闭环。
+- 基础审计与错误提示。
+
+现状（2026-02-26）：
+- Usage 面板已落地（`/usage`），支持 `agent` + `period(day|month)` 查询参数、token/cost 汇总与占比展示。
+- 首页与 Agent 列表已增加 Usage 入口（含按 agent 预填跳转）。
+- `memory.create` 已强制 `scopeType=user` 且 `scopeId===ctx.user.id`，前端 memory 页写入参数已对齐。
+
+出口证据：
+- 新用户注册到连续对话全链路演示通过。
+- API 集成测试通过。
+
+## Milestone C：成本与安全闭环
+
+入口条件：B 完成。
+
+完成项：
+- 限流、hard cap、超预算降级。
+- sensitivity 过滤与越权回归测试。
+- worker 原子 claim + retry/backoff + dead-letter。
+
+出口证据：
+- 压测 + 恶意输入回归通过。
+- 成本与错误指标可观测。
+
+---
+
+## 17. 当前仓库差距清单（落地前先修）
+
+P0（必须先修）：
+- 根 `package.json` 缺少 `packageManager`，Turbo 无法运行（已完成 2026-02-26）。
+- `apps/web/package.json` JSON 语法错误（多余 `}`）（已完成 2026-02-26）。
+- 多个 `apps/*/tsconfig.json` 的 `extends` 指向错误（已完成 2026-02-26）。
+- API/stream 鉴权目前信任 `x-user-id`，需改为服务端 token 验证（已完成 2026-02-26）。
+- memory 注入未显式按 `sensitivity` 过滤（已完成 2026-02-26）。
+- worker job claim 非原子，存在重复消费风险（已完成 2026-02-26）。
+
+P1（尽快补齐）：
+- tokenizer 精确预算（已完成 2026-02-26：domain 支持可替换 tokenizer，web 已接入 `js-tiktoken`）。
+- 幂等键支持（已完成 2026-02-26：`chatTurn/chatTurnStream` + `transcript_events.request_id` 去重索引）。
+- usage cost_estimate 真实单价映射（已完成 2026-02-26：支持 `MODEL_PRICING_JSON`/`OPENAI_*_PRICE_PER_1M`）。
+- 结构化日志与关键告警（部分完成 2026-02-26：web stream + tRPC chat.turn + worker 结构化日志，支持 webhook 告警钩子；仍缺指标系统级告警平台接入）。
+- 用户级限流（QPS/QPM）已完成 DB 原子计数基线；后续可按流量规模迁移到专用 Redis 限流。
+- 需确保部署迁移包含以下 SQL 变更：
+  - `chat_rate_limit_counters` + `consume_chat_rate_limit`
+  - `claim_next_jobs`
+  - `match_memory_items` 的 `filter_scope_type/filter_scope_id` 参数升级
+
+---
+
+## 18. 实施顺序（避免返工）
+
+1. 修复工程基线（Turbo + package.json + tsconfig）。
+2. 修复鉴权可信链（服务端解析 token，移除对 `x-user-id` 的信任）。
+3. 修复 memory sensitivity 过滤策略。
+4. 修复 worker 原子 claim + retry/backoff。
+5. 完成 API 集成测试（鉴权/越权/stream/预算）。
+6. 完成 Web 页面闭环与可观测埋点。
+7. 进行 200 轮与并发压测。
+8. 上 staging 验证后再进 prod。
+
+---
+
+## 19. 一句话结论
+
+你的想法本身方向正确，且架构骨架已经对；本 V2 计划的核心价值是把“可做”升级为“可持续交付并可控地做”。

@@ -34,6 +34,7 @@ create table if not exists public.transcript_events (
   id uuid primary key default gen_random_uuid(),
   agent_id uuid not null references public.agents(id) on delete cascade,
   session_id uuid not null references public.sessions(id) on delete cascade,
+  request_id text,
   type text not null,
   content jsonb not null,
   tokens_in integer,
@@ -41,8 +42,19 @@ create table if not exists public.transcript_events (
   created_at timestamptz not null default now()
 );
 
+alter table public.transcript_events
+  add column if not exists request_id text;
+
 create index if not exists transcript_events_agent_session_created_idx
   on public.transcript_events (agent_id, session_id, created_at);
+
+create index if not exists transcript_events_request_idx
+  on public.transcript_events (agent_id, session_id, request_id);
+
+create unique index if not exists transcript_events_request_dedupe_idx
+  on public.transcript_events (agent_id, session_id, request_id, type)
+  where request_id is not null
+    and type in ('user_message', 'assistant_message');
 
 -- Memory items
 create table if not exists public.memory_items (
@@ -110,13 +122,128 @@ create table if not exists public.jobs (
 create index if not exists jobs_status_run_at_idx
   on public.jobs (status, run_at);
 
+-- Chat rate limit counters (for cross-instance consistency)
+create table if not exists public.chat_rate_limit_counters (
+  rate_key text not null,
+  window_seconds integer not null,
+  window_start timestamptz not null,
+  hits integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (rate_key, window_seconds, window_start)
+);
+
+create index if not exists chat_rate_limit_counters_updated_idx
+  on public.chat_rate_limit_counters (updated_at);
+
+create or replace function public.consume_chat_rate_limit(
+  p_key text,
+  p_window_seconds integer,
+  p_limit integer,
+  p_now timestamptz default now()
+)
+returns table (
+  allowed boolean,
+  retry_after_ms integer,
+  current_hits integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_window_start timestamptz;
+  v_hits integer;
+  v_retry_ms integer;
+begin
+  if p_window_seconds <= 0 or p_limit <= 0 then
+    return query select false, 0, 0;
+    return;
+  end if;
+
+  v_window_start := to_timestamp(
+    floor(extract(epoch from p_now) / p_window_seconds) * p_window_seconds
+  );
+
+  insert into public.chat_rate_limit_counters (
+    rate_key,
+    window_seconds,
+    window_start,
+    hits,
+    updated_at
+  )
+  values (
+    p_key,
+    p_window_seconds,
+    v_window_start,
+    1,
+    p_now
+  )
+  on conflict (rate_key, window_seconds, window_start)
+  do update set
+    hits = public.chat_rate_limit_counters.hits + 1,
+    updated_at = excluded.updated_at
+  where public.chat_rate_limit_counters.hits < p_limit
+  returning public.chat_rate_limit_counters.hits into v_hits;
+
+  if found then
+    return query select true, 0, v_hits;
+    return;
+  end if;
+
+  select c.hits
+  into v_hits
+  from public.chat_rate_limit_counters c
+  where c.rate_key = p_key
+    and c.window_seconds = p_window_seconds
+    and c.window_start = v_window_start;
+
+  v_retry_ms := greatest(
+    1,
+    ((extract(epoch from (v_window_start + make_interval(secs => p_window_seconds) - p_now))) * 1000)::integer
+  );
+
+  return query select false, v_retry_ms, coalesce(v_hits, p_limit);
+end;
+$$;
+
+create or replace function public.claim_next_jobs(
+  batch_size integer,
+  now_at timestamptz default now()
+)
+returns setof public.jobs
+language plpgsql
+security definer
+as $$
+begin
+  return query
+  with claimed as (
+    select j.id
+    from public.jobs j
+    where j.status = 'queued'
+      and j.run_at <= now_at
+    order by j.created_at
+    for update skip locked
+    limit batch_size
+  )
+  update public.jobs j
+  set
+    status = 'processing',
+    updated_at = now()
+  from claimed
+  where j.id = claimed.id
+  returning j.*;
+end;
+$$;
+
 -- Vector search helper for memory_items
 create or replace function public.match_memory_items(
   query_embedding vector(1536),
   match_count integer,
   filter_agent_id uuid,
   filter_sensitivity text[] default null,
-  filter_context_eligible boolean default true
+  filter_context_eligible boolean default true,
+  filter_scope_type text default null,
+  filter_scope_id uuid default null
 )
 returns table (
   id uuid,
@@ -152,6 +279,8 @@ language sql stable as $$
   where m.agent_id = filter_agent_id
     and (filter_context_eligible is null or m.context_eligible = filter_context_eligible)
     and (filter_sensitivity is null or m.sensitivity = any(filter_sensitivity))
+    and (filter_scope_type is null or m.scope_type = filter_scope_type)
+    and (filter_scope_id is null or m.scope_id = filter_scope_id)
   order by m.embedding <=> query_embedding
   limit match_count;
 $$;

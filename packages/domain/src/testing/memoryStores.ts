@@ -19,6 +19,16 @@ import type {
 
 const toMillis = (value: string): number => Date.parse(value);
 
+const toBucketStart = (value: string, bucket: "hour" | "day"): string => {
+  const date = new Date(value);
+  if (bucket === "hour") {
+    date.setMinutes(0, 0, 0);
+  } else {
+    date.setHours(0, 0, 0, 0);
+  }
+  return date.toISOString();
+};
+
 const dot = (a: number[], b: number[]): number => {
   const len = Math.min(a.length, b.length);
   let sum = 0;
@@ -99,6 +109,14 @@ export function createInMemoryStores(): {
       return sessions.find((session) => session.id === sessionId) ?? null;
     },
 
+    async listRecentSessions({ agentId, limit }) {
+      if (limit <= 0) return [];
+      return sessions
+        .filter((session) => session.agentId === agentId)
+        .sort((a, b) => toMillis(b.lastActiveAt) - toMillis(a.lastActiveAt))
+        .slice(0, limit);
+    },
+
     async createSession({ agentId, sessionKey, now }) {
       const session: Session = {
         id: nextId("session"),
@@ -121,11 +139,21 @@ export function createInMemoryStores(): {
   };
 
   const transcriptStore: TranscriptStore = {
-    async appendEvent({ agentId, sessionId, type, content, tokensIn, tokensOut, createdAt }) {
+    async appendEvent({
+      agentId,
+      sessionId,
+      requestId,
+      type,
+      content,
+      tokensIn,
+      tokensOut,
+      createdAt,
+    }) {
       const event: TranscriptEvent = {
         id: nextId("transcript"),
         agentId,
         sessionId,
+        requestId: requestId ?? null,
         type,
         content,
         tokensIn,
@@ -154,6 +182,17 @@ export function createInMemoryStores(): {
         )
         .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
       return matches[0] ?? null;
+    },
+
+    async listEventsByRequestId({ agentId, sessionId, requestId }) {
+      return transcripts
+        .filter(
+          (event) =>
+            event.agentId === agentId &&
+            event.sessionId === sessionId &&
+            event.requestId === requestId
+        )
+        .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
     },
   };
 
@@ -184,13 +223,27 @@ export function createInMemoryStores(): {
         .slice(0, limit);
     },
 
-    async queryTopK({ agentId, embedding, topK, sensitivity, contextEligible }) {
+    async queryTopK({
+      agentId,
+      embedding,
+      topK,
+      sensitivity,
+      contextEligible,
+      scopeType,
+      scopeId,
+    }) {
       const filtered = memoryItems.filter((item) => {
         if (item.agentId !== agentId) return false;
         if (typeof contextEligible === "boolean" && item.contextEligible !== contextEligible) {
           return false;
         }
         if (sensitivity && !sensitivity.includes(item.sensitivity)) {
+          return false;
+        }
+        if (scopeType && item.scopeType !== scopeType) {
+          return false;
+        }
+        if (scopeId && item.scopeId !== scopeId) {
           return false;
         }
         return true;
@@ -243,6 +296,41 @@ export function createInMemoryStores(): {
           { tokensIn: 0, tokensOut: 0, costEstimate: 0 }
         );
       return summary;
+    },
+
+    async seriesUsage({ agentId, from, to, bucket }) {
+      const fromMillis = toMillis(from);
+      const toMillisValue = toMillis(to);
+      const buckets = new Map<
+        string,
+        { tokensIn: number; tokensOut: number; costEstimate: number }
+      >();
+
+      for (const event of usageEvents) {
+        const createdAt = toMillis(event.createdAt);
+        if (event.agentId !== agentId || createdAt < fromMillis || createdAt > toMillisValue) {
+          continue;
+        }
+        const bucketStart = toBucketStart(event.createdAt, bucket);
+        const current = buckets.get(bucketStart) ?? {
+          tokensIn: 0,
+          tokensOut: 0,
+          costEstimate: 0,
+        };
+        current.tokensIn += event.tokensIn ?? 0;
+        current.tokensOut += event.tokensOut ?? 0;
+        current.costEstimate += event.costEstimate ?? 0;
+        buckets.set(bucketStart, current);
+      }
+
+      return [...buckets.entries()]
+        .sort((a, b) => toMillis(a[0]) - toMillis(b[0]))
+        .map(([bucketStart, value]) => ({
+          bucketStart,
+          tokensIn: value.tokensIn,
+          tokensOut: value.tokensOut,
+          costEstimate: value.costEstimate,
+        }));
     },
   };
 

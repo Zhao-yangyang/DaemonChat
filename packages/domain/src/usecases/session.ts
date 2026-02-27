@@ -31,5 +31,16 @@ export function createSessionService(ports: { sessions: SessionStore; clock: Clo
 
       return { ...session, lastActiveAt: now };
     },
+
+    async listRecentSessions(agentId: string, limit = 20): Promise<Session[]> {
+      const normalizedLimit = Number.isFinite(limit) ? Math.floor(limit) : 20;
+      if (normalizedLimit <= 0) {
+        throw new ValidationError("Limit must be greater than 0");
+      }
+      return ports.sessions.listRecentSessions({
+        agentId,
+        limit: Math.min(normalizedLimit, 100),
+      });
+    },
   };
 }

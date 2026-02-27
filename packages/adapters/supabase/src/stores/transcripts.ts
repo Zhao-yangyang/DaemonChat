@@ -6,6 +6,7 @@ const mapEvent = (row: any): TranscriptEvent => ({
   id: row.id,
   agentId: row.agent_id,
   sessionId: row.session_id,
+  requestId: row.request_id ?? null,
   type: row.type,
   content: row.content,
   tokensIn: row.tokens_in,
@@ -15,12 +16,22 @@ const mapEvent = (row: any): TranscriptEvent => ({
 
 export function createTranscriptStore(client: SupabaseClient): TranscriptStore {
   return {
-    async appendEvent({ agentId, sessionId, type, content, tokensIn, tokensOut, createdAt }) {
+    async appendEvent({
+      agentId,
+      sessionId,
+      requestId,
+      type,
+      content,
+      tokensIn,
+      tokensOut,
+      createdAt,
+    }) {
       const { data, error } = await client
         .from("transcript_events")
         .insert({
           agent_id: agentId,
           session_id: sessionId,
+          request_id: requestId ?? null,
           type,
           content,
           tokens_in: tokensIn,
@@ -61,6 +72,19 @@ export function createTranscriptStore(client: SupabaseClient): TranscriptStore {
 
       if (error) throw error;
       return data ? mapEvent(data) : null;
+    },
+
+    async listEventsByRequestId({ agentId, sessionId, requestId }) {
+      const { data, error } = await client
+        .from("transcript_events")
+        .select("*")
+        .eq("agent_id", agentId)
+        .eq("session_id", sessionId)
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      return (data ?? []).map(mapEvent);
     },
   };
 }

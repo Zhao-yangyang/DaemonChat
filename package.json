@@ -2,6 +2,7 @@
   "name": "daemonchat",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "bun@1.3.5",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -13,9 +14,13 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "loadtest:chat": "bun --cwd apps/web run loadtest:chat",
+    "loadtest:claim": "bun --cwd apps/worker run loadtest:claim"
   },
   "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "bun-types": "^1.3.8",
     "turbo": "^2.0.0",
     "typescript": "^5.5.0"

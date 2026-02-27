@@ -55,6 +55,31 @@ describe("In-memory stores", () => {
     expect(touched?.lastActiveAt).toBe("2026-02-03T01:00:00Z");
   });
 
+  test("SessionStore lists recent sessions ordered by last activity", async () => {
+    const stores = createInMemoryStores();
+    const first = await stores.sessions.createSession({
+      agentId: "agent-1",
+      sessionKey: "a",
+      now: "2026-02-03T00:00:00Z",
+    });
+    const second = await stores.sessions.createSession({
+      agentId: "agent-1",
+      sessionKey: "b",
+      now: "2026-02-03T00:10:00Z",
+    });
+    await stores.sessions.touchSession({
+      sessionId: first.id,
+      lastActiveAt: "2026-02-03T01:00:00Z",
+    });
+
+    const recent = await stores.sessions.listRecentSessions({
+      agentId: "agent-1",
+      limit: 5,
+    });
+
+    expect(recent.map((session) => session.id)).toEqual([first.id, second.id]);
+  });
+
   test("TranscriptStore append/list/getLatestCompaction", async () => {
     const stores = createInMemoryStores();
 
@@ -192,6 +217,59 @@ describe("In-memory stores", () => {
     expect(summary.tokensIn).toBe(8);
     expect(summary.tokensOut).toBe(9);
     expect(summary.costEstimate).toBeCloseTo(0.03, 6);
+  });
+
+  test("UsageStore seriesUsage groups by bucket", async () => {
+    const stores = createInMemoryStores();
+
+    await stores.usage.insertUsageEvent({
+      agentId: "agent-1",
+      eventType: "llm",
+      tokensIn: 2,
+      tokensOut: 3,
+      costEstimate: 0.01,
+      meta: {},
+      createdAt: "2026-02-03T00:15:00Z",
+    });
+    await stores.usage.insertUsageEvent({
+      agentId: "agent-1",
+      eventType: "llm",
+      tokensIn: 5,
+      tokensOut: 7,
+      costEstimate: 0.02,
+      meta: {},
+      createdAt: "2026-02-03T00:40:00Z",
+    });
+    await stores.usage.insertUsageEvent({
+      agentId: "agent-1",
+      eventType: "llm",
+      tokensIn: 1,
+      tokensOut: 1,
+      costEstimate: 0.005,
+      meta: {},
+      createdAt: "2026-02-03T01:05:00Z",
+    });
+
+    const hourly = await stores.usage.seriesUsage({
+      agentId: "agent-1",
+      from: "2026-02-03T00:00:00Z",
+      to: "2026-02-03T02:00:00Z",
+      bucket: "hour",
+    });
+    expect(hourly).toHaveLength(2);
+    expect(hourly[0]?.tokensIn).toBe(7);
+    expect(hourly[0]?.tokensOut).toBe(10);
+    expect(hourly[1]?.tokensIn).toBe(1);
+
+    const daily = await stores.usage.seriesUsage({
+      agentId: "agent-1",
+      from: "2026-02-03T00:00:00Z",
+      to: "2026-02-03T23:59:59Z",
+      bucket: "day",
+    });
+    expect(daily).toHaveLength(1);
+    expect(daily[0]?.tokensIn).toBe(8);
+    expect(daily[0]?.tokensOut).toBe(11);
   });
 
   test("AuditStore insert + JobQueue enqueue", async () => {

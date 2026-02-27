@@ -29,6 +29,7 @@ export interface TranscriptEvent {
   id: UUID;
   agentId: UUID;
   sessionId: UUID;
+  requestId: string | null;
   type: TranscriptEventType;
   content: Record<string, unknown>;
   tokensIn: number | null;
@@ -69,6 +70,15 @@ export interface UsageEvent {
 }
 
 export interface UsageSummary {
+  tokensIn: number;
+  tokensOut: number;
+  costEstimate: number;
+}
+
+export type UsageBucket = "hour" | "day";
+
+export interface UsageSeriesPoint {
+  bucketStart: Timestamp;
   tokensIn: number;
   tokensOut: number;
   costEstimate: number;

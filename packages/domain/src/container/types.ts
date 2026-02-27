@@ -5,6 +5,7 @@ import type {
   Session,
   TranscriptEvent,
   UsageEvent,
+  UsageSeriesPoint,
   UsageSummary,
   UUID,
   Timestamp,
@@ -22,6 +23,7 @@ export interface AgentStore {
 
 export interface SessionStore {
   getCurrentSession(input: { agentId: UUID; sessionKey: string }): Promise<Session | null>;
+  listRecentSessions(input: { agentId: UUID; limit: number }): Promise<Session[]>;
   createSession(input: {
     agentId: UUID;
     sessionKey: string;
@@ -34,6 +36,7 @@ export interface TranscriptStore {
   appendEvent(input: {
     agentId: UUID;
     sessionId: UUID;
+    requestId?: string | null;
     type: TranscriptEvent["type"];
     content: TranscriptEvent["content"];
     tokensIn: number | null;
@@ -49,6 +52,11 @@ export interface TranscriptStore {
     agentId: UUID;
     sessionId: UUID;
   }): Promise<TranscriptEvent | null>;
+  listEventsByRequestId(input: {
+    agentId: UUID;
+    sessionId: UUID;
+    requestId: string;
+  }): Promise<TranscriptEvent[]>;
 }
 
 export interface MemoryStore {
@@ -64,6 +72,8 @@ export interface MemoryStore {
     topK: number;
     sensitivity?: MemoryItem["sensitivity"][];
     contextEligible?: boolean;
+    scopeType?: MemoryItem["scopeType"];
+    scopeId?: UUID;
   }): Promise<MemoryItem[]>;
 }
 
@@ -72,6 +82,12 @@ export interface UsageStore {
     input: Omit<UsageEvent, "id" | "createdAt"> & { createdAt: Timestamp }
   ): Promise<UsageEvent>;
   sumUsage(input: { agentId: UUID; from: Timestamp; to: Timestamp }): Promise<UsageSummary>;
+  seriesUsage(input: {
+    agentId: UUID;
+    from: Timestamp;
+    to: Timestamp;
+    bucket: "hour" | "day";
+  }): Promise<UsageSeriesPoint[]>;
 }
 
 export interface AuditStore {
@@ -84,14 +100,34 @@ export interface JobQueue {
   enqueue(input: { type: string; payload: Record<string, unknown> }): Promise<void>;
 }
 
+export interface RateLimitStore {
+  consumeLimit(input: {
+    key: string;
+    windowSeconds: number;
+    limit: number;
+    now?: Timestamp;
+  }): Promise<{ allowed: boolean; retryAfterMs: number }>;
+}
+
+export type LlmModelSelection = {
+  model: string;
+  route: "primary" | "fallback";
+};
+
 export interface LlmPort {
   streamChat(input: {
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    onModelResolved?: (selection: LlmModelSelection) => void;
   }): AsyncIterable<string>;
   completeChat(input: {
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    onModelResolved?: (selection: LlmModelSelection) => void;
   }): Promise<string>;
   embed(input: { text: string }): Promise<number[]>;
+}
+
+export interface TokenizerPort {
+  countTokens(input: { text: string; model?: string }): number;
 }
 
 export interface Ports {
@@ -103,7 +139,9 @@ export interface Ports {
   usage: UsageStore;
   audit: AuditStore;
   jobs: JobQueue;
+  rateLimit?: RateLimitStore;
   llm: LlmPort;
+  tokenizer?: TokenizerPort;
 }
 
 export interface Services {

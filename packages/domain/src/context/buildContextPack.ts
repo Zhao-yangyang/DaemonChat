@@ -6,7 +6,8 @@ import type {
   TranscriptEvent,
 } from "../types";
 
-const defaultApproxTokens = (text: string): number => Math.ceil(text.length / 4);
+const defaultCountTokens = (input: { text: string }): number =>
+  Math.ceil(input.text.length / 4);
 
 const contentFromEvent = (event: TranscriptEvent): string => {
   if (typeof event.content === "string") {
@@ -91,8 +92,12 @@ const buildMessages = (input: {
   return messages;
 };
 
-const estimateTokens = (messages: ContextMessage[], approxTokens: (text: string) => number): number =>
-  messages.reduce((sum, message) => sum + approxTokens(message.content), 0);
+const estimateTokens = (
+  messages: ContextMessage[],
+  model: string | undefined,
+  countTokens: (input: { text: string; model?: string }) => number
+): number =>
+  messages.reduce((sum, message) => sum + countTokens({ text: message.content, model }), 0);
 
 export function buildContextPack(input: {
   system: string;
@@ -101,10 +106,11 @@ export function buildContextPack(input: {
   memoryItems: MemoryItem[];
   recentMessages: TranscriptEvent[];
   userInput: string;
+  model?: string;
   budget: ContextBudget;
-  approxTokens?: (text: string) => number;
+  countTokens?: (input: { text: string; model?: string }) => number;
 }): ContextPack {
-  const approxTokens = input.approxTokens ?? defaultApproxTokens;
+  const countTokens = input.countTokens ?? defaultCountTokens;
   const maxContextTokens =
     input.budget.modelWindow -
     input.budget.reserveOutputTokens -
@@ -125,7 +131,7 @@ export function buildContextPack(input: {
     userInput: input.userInput,
   });
 
-  let tokenEstimate = estimateTokens(messages, approxTokens);
+  let tokenEstimate = estimateTokens(messages, input.model, countTokens);
 
   while (recentMessages.length > 0 && tokenEstimate > maxContextTokens) {
     recentMessages = recentMessages.slice(1);
@@ -138,7 +144,7 @@ export function buildContextPack(input: {
       recentMessages,
       userInput: input.userInput,
     });
-    tokenEstimate = estimateTokens(messages, approxTokens);
+    tokenEstimate = estimateTokens(messages, input.model, countTokens);
   }
 
   while (memoryTopK.length > 0 && tokenEstimate > maxContextTokens) {
@@ -152,7 +158,7 @@ export function buildContextPack(input: {
       recentMessages,
       userInput: input.userInput,
     });
-    tokenEstimate = estimateTokens(messages, approxTokens);
+    tokenEstimate = estimateTokens(messages, input.model, countTokens);
   }
 
   const shouldCompact = tokenEstimate > maxContextTokens;

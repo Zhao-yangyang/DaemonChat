@@ -1,5 +1,5 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": ".",
     "jsx": "preserve",
@@ -9,5 +9,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["app", "src", "next-env.d.ts"]
+  "include": ["app", "src", "next-env.d.ts"],
+  "exclude": ["**/*.test.ts"]
 }

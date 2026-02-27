@@ -1,6 +1,7 @@
 export type ErrorCode =
   | "NOT_FOUND"
   | "FORBIDDEN"
+  | "CONFLICT"
   | "VALIDATION"
   | "RATE_LIMITED"
   | "INFRA"
@@ -29,6 +30,12 @@ export class ForbiddenError extends DomainError {
   }
 }
 
+export class ConflictError extends DomainError {
+  constructor(message: string) {
+    super("CONFLICT", message, 409);
+  }
+}
+
 export class ValidationError extends DomainError {
   constructor(message: string) {
     super("VALIDATION", message, 400);
@@ -50,5 +57,12 @@ export class InfraError extends DomainError {
 export class NotImplementedError extends DomainError {
   constructor(message: string) {
     super("NOT_IMPLEMENTED", message, 501);
+  }
+}
+
+export class IdempotencyConflictError extends ConflictError {
+  constructor(message = "Request with the same idempotency key is already in progress") {
+    super(message);
+    this.name = "IdempotencyConflictError";
   }
 }

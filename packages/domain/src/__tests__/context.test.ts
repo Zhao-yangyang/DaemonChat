@@ -14,6 +14,7 @@ const makeEvent = (content: string, createdAt: string, type: TranscriptEvent["ty
   id: `event-${createdAt}`,
   agentId: "agent-1",
   sessionId: "session-1",
+  requestId: null,
   type,
   content: { text: content },
   tokensIn: null,
@@ -90,5 +91,27 @@ describe("buildContextPack", () => {
     });
 
     expect(pack.shouldCompact).toBe(true);
+  });
+
+  test("uses model-aware countTokens callback when provided", () => {
+    const seen: Array<{ text: string; model: string | undefined }> = [];
+
+    buildContextPack({
+      system: "system",
+      constraints: [],
+      taskState: null,
+      memoryItems: [],
+      recentMessages: [],
+      userInput: "hello",
+      model: "gpt-4o-mini",
+      countTokens: ({ text, model }) => {
+        seen.push({ text, model });
+        return 1;
+      },
+      budget: budgetBase,
+    });
+
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((entry) => entry.model === "gpt-4o-mini")).toBe(true);
   });
 });

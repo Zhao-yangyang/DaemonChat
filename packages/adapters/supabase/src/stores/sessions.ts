@@ -27,6 +27,18 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
       return data ? mapSession(data) : null;
     },
 
+    async listRecentSessions({ agentId, limit }) {
+      const { data, error } = await client
+        .from("sessions")
+        .select("*")
+        .eq("agent_id", agentId)
+        .order("last_active_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return (data ?? []).map(mapSession);
+    },
+
     async createSession({ agentId, sessionKey, now }) {
       const { data, error } = await client
         .from("sessions")

@@ -4,9 +4,26 @@ export interface ApiUser {
   id: string;
 }
 
+export interface ApiLogger {
+  info(event: string, fields?: Record<string, unknown>): void;
+  warn(event: string, fields?: Record<string, unknown>): void;
+  error(event: string, fields?: Record<string, unknown>): void;
+}
+
+export interface ApiRequestMeta {
+  requestId: string;
+  route: string;
+  startedAt: number;
+  method?: string;
+  path?: string;
+  userAgent?: string | null;
+}
+
 export interface ApiContext {
   user: ApiUser | null;
   container: Services;
+  logger?: ApiLogger;
+  requestMeta?: ApiRequestMeta;
 }
 
 export function createContext(input: ApiContext): ApiContext {

@@ -3,3 +3,5 @@
 AI 长期助手 SaaS 平台（Monorepo + DI）。
 
 本仓库为 Bun + Turborepo 结构，具体设计见 `docs/plans/`。
+
+快速本地体验入口见：`docs/runbooks/local-experience.md`。

@@ -46,7 +46,12 @@ export function createMemoryService(ports: {
       agentId: string,
       query: string,
       topK: number,
-      filters?: { sensitivity?: MemoryItem["sensitivity"][]; contextEligible?: boolean }
+      filters?: {
+        sensitivity?: MemoryItem["sensitivity"][];
+        contextEligible?: boolean;
+        scopeType?: MemoryItem["scopeType"];
+        scopeId?: string;
+      }
     ): Promise<MemoryItem[]> {
       const embedding = await ports.llm.embed({ text: query });
       return ports.memory.queryTopK({
@@ -55,6 +60,8 @@ export function createMemoryService(ports: {
         topK,
         sensitivity: filters?.sensitivity,
         contextEligible: filters?.contextEligible ?? true,
+        scopeType: filters?.scopeType,
+        scopeId: filters?.scopeId,
       });
     },
 

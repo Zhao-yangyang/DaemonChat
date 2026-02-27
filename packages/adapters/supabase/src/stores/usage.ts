@@ -12,6 +12,16 @@ const mapUsage = (row: any): UsageEvent => ({
   createdAt: row.created_at,
 });
 
+const toBucketStart = (value: string, bucket: "hour" | "day"): string => {
+  const date = new Date(value);
+  if (bucket === "hour") {
+    date.setMinutes(0, 0, 0);
+  } else {
+    date.setHours(0, 0, 0, 0);
+  }
+  return date.toISOString();
+};
+
 export function createUsageStore(client: SupabaseClient): UsageStore {
   return {
     async insertUsageEvent(input) {
@@ -51,6 +61,47 @@ export function createUsageStore(client: SupabaseClient): UsageStore {
         },
         { tokensIn: 0, tokensOut: 0, costEstimate: 0 }
       );
+    },
+
+    async seriesUsage({ agentId, from, to, bucket }) {
+      const { data, error } = await client
+        .from("usage_events")
+        .select("tokens_in,tokens_out,cost_estimate,created_at")
+        .eq("agent_id", agentId)
+        .gte("created_at", from)
+        .lte("created_at", to)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const buckets = new Map<
+        string,
+        {
+          tokensIn: number;
+          tokensOut: number;
+          costEstimate: number;
+        }
+      >();
+
+      for (const row of data ?? []) {
+        const bucketStart = toBucketStart(row.created_at, bucket);
+        const current = buckets.get(bucketStart) ?? {
+          tokensIn: 0,
+          tokensOut: 0,
+          costEstimate: 0,
+        };
+        current.tokensIn += row.tokens_in ?? 0;
+        current.tokensOut += row.tokens_out ?? 0;
+        current.costEstimate += Number(row.cost_estimate ?? 0);
+        buckets.set(bucketStart, current);
+      }
+
+      return [...buckets.entries()].map(([bucketStart, point]) => ({
+        bucketStart,
+        tokensIn: point.tokensIn,
+        tokensOut: point.tokensOut,
+        costEstimate: point.costEstimate,
+      }));
     },
   };
 }

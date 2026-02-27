@@ -25,6 +25,7 @@ export function createServices(ports: Ports): Services {
       usage: ports.usage,
       llm: ports.llm,
       clock: ports.clock,
+      tokenizer: ports.tokenizer,
     }),
   };
 }
