@@ -1,10 +1,10 @@
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
-import type { Agent } from "../types";
+import { DEFAULT_AGENT_CONFIG, type Agent, type AgentConfig } from "../types";
 import type { AgentStore, Clock } from "../container/types";
 
 export function createAgentService(ports: { agents: AgentStore; clock: Clock }) {
   return {
-    async createAgent(ownerUserId: string, name: string): Promise<Agent> {
+    async createAgent(ownerUserId: string, name: string, config?: Partial<AgentConfig>): Promise<Agent> {
       const trimmed = name.trim();
       if (!trimmed) {
         throw new ValidationError("Agent name is required");
@@ -13,6 +13,7 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
       return ports.agents.createAgent({
         ownerUserId,
         name: trimmed,
+        config: { ...DEFAULT_AGENT_CONFIG, ...config },
         now: ports.clock.now(),
       });
     },
@@ -30,6 +31,21 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
 
     async listAgents(ownerUserId: string): Promise<Agent[]> {
       return ports.agents.listAgentsByOwner(ownerUserId);
+    },
+
+    async updateAgent(agentId: string, ownerUserId: string, updates: { name?: string; config?: Partial<AgentConfig> }): Promise<Agent> {
+      await this.getAgent(agentId, ownerUserId);
+      if (updates.name !== undefined) {
+        const trimmed = updates.name.trim();
+        if (!trimmed) throw new ValidationError("Agent name is required");
+        updates = { ...updates, name: trimmed };
+      }
+      return ports.agents.updateAgent({
+        agentId,
+        name: updates.name,
+        config: updates.config,
+        now: ports.clock.now(),
+      });
     },
   };
 }

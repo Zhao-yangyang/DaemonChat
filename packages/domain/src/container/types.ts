@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentConfig,
   AuditEvent,
   MemoryItem,
   Session,
@@ -16,9 +17,10 @@ export interface Clock {
 }
 
 export interface AgentStore {
-  createAgent(input: { ownerUserId: UUID; name: string; now: Timestamp }): Promise<Agent>;
+  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; now: Timestamp }): Promise<Agent>;
   getAgentById(agentId: UUID): Promise<Agent | null>;
   listAgentsByOwner(ownerUserId: UUID): Promise<Agent[]>;
+  updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; now: Timestamp }): Promise<Agent>;
 }
 
 export interface SessionStore {
