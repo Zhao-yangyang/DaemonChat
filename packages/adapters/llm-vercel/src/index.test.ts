@@ -144,4 +144,39 @@ describe("adapter fallback routing", () => {
     expect(selected.model).toBe("primary-model");
     expect(selected.route).toBe("primary");
   });
+
+  test("streamChat falls back to final text when provider yields no chunks", async () => {
+    let resolved: { model: string; route: "primary" | "fallback" } | undefined;
+    const adapter = createVercelLlmAdapter(
+      {
+        model: "primary-model",
+        fallbackModel: "fallback-model",
+        embeddingModel: "embed-model",
+      },
+      {
+        streamTextImpl: async () => ({
+          textStream: (async function* () {})(),
+          text: Promise.resolve("final text"),
+        }),
+      }
+    );
+
+    let output = "";
+    for await (const chunk of adapter.streamChat({
+      messages: [{ role: "user", content: "hello" }],
+      onModelResolved: (selection) => {
+        resolved = selection;
+      },
+    })) {
+      output += chunk;
+    }
+
+    expect(output).toBe("final text");
+    if (!resolved) {
+      throw new Error("expected resolved model selection");
+    }
+    const selected = resolved;
+    expect(selected.model).toBe("primary-model");
+    expect(selected.route).toBe("primary");
+  });
 });

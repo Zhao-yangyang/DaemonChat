@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
-import { ForbiddenError, IdempotencyConflictError, type Services } from "@daemon/domain";
+import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, type Services } from "@daemon/domain";
 import type { ApiContext } from "../context";
 import { appRouter } from "../router";
 import { chatRateLimiter } from "../rateLimit";
@@ -55,6 +55,7 @@ const buildContainer = (overrides?: {
           id: "agent-1",
           ownerUserId,
           name,
+          config: { ...DEFAULT_AGENT_CONFIG },
           createdAt: "2026-02-03T00:00:00.000Z",
           updatedAt: "2026-02-03T00:00:00.000Z",
         })),
@@ -65,6 +66,7 @@ const buildContainer = (overrides?: {
           id: agentId,
           ownerUserId,
           name: "Agent",
+          config: { ...DEFAULT_AGENT_CONFIG },
           createdAt: "2026-02-03T00:00:00.000Z",
           updatedAt: "2026-02-03T00:00:00.000Z",
         })),

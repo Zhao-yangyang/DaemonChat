@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 import { resolveModelPricingFromEnv } from "./pricing";
 import {
   buildDegradedBudget,
@@ -335,6 +335,14 @@ export const appRouter = t.router({
       )
       .mutation(async ({ ctx, input }) => {
         const user = await ensureAgentAccess(ctx, input.agentId);
+        const agentRecord = await ctx.container.agent.getAgent(input.agentId, user.id);
+        const agentConfig = { ...DEFAULT_AGENT_CONFIG, ...(agentRecord.config ?? {}) };
+        const configuredBudget = {
+          ...DEFAULT_BUDGET,
+          ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
+          ...(agentConfig.recentMessages ? { recentMessages: agentConfig.recentMessages } : {}),
+        };
+        const systemPrompt = agentConfig.systemPrompt || input.system || "You are a helpful AI assistant.";
         const fallbackModel = process.env.OPENAI_FALLBACK_MODEL?.trim() || undefined;
         const routeStrategy = fallbackModel ? "primary_then_fallback" : "primary_only";
         const rateLimits = resolveChatRateLimits(process.env);
@@ -408,8 +416,8 @@ export const appRouter = t.router({
             message: "chat input exceeds max token limit",
           });
         }
-        const degradePolicy = resolveChatBudgetDegradePolicy(process.env, DEFAULT_BUDGET);
-        let effectiveBudget = { ...DEFAULT_BUDGET };
+        const degradePolicy = resolveChatBudgetDegradePolicy(process.env, configuredBudget);
+        let effectiveBudget = { ...configuredBudget };
         let budgetDegraded: null | {
           period: "day" | "month";
           capTokens: number;
@@ -445,7 +453,7 @@ export const appRouter = t.router({
               })
             ) {
               if (!budgetDegraded && degradePolicy.enabled) {
-                const degradedBudgetResult = buildDegradedBudget(DEFAULT_BUDGET, degradePolicy);
+                const degradedBudgetResult = buildDegradedBudget(configuredBudget, degradePolicy);
                 if (degradedBudgetResult.degraded) {
                   const projectedWithDegradedBudget = projectTotalTokens({
                     usage: summary,
@@ -472,11 +480,11 @@ export const appRouter = t.router({
                       incoming_tokens: incomingUserTokens,
                       projected_tokens_before: projectedTokens,
                       projected_tokens_after: projectedWithDegradedBudget,
-                      reserve_output_tokens_before: DEFAULT_BUDGET.reserveOutputTokens,
+                      reserve_output_tokens_before: configuredBudget.reserveOutputTokens,
                       reserve_output_tokens_after: effectiveBudget.reserveOutputTokens,
-                      memory_top_k_before: DEFAULT_BUDGET.memoryTopK,
+                      memory_top_k_before: configuredBudget.memoryTopK,
                       memory_top_k_after: effectiveBudget.memoryTopK,
-                      recent_messages_before: DEFAULT_BUDGET.recentMessages,
+                      recent_messages_before: configuredBudget.recentMessages,
                       recent_messages_after: effectiveBudget.recentMessages,
                       error_code: "BUDGET_DEGRADED",
                     });
@@ -492,11 +500,11 @@ export const appRouter = t.router({
                         incomingTokens: incomingUserTokens,
                         projectedTokensBefore: projectedTokens,
                         projectedTokensAfter: projectedWithDegradedBudget,
-                        reserveOutputTokensBefore: DEFAULT_BUDGET.reserveOutputTokens,
+                        reserveOutputTokensBefore: configuredBudget.reserveOutputTokens,
                         reserveOutputTokensAfter: effectiveBudget.reserveOutputTokens,
-                        memoryTopKBefore: DEFAULT_BUDGET.memoryTopK,
+                        memoryTopKBefore: configuredBudget.memoryTopK,
                         memoryTopKAfter: effectiveBudget.memoryTopK,
-                        recentMessagesBefore: DEFAULT_BUDGET.recentMessages,
+                        recentMessagesBefore: configuredBudget.recentMessages,
                         recentMessagesAfter: effectiveBudget.recentMessages,
                       },
                     });
@@ -549,7 +557,7 @@ export const appRouter = t.router({
             input.sessionKey,
             input.userInput,
             {
-              system: input.system || "You are a helpful AI assistant.",
+              system: systemPrompt,
               constraints: [],
               taskState: null,
               memoryTopK: effectiveBudget.memoryTopK,
@@ -568,11 +576,11 @@ export const appRouter = t.router({
                     model_route_fallback: fallbackModel ?? null,
                     budget_degraded: true,
                     budget_degrade_period: budgetDegraded.period,
-                    reserve_output_tokens_before: DEFAULT_BUDGET.reserveOutputTokens,
+                    reserve_output_tokens_before: configuredBudget.reserveOutputTokens,
                     reserve_output_tokens_after: effectiveBudget.reserveOutputTokens,
-                    memory_top_k_before: DEFAULT_BUDGET.memoryTopK,
+                    memory_top_k_before: configuredBudget.memoryTopK,
                     memory_top_k_after: effectiveBudget.memoryTopK,
-                    recent_messages_before: DEFAULT_BUDGET.recentMessages,
+                    recent_messages_before: configuredBudget.recentMessages,
                     recent_messages_after: effectiveBudget.recentMessages,
                     projected_tokens_before: budgetDegraded.projectedTokensBefore,
                     projected_tokens_after: budgetDegraded.projectedTokensAfter,

@@ -24,34 +24,37 @@ import { Send } from "lucide-react";
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
+const hasVisibleText = (value: string | null | undefined): boolean =>
+  typeof value === "string" && value.trim().length > 0;
+
+const extractTextFragments = (value: unknown, depth = 0): string[] => {
+  if (depth > 5) return [];
+  if (typeof value === "string") return [value];
+  if (typeof value === "number" || typeof value === "boolean") return [String(value)];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractTextFragments(item, depth + 1));
+  }
+  if (!value || typeof value !== "object") return [];
+
+  const record = value as Record<string, unknown>;
+  const preferredKeys = ["text", "content", "message", "value", "output_text"];
+  const preferredFragments = preferredKeys.flatMap((key) => extractTextFragments(record[key], depth + 1));
+  if (preferredFragments.length > 0) return preferredFragments;
+
+  if (Array.isArray(record.parts)) {
+    const partsFragments = extractTextFragments(record.parts, depth + 1);
+    if (partsFragments.length > 0) return partsFragments;
+  }
+
+  return [];
+};
 
 const toMessageText = (content: unknown): string => {
-  if (typeof content === "string") return content;
-  if (typeof content === "number" || typeof content === "boolean") return String(content);
-  if (content && typeof content === "object") {
-    const value = content as Record<string, unknown>;
-    const direct = ["content", "text", "message", "value"];
-    for (const key of direct) {
-      if (typeof value[key] === "string") {
-        return value[key] as string;
-      }
-    }
-
-    const parts = value.parts;
-    if (Array.isArray(parts)) {
-      const joined = parts
-        .map((part) => {
-          if (typeof part === "string") return part;
-          if (part && typeof part === "object") {
-            const maybeText = (part as Record<string, unknown>).text;
-            if (typeof maybeText === "string") return maybeText;
-          }
-          return "";
-        })
-        .filter(Boolean)
-        .join("\n");
-      if (joined) return joined;
-    }
+  const extracted = extractTextFragments(content)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (extracted.length > 0) {
+    return extracted.join("\n");
   }
 
   try {
@@ -86,10 +89,9 @@ export default function ChatPage() {
   const agentId = params.agentId;
 
   const [input, setInput] = useState("");
-  const [sessionKey, setSessionKey] = useState("main");
-  const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({
-    main: [],
-  });
+  const [sessionKey, setSessionKey] = useState("");
+  const [localSessionKeys, setLocalSessionKeys] = useState<string[]>([]);
+  const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({});
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -98,7 +100,7 @@ export default function ChatPage() {
     { enabled: Boolean(agentId), refetchOnWindowFocus: false }
   );
 
-  const currentSessionKey = sessionKey.trim() || "main";
+  const currentSessionKey = sessionKey.trim();
   const messages = messagesBySession[currentSessionKey] ?? [];
 
   const selectedSession = useMemo(
@@ -116,12 +118,33 @@ export default function ChatPage() {
   );
 
   const sessionKeys = useMemo(() => {
-    const keys = new Set<string>(["main", ...Object.keys(messagesBySession)]);
+    const keys: string[] = [];
+    const pushed = new Set<string>();
     for (const item of sessionList.data ?? []) {
-      keys.add(item.sessionKey);
+      if (pushed.has(item.sessionKey)) continue;
+      pushed.add(item.sessionKey);
+      keys.push(item.sessionKey);
     }
-    return Array.from(keys);
-  }, [messagesBySession, sessionList.data]);
+    for (const key of localSessionKeys) {
+      if (pushed.has(key)) continue;
+      pushed.add(key);
+      keys.push(key);
+    }
+    return keys;
+  }, [localSessionKeys, sessionList.data]);
+
+  useEffect(() => {
+    const remoteKeys = new Set((sessionList.data ?? []).map((item) => item.sessionKey));
+    if (remoteKeys.size === 0) return;
+    setLocalSessionKeys((prev) => prev.filter((key) => !remoteKeys.has(key)));
+  }, [sessionList.data]);
+
+  useEffect(() => {
+    if (sessionKeys.length === 0) return;
+    if (!currentSessionKey || !sessionKeys.includes(currentSessionKey)) {
+      setSessionKey(sessionKeys[0] ?? "");
+    }
+  }, [currentSessionKey, sessionKeys]);
 
   useEffect(() => {
     const viewport = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]");
@@ -178,6 +201,7 @@ export default function ChatPage() {
   const createSession = () => {
     const key = newSessionKey();
     setSessionKey(key);
+    setLocalSessionKeys((prev) => (prev.includes(key) ? prev : [key, ...prev]));
     setMessagesBySession((prev) => (prev[key] ? prev : { ...prev, [key]: [] }));
   };
 
@@ -186,7 +210,13 @@ export default function ChatPage() {
       return;
     }
 
-    const activeSessionKey = currentSessionKey;
+    const activeSessionKey = currentSessionKey || newSessionKey();
+    if (!currentSessionKey) {
+      setSessionKey(activeSessionKey);
+      setLocalSessionKeys((prev) =>
+        prev.includes(activeSessionKey) ? prev : [activeSessionKey, ...prev]
+      );
+    }
     const userMessage = input.trim();
 
     setInput("");
@@ -228,6 +258,7 @@ export default function ChatPage() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let receivedAssistantChunk = false;
 
       const handleBlock = (block: string) => {
         const line = block
@@ -245,6 +276,9 @@ export default function ChatPage() {
           };
 
           if (payload.type === "chunk") {
+            if (hasVisibleText(payload.value)) {
+              receivedAssistantChunk = true;
+            }
             appendAssistant(activeSessionKey, payload.value ?? "");
           } else if (payload.type === "error") {
             appendAssistant(activeSessionKey, `\n错误: ${payload.message ?? "未知错误"}`);
@@ -262,6 +296,17 @@ export default function ChatPage() {
         const blocks = buffer.split("\n\n");
         buffer = blocks.pop() ?? "";
         blocks.forEach(handleBlock);
+      }
+
+      if (!receivedAssistantChunk) {
+        updateMessagesForSession(activeSessionKey, (items) => {
+          const next = [...items];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant" && !hasVisibleText(last.content)) {
+            next[next.length - 1] = { ...last, content: "（模型返回空内容）" };
+          }
+          return next;
+        });
       }
 
       sessionList.refetch();
@@ -282,7 +327,7 @@ export default function ChatPage() {
       description="直接对话即可，系统会自动记录会话和用量。"
       actions={
         <div className="flex items-center gap-2">
-          <Select value={currentSessionKey} onValueChange={setSessionKey}>
+          <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
             <SelectTrigger className="h-8 w-[160px] text-xs">
               <SelectValue placeholder="选择会话" />
             </SelectTrigger>
@@ -302,9 +347,10 @@ export default function ChatPage() {
               size="xs"
               variant="outline"
               disabled={transcript.isFetching}
-              onClick={() => {
-                setMessagesBySession((prev) => ({ ...prev, [currentSessionKey]: [] }));
-                transcript.refetch();
+              onClick={async () => {
+                const refreshed = await transcript.refetch();
+                const restored = toChatMessagesFromEvents(refreshed.data ?? []);
+                setMessagesBySession((prev) => ({ ...prev, [currentSessionKey]: restored }));
               }}
             >
               {transcript.isFetching ? "同步中" : "同步"}
@@ -334,7 +380,11 @@ export default function ChatPage() {
             <div className="space-y-6">
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
-                const isPendingAssistant = msg.role === "assistant" && !msg.content && isStreaming;
+                const hasVisibleContent = hasVisibleText(msg.content);
+                const isPendingAssistant = msg.role === "assistant" && !hasVisibleContent && isStreaming;
+                if (!isUser && !hasVisibleContent && !isPendingAssistant) {
+                  return null;
+                }
 
                 return (
                   <div key={`${msg.role}-${idx}`} className={cn("flex gap-3", isUser && "flex-row-reverse")}>
@@ -359,7 +409,7 @@ export default function ChatPage() {
                       {isUser ? (
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       ) : (
-                        msg.content ? (
+                        hasVisibleContent ? (
                           <MarkdownMessage content={msg.content} />
                         ) : (
                           isPendingAssistant ? <p className="text-muted-foreground">思考中...</p> : null

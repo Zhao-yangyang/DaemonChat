@@ -86,7 +86,7 @@ bun install
 bun run dev --filter @daemon/web
 ```
 
-打开 `http://localhost:3000` 后按这个顺序体验：
+打开 `http://localhost:3333` 后按这个顺序体验：
 1. 首页注册/登录。
 2. 进入 `Agents` 页面创建一个 Agent。
 3. 点击“聊天”进入 `/chat/{agentId}` 发消息（走 SSE）。

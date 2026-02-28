@@ -47,6 +47,22 @@ const toPositiveInt = (value: number | undefined, fallback: number): number => {
   return normalized > 0 ? normalized : fallback;
 };
 
+const readStreamResultText = async (result: any): Promise<string> => {
+  if (!result) return "";
+  if (typeof result.text === "string") {
+    return result.text;
+  }
+  if (result.text && typeof result.text.then === "function") {
+    try {
+      const resolved = await result.text;
+      return typeof resolved === "string" ? resolved : "";
+    } catch {
+      return "";
+    }
+  }
+  return "";
+};
+
 export const createDeterministicLocalEmbedding = (
   text: string,
   dimensions = 1536
@@ -126,6 +142,13 @@ export function createVercelLlmAdapter(
           yield chunk;
         }
         if (!primaryChunked) {
+          const fullText = await readStreamResultText(primaryResult);
+          if (fullText) {
+            yielded = true;
+            reportResolved({ model: config.model, route: "primary" });
+            yield fullText;
+            return;
+          }
           reportResolved({ model: config.model, route: "primary" });
         }
         return;
@@ -148,6 +171,12 @@ export function createVercelLlmAdapter(
         yield chunk;
       }
       if (!fallbackChunked) {
+        const fullText = await readStreamResultText(fallbackResult);
+        if (fullText) {
+          reportResolved({ model: config.fallbackModel ?? "", route: "fallback" });
+          yield fullText;
+          return;
+        }
         reportResolved({ model: config.fallbackModel ?? "", route: "fallback" });
       }
     },

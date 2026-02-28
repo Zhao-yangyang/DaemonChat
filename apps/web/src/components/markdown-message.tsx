@@ -55,7 +55,9 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
             );
           },
         }}
-      />
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }

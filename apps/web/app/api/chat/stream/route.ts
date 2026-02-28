@@ -20,7 +20,7 @@ import {
   wouldExceedChatMaxInputTokens,
   wouldExceedTokenHardCap,
 } from "@daemon/api";
-import { ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 
 const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
@@ -211,8 +211,9 @@ export const createPostHandler = (
       }
     };
 
+    let agentRecord;
     try {
-      await container.agent.getAgent(body.agentId, user.id);
+      agentRecord = await container.agent.getAgent(body.agentId, user.id);
     } catch (error) {
       if (error instanceof NotFoundError) {
         logWarn("chat_stream.agent_not_found", {
@@ -327,10 +328,17 @@ export const createPostHandler = (
     }
     const fallbackModel = env.OPENAI_FALLBACK_MODEL?.trim() || undefined;
     const routeStrategy = fallbackModel ? "primary_then_fallback" : "primary_only";
+    const agentConfig = { ...DEFAULT_AGENT_CONFIG, ...(agentRecord.config ?? {}) };
+    const configuredBudget = {
+      ...defaultBudget,
+      ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
+      ...(agentConfig.recentMessages ? { recentMessages: agentConfig.recentMessages } : {}),
+    };
+    const systemPrompt = agentConfig.systemPrompt || body.system || "You are a helpful AI assistant.";
 
     const hardCaps = resolveTokenHardCaps(env);
-    const degradePolicy = resolveChatBudgetDegradePolicy(env, defaultBudget);
-    let effectiveBudget = { ...defaultBudget };
+    const degradePolicy = resolveChatBudgetDegradePolicy(env, configuredBudget);
+    let effectiveBudget = { ...configuredBudget };
     let budgetDegraded: null | {
       period: "day" | "month";
       capTokens: number;
@@ -366,7 +374,7 @@ export const createPostHandler = (
           })
         ) {
           if (!budgetDegraded && degradePolicy.enabled) {
-            const degradedBudgetResult = buildDegradedBudget(defaultBudget, degradePolicy);
+            const degradedBudgetResult = buildDegradedBudget(configuredBudget, degradePolicy);
             if (degradedBudgetResult.degraded) {
               const projectedWithDegradedBudget = projectTotalTokens({
                 usage: summary,
@@ -396,11 +404,11 @@ export const createPostHandler = (
                   incoming_tokens: userTokens,
                   projected_tokens_before: projectedTokens,
                   projected_tokens_after: projectedWithDegradedBudget,
-                  reserve_output_tokens_before: defaultBudget.reserveOutputTokens,
+                  reserve_output_tokens_before: configuredBudget.reserveOutputTokens,
                   reserve_output_tokens_after: effectiveBudget.reserveOutputTokens,
-                  memory_top_k_before: defaultBudget.memoryTopK,
+                  memory_top_k_before: configuredBudget.memoryTopK,
                   memory_top_k_after: effectiveBudget.memoryTopK,
-                  recent_messages_before: defaultBudget.recentMessages,
+                  recent_messages_before: configuredBudget.recentMessages,
                   recent_messages_after: effectiveBudget.recentMessages,
                   error_code: "BUDGET_DEGRADED",
                   latency_ms: Date.now() - startedAt,
@@ -416,11 +424,11 @@ export const createPostHandler = (
                     incomingTokens: userTokens,
                     projectedTokensBefore: projectedTokens,
                     projectedTokensAfter: projectedWithDegradedBudget,
-                    reserveOutputTokensBefore: defaultBudget.reserveOutputTokens,
+                    reserveOutputTokensBefore: configuredBudget.reserveOutputTokens,
                     reserveOutputTokensAfter: effectiveBudget.reserveOutputTokens,
-                    memoryTopKBefore: defaultBudget.memoryTopK,
+                    memoryTopKBefore: configuredBudget.memoryTopK,
                     memoryTopKAfter: effectiveBudget.memoryTopK,
-                    recentMessagesBefore: defaultBudget.recentMessages,
+                    recentMessagesBefore: configuredBudget.recentMessages,
                     recentMessagesAfter: effectiveBudget.recentMessages,
                   },
                 });
@@ -472,7 +480,7 @@ export const createPostHandler = (
         body.sessionKey,
         body.userInput,
         {
-          system: body.system || "You are a helpful AI assistant.",
+          system: systemPrompt,
           constraints: [],
           taskState: null,
           memoryTopK: effectiveBudget.memoryTopK,
@@ -491,11 +499,11 @@ export const createPostHandler = (
                 model_route_fallback: fallbackModel ?? null,
                 budget_degraded: true,
                 budget_degrade_period: budgetDegraded.period,
-                reserve_output_tokens_before: defaultBudget.reserveOutputTokens,
+                reserve_output_tokens_before: configuredBudget.reserveOutputTokens,
                 reserve_output_tokens_after: effectiveBudget.reserveOutputTokens,
-                memory_top_k_before: defaultBudget.memoryTopK,
+                memory_top_k_before: configuredBudget.memoryTopK,
                 memory_top_k_after: effectiveBudget.memoryTopK,
-                recent_messages_before: defaultBudget.recentMessages,
+                recent_messages_before: configuredBudget.recentMessages,
                 recent_messages_after: effectiveBudget.recentMessages,
                 projected_tokens_before: budgetDegraded.projectedTokensBefore,
                 projected_tokens_after: budgetDegraded.projectedTokensAfter,

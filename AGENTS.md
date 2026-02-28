@@ -112,9 +112,15 @@ Example scoped command:
   - `apps/web/app/chat/[agentId]` chat input now follows mainstream UX: `Enter` to send, `Shift+Enter` newline, and auto-scroll to latest streamed output.
   - `apps/web/app/chat/[agentId]` now hydrates message history from `transcript.list` for selected existing sessions and provides one-click "同步历史" to re-pull remote session messages into UI state.
   - `apps/web/app/chat/[agentId]` layout is now consolidated into one primary chat surface (session controls + message stream + composer), with reduced card nesting and stable bottom composer interaction.
+  - `apps/web/app/chat/[agentId]` session management now auto-selects the most recent remote session (no more hardcoded "main" key), auto-creates a session key on first send, and tracks locally created sessions until they sync to backend.
+  - `apps/web/app/chat/[agentId]` content extraction (`extractTextFragments`) is now recursive and depth-limited, supporting `output_text` key for broader model response format compatibility.
+  - `apps/web/app/chat/[agentId]` detects empty assistant streams and shows "（模型返回空内容）" fallback when no visible chunks are received during a turn.
+  - `apps/web/app/chat/[agentId]` sync button now directly replaces local messages with re-fetched remote transcript data instead of clear-then-refetch.
   - `apps/web/app/chat` and authenticated `/` now use chat-entry gating: auto-open most recent agent chat, and auto-bootstrap `Default Agent` when user has none.
   - chat-entry gate loading/error states are now rendered with shared shadcn primitives (including `Skeleton`) for consistent login-to-chat transition feedback.
   - `apps/web/app/agents` is now a single-column, chat-first management flow (top create bar + agent list), replacing the previous split left/right control panel to reduce navigation friction.
+  - `apps/web/app/agents` now includes per-agent "配置" dialog (system prompt/model/memoryTopK/recentMessages/temperature) backed by `trpc.agent.update`.
+  - `apps/web/src/components/markdown-message.tsx` now correctly passes `content` as children to `ReactMarkdown` (was previously self-closing, causing blank AI bubbles).
   - `apps/web` dashboard navigation uses a fixed 240px sidebar with all 5 nav items visible at desktop, and a Sheet drawer at mobile.
   - core data pages (`/memory`, `/transcripts`, `/usage`) now share centered content width (`max-w-3xl` / `max-w-4xl`) inside the sidebar shell layout.
   - `apps/web` page layouts now prefer shadcn structural primitives (`CardHeader/CardContent/CardFooter/CardTitle/CardDescription`) over ad-hoc wrapper divs to reduce custom style divergence.
@@ -143,6 +149,8 @@ Example scoped command:
   - optional `CHAT_BUDGET_DEGRADE_ENABLED=1` enables pre-reject budget downgrade in `chat.turn` and `/api/chat/stream`.
   - downgrade knobs: `CHAT_DEGRADE_RESERVE_OUTPUT_TOKENS`, `CHAT_DEGRADE_MEMORY_TOPK`, `CHAT_DEGRADE_RECENT_MESSAGES`.
   - when downgrade is applied, decision metadata is written to `usage_events.meta` and `audit_events(event_type=chat_budget_degraded)`.
+  - budget degradation/hard-cap projection now starts from agent-configured context budget (`Agent.config.memoryTopK/recentMessages`) before downgrade, so degraded budgets are no longer overwritten by post-check defaults.
+  - `chat.turn` (tRPC) and `/api/chat/stream` both read `agentRecord.config` for `systemPrompt/memoryTopK/recentMessages`, so per-agent configuration takes effect in both code paths.
 - Model fallback routing observability is now wired end-to-end:
   - LLM adapter reports resolved model selection (`primary` or `fallback`) per request.
   - chat usage ledger now persists `usage_events.meta.model_route_selected` and `usage_events.meta.model_used`.
@@ -199,6 +207,7 @@ Example scoped command:
   - `@daemon/adapters-llm-vercel` supports OpenAI-compatible providers via `OPENAI_BASE_URL` + `OPENAI_API_KEY`.
   - for DeepSeek-only setups, set `LLM_COMPATIBILITY=compatible` and `OPENAI_MODEL=deepseek-chat`.
   - optional `OPENAI_FALLBACK_MODEL` enables primary->fallback retry inside LLM adapter for `streamChat/completeChat`.
+  - `streamChat` now falls back to reading `result.text` (sync or promise) when `textStream` yields no chunks, preventing empty responses from providers that only populate the final text field.
   - chat usage metadata now includes both configured routing (`model_route_*`) and resolved execution (`model_route_selected`, `model_used`).
   - embedding supports `EMBEDDING_MODE=local` (deterministic local vector) when remote provider has no embedding endpoint.
 - Optional alert webhooks:

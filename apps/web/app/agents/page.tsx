@@ -13,9 +13,16 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Skeleton,
+  Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -34,8 +41,27 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+type AgentConfigForm = {
+  systemPrompt: string;
+  model: string;
+  memoryTopK: string;
+  recentMessages: string;
+  temperature: string;
+};
+
+const EMPTY_CONFIG_FORM: AgentConfigForm = {
+  systemPrompt: "",
+  model: "",
+  memoryTopK: "8",
+  recentMessages: "20",
+  temperature: "0.7",
+};
+
 export default function AgentsPage() {
   const [name, setName] = useState("");
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
+  const [configFormError, setConfigFormError] = useState<string | null>(null);
   const { session, isResolved } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
@@ -47,6 +73,14 @@ export default function AgentsPage() {
   const createAgent = trpc.agent.create.useMutation({
     onSuccess: () => {
       setName("");
+      agents.refetch();
+    },
+  });
+  const updateAgent = trpc.agent.update.useMutation({
+    onSuccess: () => {
+      setEditingAgentId(null);
+      setConfigForm(EMPTY_CONFIG_FORM);
+      setConfigFormError(null);
       agents.refetch();
     },
   });
@@ -66,6 +100,80 @@ export default function AgentsPage() {
         : null,
     [createAgent.error]
   );
+  const updateErrorMessage = useMemo(
+    () =>
+      updateAgent.error
+        ? getErrorMessage(updateAgent.error, "保存 Agent 配置失败，请稍后重试。")
+        : null,
+    [updateAgent.error]
+  );
+
+  const selectedAgent = useMemo(
+    () => (agents.data ?? []).find((agent) => agent.id === editingAgentId) ?? null,
+    [agents.data, editingAgentId]
+  );
+
+  const closeConfigDialog = () => {
+    setEditingAgentId(null);
+    setConfigForm(EMPTY_CONFIG_FORM);
+    setConfigFormError(null);
+    updateAgent.reset();
+  };
+
+  const openConfigDialog = (agent: {
+    id: string;
+    config: {
+      systemPrompt: string;
+      model: string;
+      memoryTopK: number;
+      recentMessages: number;
+      temperature: number;
+    };
+  }) => {
+    setEditingAgentId(agent.id);
+    setConfigForm({
+      systemPrompt: agent.config.systemPrompt ?? "",
+      model: agent.config.model ?? "",
+      memoryTopK: String(agent.config.memoryTopK ?? 8),
+      recentMessages: String(agent.config.recentMessages ?? 20),
+      temperature: String(agent.config.temperature ?? 0.7),
+    });
+    setConfigFormError(null);
+    updateAgent.reset();
+  };
+
+  const saveConfig = () => {
+    if (!editingAgentId) return;
+    setConfigFormError(null);
+
+    const memoryTopK = Number(configForm.memoryTopK);
+    const recentMessages = Number(configForm.recentMessages);
+    const temperature = Number(configForm.temperature);
+
+    if (!Number.isInteger(memoryTopK) || memoryTopK < 1 || memoryTopK > 50) {
+      setConfigFormError("Memory TopK 需为 1-50 的整数。");
+      return;
+    }
+    if (!Number.isInteger(recentMessages) || recentMessages < 1 || recentMessages > 100) {
+      setConfigFormError("Recent Messages 需为 1-100 的整数。");
+      return;
+    }
+    if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
+      setConfigFormError("Temperature 需为 0-2 的数字。");
+      return;
+    }
+
+    updateAgent.mutate({
+      agentId: editingAgentId,
+      config: {
+        systemPrompt: configForm.systemPrompt,
+        model: configForm.model.trim(),
+        memoryTopK,
+        recentMessages,
+        temperature,
+      },
+    });
+  };
 
   if (!isResolved) {
     return (
@@ -184,6 +292,9 @@ export default function AgentsPage() {
                       <Button asChild size="sm">
                         <Link href={`/chat/${agent.id}`}>聊天</Link>
                       </Button>
+                      <Button variant="outline" size="sm" onClick={() => openConfigDialog(agent)}>
+                        配置
+                      </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>用量</Link>
                       </Button>
@@ -201,6 +312,99 @@ export default function AgentsPage() {
             </div>
           ) : null}
         </div>
+
+        <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Agent 配置</DialogTitle>
+              <DialogDescription>
+                {selectedAgent ? `正在编辑：${selectedAgent.name}` : "调整该 Agent 的模型与上下文参数。"}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="agent-system-prompt">System Prompt</Label>
+                <Textarea
+                  id="agent-system-prompt"
+                  rows={4}
+                  value={configForm.systemPrompt}
+                  onChange={(e) => setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                  placeholder="You are a helpful AI assistant."
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="agent-model">模型</Label>
+                <Input
+                  id="agent-model"
+                  value={configForm.model}
+                  onChange={(e) => setConfigForm((prev) => ({ ...prev, model: e.target.value }))}
+                  placeholder="留空则使用系统默认模型"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="agent-memory-topk">Memory TopK</Label>
+                  <Input
+                    id="agent-memory-topk"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={configForm.memoryTopK}
+                    onChange={(e) => setConfigForm((prev) => ({ ...prev, memoryTopK: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="agent-recent-messages">Recent Messages</Label>
+                  <Input
+                    id="agent-recent-messages"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={configForm.recentMessages}
+                    onChange={(e) => setConfigForm((prev) => ({ ...prev, recentMessages: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="agent-temperature">Temperature</Label>
+                  <Input
+                    id="agent-temperature"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={configForm.temperature}
+                    onChange={(e) => setConfigForm((prev) => ({ ...prev, temperature: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {configFormError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{configFormError}</AlertDescription>
+                </Alert>
+              ) : null}
+              {updateErrorMessage ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{updateErrorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeConfigDialog} disabled={updateAgent.isPending}>
+                取消
+              </Button>
+              <Button onClick={saveConfig} disabled={updateAgent.isPending || !editingAgentId}>
+                {updateAgent.isPending ? "保存中..." : "保存配置"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardShell>
   );

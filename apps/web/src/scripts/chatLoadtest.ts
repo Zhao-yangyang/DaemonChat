@@ -159,7 +159,7 @@ const runPool = async (input: {
 };
 
 async function main() {
-  const baseUrl = (env.CHAT_BASE_URL ?? "http://127.0.0.1:3000").replace(/\/$/, "");
+  const baseUrl = (env.CHAT_BASE_URL ?? "http://127.0.0.1:3333").replace(/\/$/, "");
   const accessToken = required("CHAT_ACCESS_TOKEN");
   const agentId = required("CHAT_AGENT_ID");
   const concurrency = toInt(env.CHAT_CONCURRENCY, 50);
