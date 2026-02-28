@@ -137,18 +137,21 @@ export default function MemoryPage() {
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
-            <SelectTrigger>
-              <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
-            </SelectTrigger>
-            <SelectContent>
-              {(agents.data ?? []).map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>Agent</Label>
+            <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="memory-search">搜索</Label>
             <Input
@@ -158,39 +161,45 @@ export default function MemoryPage() {
               placeholder="按内容或标签搜索"
             />
           </div>
-          <Select
-            value={sensitivityFilter}
-            onValueChange={(value) => {
-              setSensitivityFilter(value as "all" | "public" | "private" | "secret");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="敏感级别" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部敏感级别</SelectItem>
-              <SelectItem value="public">public</SelectItem>
-              <SelectItem value="private">private</SelectItem>
-              <SelectItem value="secret">secret</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={eligibilityFilter}
-            onValueChange={(value) => {
-              setEligibilityFilter(value as "all" | "eligible" | "ineligible");
-              setPage(1);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="上下文可用性" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="eligible">eligible</SelectItem>
-              <SelectItem value="ineligible">ineligible</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>敏感级别</Label>
+            <Select
+              value={sensitivityFilter}
+              onValueChange={(value) => {
+                setSensitivityFilter(value as "all" | "public" | "private" | "secret");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="敏感级别" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部敏感级别</SelectItem>
+                <SelectItem value="public">public</SelectItem>
+                <SelectItem value="private">private</SelectItem>
+                <SelectItem value="secret">secret</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>上下文可用性</Label>
+            <Select
+              value={eligibilityFilter}
+              onValueChange={(value) => {
+                setEligibilityFilter(value as "all" | "eligible" | "ineligible");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="上下文可用性" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="eligible">eligible</SelectItem>
+                <SelectItem value="ineligible">ineligible</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Create memory */}

@@ -90,6 +90,7 @@ Example scoped command:
   - `@daemon/ui` primitive styles (`Button/Input/Textarea/Select/Card/Badge`) are now variable-driven and use `bg-card` instead of `bg-transparent` for form controls.
   - additional shadcn components installed: `Label`, `ScrollArea`, `Alert`, `Separator`, `Tooltip`, `Sheet`, `Progress`, `Avatar`, `Tabs`.
   - `apps/web` now uses Tailwind CSS v4 (`apps/web/postcss.config.mjs`, `apps/web/app/globals.css`).
+  - `apps/web/app/globals.css` includes `@source "../../../packages/ui/src/**/*.{ts,tsx}"` so Tailwind v4 scans `@daemon/ui` component classes (e.g. `bg-popover`, `bg-card`) into the generated CSS.
   - `apps/web` now uses a sidebar-based dashboard shell (`apps/web/src/components/dashboard-shell.tsx`) with left vertical navigation (icons + labels), mobile Sheet drawer, and compact top bar for page title/actions.
   - navigation items are now icon-labeled Chinese: 聊天/Agents/记忆/轨迹/用量, all flat (no dropdown).
   - `apps/web/src/hooks/use-session.ts` extracts duplicated Supabase auth subscription logic into a shared `useSession()` hook returning `{ session, isResolved, user }`.

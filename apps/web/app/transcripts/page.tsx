@@ -142,58 +142,67 @@ export default function TranscriptsPage() {
       <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="grid gap-3 sm:grid-cols-3">
-          <Select
-            value={agentId || undefined}
-            onValueChange={(value) => { setAgentId(value); setSessionId(""); setPage(1); }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
-            </SelectTrigger>
-            <SelectContent>
-              {(agents.data ?? []).map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>Agent</Label>
+            <Select
+              value={agentId || undefined}
+              onValueChange={(value) => { setAgentId(value); setSessionId(""); setPage(1); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(agents.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            value={sessionId || undefined}
-            onValueChange={(value) => { setSessionId(value); setPage(1); }}
-            disabled={!agentId || sessionList.isLoading}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={sessionList.isLoading ? "加载会话..." : "选择会话"} />
-            </SelectTrigger>
-            <SelectContent>
-              {(sessionList.data ?? []).map((session) => (
-                <SelectItem key={session.id} value={session.id}>{session.sessionKey}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>会话</Label>
+            <Select
+              value={sessionId || undefined}
+              onValueChange={(value) => { setSessionId(value); setPage(1); }}
+              disabled={!agentId || sessionList.isLoading}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={sessionList.isLoading ? "加载会话..." : "选择会话"} />
+              </SelectTrigger>
+              <SelectContent>
+                {(sessionList.data ?? []).map((session) => (
+                  <SelectItem key={session.id} value={session.id}>{session.sessionKey}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Select
-            value={typeFilter}
-            onValueChange={(value) => {
-              setTypeFilter(value as typeof typeFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="事件类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部事件</SelectItem>
-              <SelectItem value="user_message">user_message</SelectItem>
-              <SelectItem value="assistant_message">assistant_message</SelectItem>
-              <SelectItem value="tool_call">tool_call</SelectItem>
-              <SelectItem value="compaction">compaction</SelectItem>
-              <SelectItem value="memory_flush">memory_flush</SelectItem>
-              <SelectItem value="system">system</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label>事件类型</Label>
+            <Select
+              value={typeFilter}
+              onValueChange={(value) => {
+                setTypeFilter(value as typeof typeFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="事件类型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部事件</SelectItem>
+                <SelectItem value="user_message">user_message</SelectItem>
+                <SelectItem value="assistant_message">assistant_message</SelectItem>
+                <SelectItem value="tool_call">tool_call</SelectItem>
+                <SelectItem value="compaction">compaction</SelectItem>
+                <SelectItem value="memory_flush">memory_flush</SelectItem>
+                <SelectItem value="system">system</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-1 flex-col gap-1.5">
             <Label htmlFor="transcript-search">搜索</Label>
             <Input
@@ -203,7 +212,8 @@ export default function TranscriptsPage() {
               placeholder="搜索内容"
             />
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-col gap-1.5">
+            <Label>条数</Label>
             <Select
               value={String(limit)}
               onValueChange={(value) => { setLimit(Number(value)); setPage(1); }}
@@ -217,10 +227,10 @@ export default function TranscriptsPage() {
                 <SelectItem value="200">200 条</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
-              刷新
-            </Button>
           </div>
+          <Button variant="outline" onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
+            刷新
+          </Button>
         </div>
 
         {/* Stats */}
