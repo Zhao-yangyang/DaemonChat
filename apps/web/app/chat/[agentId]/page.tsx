@@ -17,6 +17,7 @@ import {
   cn,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
+import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 import { Send } from "lucide-react";
 
@@ -349,13 +350,21 @@ export default function ChatPage() {
                     </div>
                     <div
                       className={cn(
-                        "max-w-[min(85%,42rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                        "max-w-[min(85%,42rem)] rounded-2xl px-4 py-3",
                         isUser
-                          ? "bg-primary text-primary-foreground"
+                          ? "bg-primary text-primary-foreground text-sm leading-relaxed"
                           : "bg-muted text-foreground"
                       )}
                     >
-                      <p className="whitespace-pre-wrap">{msg.content || (isPendingAssistant ? "思考中..." : "")}</p>
+                      {isUser ? (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        msg.content ? (
+                          <MarkdownMessage content={msg.content} />
+                        ) : (
+                          isPendingAssistant ? <p className="text-muted-foreground">思考中...</p> : null
+                        )
+                      )}
                     </div>
                   </div>
                 );
