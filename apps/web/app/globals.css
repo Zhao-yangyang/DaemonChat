@@ -99,3 +99,22 @@
     font-family: var(--font-display), var(--font-sans), "Noto Sans SC", "PingFang SC", sans-serif;
   }
 }
+
+/* highlight.js minimal code theme */
+.hljs {
+  color: var(--foreground);
+  background: var(--secondary);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in { color: #7c3aed; }
+.hljs-string,
+.hljs-attr { color: #059669; }
+.hljs-comment,
+.hljs-quote { color: var(--muted-foreground); font-style: italic; }
+.hljs-number,
+.hljs-literal { color: #d97706; }
+.hljs-title,
+.hljs-section { color: #2563eb; font-weight: 600; }
+.hljs-type,
+.hljs-name { color: #0891b2; }
