@@ -1,4 +1,5 @@
 import type { LlmPort, Ports } from "../container/types";
+import { DEFAULT_AGENT_CONFIG } from "../types";
 import type { MemoryItem, Timestamp } from "../types";
 import { FixedClock } from "./clock";
 import { createInMemoryStores } from "./memoryStores";
@@ -46,6 +47,7 @@ export async function seedAgent(ports: Ports, input: { ownerUserId: string; name
   const agent = await ports.agents.createAgent({
     ownerUserId: input.ownerUserId,
     name: input.name,
+    config: { ...DEFAULT_AGENT_CONFIG },
     now: ports.clock.now(),
   });
   return agent.id;

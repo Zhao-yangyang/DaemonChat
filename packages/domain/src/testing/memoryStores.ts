@@ -1,5 +1,6 @@
 import type {
   Agent,
+  AgentConfig,
   AuditEvent,
   MemoryItem,
   Session,
@@ -7,6 +8,7 @@ import type {
   UsageEvent,
   UsageSummary,
 } from "../types";
+import { DEFAULT_AGENT_CONFIG } from "../types";
 import type {
   AgentStore,
   AuditStore,
@@ -80,11 +82,12 @@ export function createInMemoryStores(): {
   };
 
   const agentStore: AgentStore = {
-    async createAgent({ ownerUserId, name, now }) {
+    async createAgent({ ownerUserId, name, config, now }) {
       const agent: Agent = {
         id: nextId("agent"),
         ownerUserId,
         name,
+        config: { ...DEFAULT_AGENT_CONFIG, ...config },
         createdAt: now,
         updatedAt: now,
       };
@@ -98,6 +101,17 @@ export function createInMemoryStores(): {
 
     async listAgentsByOwner(ownerUserId) {
       return agents.filter((agent) => agent.ownerUserId === ownerUserId);
+    },
+
+    async updateAgent({ agentId, name, config, now }) {
+      const agent = agents.find((a) => a.id === agentId);
+      if (!agent) throw new Error("Agent not found");
+      if (name !== undefined) agent.name = name;
+      if (config !== undefined) {
+        agent.config = { ...agent.config, ...config };
+      }
+      agent.updatedAt = now;
+      return { ...agent };
     },
   };
 
