@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ForbiddenError, ValidationError } from "../errors";
+import { DEFAULT_AGENT_CONFIG } from "../types";
 import { createAgentService } from "../usecases/agent";
 import { createTestPorts } from "../testing/fixtures";
 
@@ -30,5 +31,52 @@ describe("agent usecases", () => {
 
     const loaded = await service.getAgent(agent.id, "user-2");
     expect(loaded.id).toBe(agent.id);
+  });
+
+  test("createAgent uses DEFAULT_AGENT_CONFIG when no config provided", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+
+    const agent = await service.createAgent("user-1", "DefaultConfig");
+    expect(agent.config).toEqual(DEFAULT_AGENT_CONFIG);
+  });
+
+  test("createAgent merges custom config with defaults", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+
+    const agent = await service.createAgent("user-1", "CustomConfig", {
+      systemPrompt: "You are a pirate.",
+      temperature: 1.2,
+    });
+    expect(agent.config.systemPrompt).toBe("You are a pirate.");
+    expect(agent.config.temperature).toBe(1.2);
+    expect(agent.config.model).toBe(DEFAULT_AGENT_CONFIG.model);
+    expect(agent.config.memoryTopK).toBe(DEFAULT_AGENT_CONFIG.memoryTopK);
+    expect(agent.config.recentMessages).toBe(DEFAULT_AGENT_CONFIG.recentMessages);
+  });
+
+  test("updateAgent modifies name and partial config", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+
+    const agent = await service.createAgent("user-1", "Original");
+    const updated = await service.updateAgent(agent.id, "user-1", {
+      name: "Renamed",
+      config: { systemPrompt: "Be concise." },
+    });
+    expect(updated.name).toBe("Renamed");
+    expect(updated.config.systemPrompt).toBe("Be concise.");
+    expect(updated.config.memoryTopK).toBe(DEFAULT_AGENT_CONFIG.memoryTopK);
+  });
+
+  test("updateAgent enforces ownership", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+
+    const agent = await service.createAgent("user-1", "Owned");
+    await expect(
+      service.updateAgent(agent.id, "user-2", { name: "Stolen" })
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
