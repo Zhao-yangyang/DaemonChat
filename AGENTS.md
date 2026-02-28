@@ -79,15 +79,15 @@ Example scoped command:
 - UI foundation now uses shadcn-style primitives in `@daemon/ui`:
   - `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Dialog`, `DropdownMenu`.
   - `apps/web` now uses Tailwind CSS v4 (`apps/web/postcss.config.mjs`, `apps/web/app/globals.css`).
-  - `apps/web` now has a unified dashboard shell (`apps/web/src/components/dashboard-shell.tsx`) with shared nav, user status, and page hero sections.
+  - `apps/web` now has a unified dashboard shell (`apps/web/src/components/dashboard-shell.tsx`) with compact shared nav/user status and reduced visual noise.
   - core app pages (`/`, `/agents`, `/chat`, `/chat/[agentId]`, `/memory`, `/transcripts`, `/usage`) were visually redesigned for consistent layout hierarchy and clearer task flows.
   - `apps/web/app/memory` and `apps/web/app/transcripts` now include local filtering, pagination, loading skeleton, and empty states.
   - `apps/web/app/usage` is now available with day/month usage summary, token split, cost estimate, trend chart, and URL query-state sync.
   - `apps/web/app/usage`, `apps/web/app/memory`, and `apps/web/app/transcripts` now prioritize dropdown-based Agent/session selection (no manual copy-paste Agent ID flow).
   - navigation entry for Usage is now available on home page and per-agent quick links (`/usage?agent=...`) in `apps/web/app/agents`.
   - `apps/web/app/agents` now shows explicit list/create error messages and disables repeated auto-retries on failed list requests.
-  - `apps/web/app/chat/[agentId]` now supports recent-session listing and sessionKey switching/continuation directly in the right-side panel.
-  - `apps/web/app/chat` now provides direct quick-entry cards to existing agents instead of only static instructions.
+  - `apps/web/app/chat/[agentId]` now uses simplified chat-first layout with inline session selector + one-click new session creation (no manual sessionKey input).
+  - `apps/web/app/chat` and authenticated `/` now use chat-entry gating: auto-open most recent agent chat, and auto-bootstrap `Default Agent` when user has none.
   - API now exposes `session.list` (recent sessions) and `usage.trend` (bucketed usage series: hourly for day, daily for month).
 - Chat idempotency baseline is now wired:
   - `chatTurn/chatTurnStream` accept `idempotencyKey` and replay completed responses for duplicate keys.
@@ -188,6 +188,7 @@ Example scoped command:
   - if `/api/trpc/agent.list` or create returns schema-related errors, run `packages/adapters/supabase/sql/schema.sql` then `packages/adapters/supabase/sql/rls.sql` in Supabase SQL Editor.
   - if errors mention permission denied (`42501`), re-check RLS policy application and confirm the current browser session is logged in.
   - server-side Supabase env now accepts fallback from `NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY` when `SUPABASE_URL/SUPABASE_ANON_KEY` are not set.
+  - chat-entry auto-bootstrap uses `agent.create({ name: "Default Agent" })`; if this fails, verify schema/RLS first before UI debugging.
 - Optional chat rate limit envs:
   - `CHAT_QPS_LIMIT` (integer, disabled when unset/invalid).
   - `CHAT_QPM_LIMIT` (integer, disabled when unset/invalid).

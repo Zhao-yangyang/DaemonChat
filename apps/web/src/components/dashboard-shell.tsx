@@ -50,20 +50,31 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
   );
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="rounded-3xl border border-[var(--line-soft)] bg-white/75 p-4 shadow-[0_12px_40px_rgba(24,38,64,0.08)] backdrop-blur-lg sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 text-[15px] font-semibold tracking-[0.08em] text-[var(--ink-strong)]"
-            >
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand)] text-sm font-bold text-white">
-                D
-              </span>
+    <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <header className="rounded-2xl border border-[var(--line-soft)] bg-white p-3 sm:p-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link href="/" className="text-base font-semibold tracking-tight text-[var(--ink-strong)]">
               DaemonChat
             </Link>
-            <p className="text-xs text-[var(--ink-muted)]">Long-term assistant control plane</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className="max-w-[52vw] truncate border-[var(--line-soft)] bg-white text-[var(--ink-muted)]"
+              >
+                {userLabel}
+              </Badge>
+              {session ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => supabaseBrowserClient.auth.signOut()}
+                  className="border-[var(--line-soft)] bg-white"
+                >
+                  退出
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           <nav className="flex flex-wrap items-center gap-2">
@@ -74,10 +85,10 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "rounded-full px-3 py-1.5 text-sm font-medium transition-all",
+                    "rounded-lg border px-3 py-1.5 text-sm transition-colors",
                     active
-                      ? "bg-[var(--brand)] text-white shadow-[0_8px_24px_rgba(24,86,255,0.35)]"
-                      : "bg-white/70 text-[var(--ink-muted)] hover:bg-white hover:text-[var(--ink-strong)]"
+                      ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--ink-strong)]"
+                      : "border-[var(--line-soft)] bg-white text-[var(--ink-muted)] hover:text-[var(--ink-strong)]"
                   )}
                 >
                   {item.label}
@@ -85,35 +96,16 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
               );
             })}
           </nav>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80 text-[var(--ink-muted)]">
-              {userLabel}
-            </Badge>
-            {session ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => supabaseBrowserClient.auth.signOut()}
-                className="border-[var(--line-soft)] bg-white"
-              >
-                退出
-              </Button>
-            ) : null}
-          </div>
         </div>
       </header>
 
-      <section className="relative overflow-hidden rounded-3xl border border-[var(--line-soft)] bg-[linear-gradient(125deg,rgba(255,255,255,0.96),rgba(239,246,255,0.92),rgba(248,244,236,0.92))] p-6 shadow-[0_20px_48px_rgba(24,38,64,0.08)]">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(24,86,255,0.3),rgba(24,86,255,0.02)_70%)]" />
-        <div className="pointer-events-none absolute -bottom-20 left-0 h-52 w-52 rounded-full bg-[radial-gradient(circle,rgba(242,176,61,0.2),rgba(242,176,61,0.02)_72%)]" />
-
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl space-y-2">
-            <h1 className="font-display text-3xl font-semibold leading-tight text-[var(--ink-strong)] sm:text-4xl">
+      <section className="rounded-2xl border border-[var(--line-soft)] bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink-strong)] sm:text-3xl">
               {title}
             </h1>
-            <p className="text-sm leading-relaxed text-[var(--ink-muted)] sm:text-base">{description}</p>
+            <p className="text-sm text-[var(--ink-muted)]">{description}</p>
           </div>
           {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         </div>

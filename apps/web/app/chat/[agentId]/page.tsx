@@ -1,13 +1,27 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
-import { Badge, Button, Card, Input, Textarea, cn } from "@daemon/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Textarea,
+  cn,
+} from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+
+const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
 
 export default function ChatPage() {
   const params = useParams<{ agentId: string }>();
@@ -15,7 +29,6 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [sessionKey, setSessionKey] = useState("main");
-  const [draftSessionKey, setDraftSessionKey] = useState("");
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({
     main: [],
   });
@@ -29,19 +42,17 @@ export default function ChatPage() {
   const currentSessionKey = sessionKey.trim() || "main";
   const messages = messagesBySession[currentSessionKey] ?? [];
 
-  const stats = useMemo(() => {
-    const userCount = messages.filter((item) => item.role === "user").length;
-    const assistantCount = messages.filter((item) => item.role === "assistant").length;
-    return {
-      total: messages.length,
-      userCount,
-      assistantCount,
-    };
-  }, [messages]);
+  const sessionKeys = useMemo(() => {
+    const keys = new Set<string>(["main", ...Object.keys(messagesBySession)]);
+    for (const item of sessionList.data ?? []) {
+      keys.add(item.sessionKey);
+    }
+    return Array.from(keys);
+  }, [messagesBySession, sessionList.data]);
 
   const updateMessagesForSession = (
     targetSessionKey: string,
-    updater: (messages: ChatMessage[]) => ChatMessage[]
+    updater: (items: ChatMessage[]) => ChatMessage[]
   ) => {
     setMessagesBySession((prev) => {
       const next = { ...prev };
@@ -52,8 +63,8 @@ export default function ChatPage() {
 
   const appendAssistant = (targetSessionKey: string, chunk: string) => {
     if (!chunk) return;
-    updateMessagesForSession(targetSessionKey, (previousMessages) => {
-      const next = [...previousMessages];
+    updateMessagesForSession(targetSessionKey, (items) => {
+      const next = [...items];
       const last = next[next.length - 1];
       if (last?.role === "assistant") {
         next[next.length - 1] = { ...last, content: last.content + chunk };
@@ -64,22 +75,23 @@ export default function ChatPage() {
     });
   };
 
-  const activateSession = (nextKey: string) => {
-    const normalized = nextKey.trim();
-    if (!normalized) return;
-    setSessionKey(normalized);
-    setDraftSessionKey("");
+  const createSession = () => {
+    const key = newSessionKey();
+    setSessionKey(key);
+    setMessagesBySession((prev) => (prev[key] ? prev : { ...prev, [key]: [] }));
   };
 
   const send = async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming) {
+      return;
+    }
 
     const activeSessionKey = currentSessionKey;
     const userMessage = input.trim();
 
     setInput("");
-    updateMessagesForSession(activeSessionKey, (previousMessages) => [
-      ...previousMessages,
+    updateMessagesForSession(activeSessionKey, (items) => [
+      ...items,
       { role: "user", content: userMessage },
       { role: "assistant", content: "" },
     ]);
@@ -91,8 +103,8 @@ export default function ChatPage() {
       if (!accessToken) {
         throw new Error("未登录");
       }
-      const idempotencyKey = crypto.randomUUID();
 
+      const idempotencyKey = crypto.randomUUID();
       const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: {
@@ -121,13 +133,17 @@ export default function ChatPage() {
         const line = block
           .split("\n")
           .find((entry) => entry.startsWith("data: "));
-        if (!line) return;
+        if (!line) {
+          return;
+        }
+
         try {
           const payload = JSON.parse(line.slice(6)) as {
             type: string;
             value?: string;
             message?: string;
           };
+
           if (payload.type === "chunk") {
             appendAssistant(activeSessionKey, payload.value ?? "");
           } else if (payload.type === "error") {
@@ -141,6 +157,7 @@ export default function ChatPage() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
         buffer += decoder.decode(value, { stream: true });
         const blocks = buffer.split("\n\n");
         buffer = blocks.pop() ?? "";
@@ -158,74 +175,88 @@ export default function ChatPage() {
 
   return (
     <DashboardShell
-      title={`Agent Chat · ${agentId}`}
-      description="实时对话会写入 transcript 与 usage ledger。使用 Ctrl/⌘ + Enter 快速发送。"
+      title="Chat"
+      description="直接对话即可，系统会自动记录会话和用量。"
       actions={
-        <Button
-          variant="outline"
-          className="border-[var(--line-soft)] bg-white"
-          onClick={() => updateMessagesForSession(currentSessionKey, () => [])}
-          disabled={messages.length === 0 || isStreaming}
-        >
-          清空当前会话视图
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline" className="border-[var(--line-soft)] bg-white">
+            <Link href={`/usage?agent=${encodeURIComponent(agentId)}`}>用量</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="border-[var(--line-soft)] bg-white">
+            <Link href={`/memory?agent=${encodeURIComponent(agentId)}`}>记忆</Link>
+          </Button>
+        </div>
       }
     >
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <Card className="flex min-h-[66vh] flex-col border-[var(--line-soft)] bg-white/92 p-5 shadow-[0_12px_30px_rgba(24,38,64,0.08)]">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-[var(--line-soft)] bg-white">
-                Session: {currentSessionKey}
+      <section className="space-y-4">
+        <Card className="border-[var(--line-soft)] bg-white p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-muted)]">Session</p>
+            <Select value={currentSessionKey} onValueChange={setSessionKey}>
+              <SelectTrigger className="w-[220px] border-[var(--line-soft)] bg-white">
+                <SelectValue placeholder="选择会话" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessionKeys.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-[var(--line-soft)] bg-white"
+              onClick={createSession}
+              disabled={isStreaming}
+            >
+              新会话
+            </Button>
+            <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
+              {isStreaming ? "回复中" : "就绪"}
+            </Badge>
+            {sessionList.isFetching ? (
+              <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
+                同步中
               </Badge>
-              <Badge variant="outline" className="border-[var(--line-soft)] bg-white">
-                {isStreaming ? "Streaming" : "Idle"}
-              </Badge>
-            </div>
-            <p className="text-xs text-[var(--ink-muted)]">{stats.total} 条消息</p>
+            ) : null}
           </div>
+        </Card>
 
+        <Card className="flex min-h-[68vh] flex-col border-[var(--line-soft)] bg-white p-4 sm:p-5">
           <div className="flex-1 space-y-3 overflow-y-auto pr-1">
             {messages.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--line-soft)] bg-[var(--brand-soft)]/40 p-6 text-sm leading-relaxed text-[var(--ink-muted)]">
-                还没有消息。你可以先给 Agent 一个任务背景，再发第一条指令。
+              <div className="rounded-xl border border-dashed border-[var(--line-soft)] bg-[var(--brand-soft)]/35 p-5 text-sm text-[var(--ink-muted)]">
+                直接输入你的问题即可开始。
               </div>
             ) : null}
 
             {messages.map((msg, idx) => {
               const isUser = msg.role === "user";
               const isPendingAssistant = msg.role === "assistant" && !msg.content && isStreaming;
+
               return (
-                <div
-                  key={`${msg.role}-${idx}`}
-                  className={cn("flex", isUser ? "justify-end" : "justify-start")}
-                >
+                <div key={`${msg.role}-${idx}`} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
                   <div
                     className={cn(
-                      "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm",
-                      isUser
-                        ? "bg-[var(--brand)] text-white shadow-[0_10px_22px_rgba(24,86,255,0.32)]"
-                        : "border border-[var(--line-soft)] bg-white text-[var(--ink)]"
+                      "max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                      isUser ? "bg-[var(--brand)] text-white" : "border border-[var(--line-soft)] bg-white text-[var(--ink)]"
                     )}
                   >
-                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] opacity-80">
-                      {isUser ? "You" : "Assistant"}
-                    </p>
-                    <p className="whitespace-pre-wrap">
-                      {msg.content || (isPendingAssistant ? "思考中..." : "")}
-                    </p>
+                    <p className="whitespace-pre-wrap">{msg.content || (isPendingAssistant ? "思考中..." : "")}</p>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-4 space-y-3 border-t border-[var(--line-soft)] pt-4">
+          <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="输入消息，Ctrl/⌘ + Enter 发送"
-              className="min-h-28 border-[var(--line-soft)] bg-white"
+              placeholder="输入消息。Ctrl/⌘ + Enter 发送"
+              className="min-h-24 border-[var(--line-soft)] bg-white"
               onKeyDown={(event) => {
                 if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                   event.preventDefault();
@@ -233,84 +264,15 @@ export default function ChatPage() {
                 }
               }}
             />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-[var(--ink-muted)]">为避免重复计费，发送时会自动携带幂等键。</p>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-[var(--ink-muted)]">发送时会自动携带幂等键，避免重复计费。</p>
               <Button onClick={send} disabled={isStreaming || !input.trim()}>
-                {isStreaming ? "发送中..." : "发送消息"}
+                {isStreaming ? "发送中..." : "发送"}
               </Button>
             </div>
           </div>
         </Card>
-
-        <div className="space-y-4">
-          <Card className="space-y-3 border-[var(--line-soft)] bg-white/90 p-5">
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">Sessions</p>
-            <div className="flex gap-2">
-              <Input
-                value={draftSessionKey}
-                onChange={(event) => setDraftSessionKey(event.target.value)}
-                placeholder="输入 sessionKey"
-                className="h-9 border-[var(--line-soft)] bg-white"
-                disabled={isStreaming}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="border-[var(--line-soft)] bg-white"
-                disabled={!draftSessionKey.trim() || isStreaming}
-                onClick={() => activateSession(draftSessionKey)}
-              >
-                切换
-              </Button>
-            </div>
-
-            <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
-              {(sessionList.data ?? []).map((item) => {
-                const active = item.sessionKey === currentSessionKey;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => activateSession(item.sessionKey)}
-                    disabled={isStreaming}
-                    className={cn(
-                      "w-full rounded-xl border px-3 py-2 text-left text-xs transition",
-                      active
-                        ? "border-[var(--brand)] bg-[var(--brand-soft)]/70 text-[var(--ink-strong)]"
-                        : "border-[var(--line-soft)] bg-white text-[var(--ink-muted)] hover:border-[var(--brand)]/50"
-                    )}
-                  >
-                    <p className="truncate font-medium">{item.sessionKey}</p>
-                    <p className="mt-1 text-[10px] opacity-80">{item.lastActiveAt}</p>
-                  </button>
-                );
-              })}
-              {!sessionList.isLoading && (sessionList.data?.length ?? 0) === 0 ? (
-                <p className="text-xs text-[var(--ink-muted)]">暂无历史会话，发送后会自动出现。</p>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card className="space-y-3 border-[var(--line-soft)] bg-white/90 p-5">
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">Conversation Stats</p>
-            <div className="grid gap-2 text-sm text-[var(--ink)]">
-              <div className="flex items-center justify-between rounded-xl bg-[var(--brand-soft)]/60 px-3 py-2">
-                <span>User</span>
-                <strong>{stats.userCount}</strong>
-              </div>
-              <div className="flex items-center justify-between rounded-xl bg-[var(--brand-soft)]/35 px-3 py-2">
-                <span>Assistant</span>
-                <strong>{stats.assistantCount}</strong>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="space-y-2 border-[var(--line-soft)] bg-white/90 p-5 text-sm text-[var(--ink-muted)]">
-            <p className="font-semibold text-[var(--ink-strong)]">调试建议</p>
-            <p>如果输出为空或中断，先检查模型 key、fallback 配置和 stream 路由日志。</p>
-            <p>你也可以在 Usage 页确认本轮请求是否被成功记账。</p>
-          </Card>
-        </div>
       </section>
     </DashboardShell>
   );

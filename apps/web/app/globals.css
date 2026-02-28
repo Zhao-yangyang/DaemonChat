@@ -26,25 +26,9 @@
     margin: 0;
     color: var(--ink);
     font-family: var(--font-sans), "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
-    background:
-      radial-gradient(circle at 0% -15%, rgba(24, 86, 255, 0.22), rgba(24, 86, 255, 0) 40%),
-      radial-gradient(circle at 100% -20%, rgba(242, 176, 61, 0.2), rgba(242, 176, 61, 0) 40%),
-      linear-gradient(180deg, #f7f9fc 0%, #f2f4f8 45%, #eff2f7 100%);
-    background-attachment: fixed;
+    background: linear-gradient(180deg, #f8fafc 0%, #f4f6fb 100%);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-  }
-
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(rgba(18, 33, 65, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(18, 33, 65, 0.02) 1px, transparent 1px);
-    background-size: 22px 22px;
-    mask-image: radial-gradient(circle at center, black, rgba(0, 0, 0, 0.35));
   }
 
   a {
