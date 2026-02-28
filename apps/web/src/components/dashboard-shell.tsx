@@ -13,6 +13,7 @@ import {
   SheetTrigger,
 } from "@daemon/ui";
 import { Menu, MessageSquare, Bot, Brain, FileText, BarChart3, LogOut } from "lucide-react";
+import { ThemeToggle } from "@/src/components/theme-toggle";
 import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
@@ -74,6 +75,10 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
       </nav>
 
       <Separator />
+
+      <div className="px-3 py-2">
+        <ThemeToggle />
+      </div>
 
       <div className="space-y-2 px-3 py-4">
         {displayName ? (
