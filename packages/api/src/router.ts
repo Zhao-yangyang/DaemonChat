@@ -185,6 +185,27 @@ export const appRouter = t.router({
         const user = requireUser(ctx);
         return withInfrastructureErrorMapping(() => ctx.container.agent.getAgent(input.agentId, user.id));
       }),
+    update: t.procedure
+      .input(z.object({
+        agentId: z.string().min(1),
+        name: z.string().min(1).optional(),
+        config: z.object({
+          systemPrompt: z.string().optional(),
+          model: z.string().optional(),
+          memoryTopK: z.number().int().min(1).max(50).optional(),
+          recentMessages: z.number().int().min(1).max(100).optional(),
+          temperature: z.number().min(0).max(2).optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.agent.updateAgent(input.agentId, user.id, {
+            name: input.name,
+            config: input.config,
+          })
+        );
+      }),
   }),
 
   session: t.router({
