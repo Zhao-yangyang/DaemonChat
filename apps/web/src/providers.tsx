@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { TrpcProvider } from "@daemon/hooks";
+import { TooltipProvider } from "@daemon/ui";
 import { supabaseBrowserClient } from "./supabaseClient";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
@@ -30,7 +31,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <TrpcProvider key={accessToken ?? "anon"} headers={headers}>
-      {children}
+      <TooltipProvider>{children}</TooltipProvider>
     </TrpcProvider>
   );
 }

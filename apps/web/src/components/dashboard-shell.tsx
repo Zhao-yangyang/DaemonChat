@@ -2,16 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, cn } from "@daemon/ui";
+import { useState } from "react";
+import {
+  Button,
+  Separator,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@daemon/ui";
+import { Menu, MessageSquare, Bot, Brain, FileText, BarChart3, LogOut } from "lucide-react";
+import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
-const navItems: Array<{ label: string; href: string }> = [
-  { label: "Agents", href: "/agents" },
-  { label: "Chat", href: "/chat" },
-  { label: "Memory", href: "/memory" },
-  { label: "Transcripts", href: "/transcripts" },
-  { label: "Usage", href: "/usage" },
+const navItems: Array<{ label: string; href: string; icon: React.ElementType }> = [
+  { label: "聊天", href: "/chat", icon: MessageSquare },
+  { label: "Agents", href: "/agents", icon: Bot },
+  { label: "记忆", href: "/memory", icon: Brain },
+  { label: "轨迹", href: "/transcripts", icon: FileText },
+  { label: "用量", href: "/usage", icon: BarChart3 },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {
@@ -28,90 +38,111 @@ type DashboardShellProps = {
   children: React.ReactNode;
 };
 
-export function DashboardShell({ title, description, actions, children }: DashboardShellProps) {
-  const pathname = usePathname();
-  const [session, setSession] = useState<any>(null);
-
-  useEffect(() => {
-    supabaseBrowserClient.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-    });
-
-    const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
-
-  const userLabel = useMemo(
-    () => session?.user?.email ?? session?.user?.id ?? "未登录",
-    [session]
-  );
+function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const { session, user } = useSession();
+  const email = user?.email;
+  const displayName = email ? email.split("@")[0] : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-[1120px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-      <header className="rounded-2xl border border-[var(--line-soft)] bg-white p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Link href="/" className="text-base font-semibold tracking-tight text-[var(--ink-strong)]">
-              DaemonChat
+    <div className="flex h-full flex-col">
+      <div className="px-4 py-5">
+        <Link href="/" className="text-base font-semibold tracking-tight" onClick={onNavigate}>
+          DaemonChat
+        </Link>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-0.5 px-2">
+        {navItems.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                active
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-card/60 hover:text-foreground"
+              }`}
+            >
+              <Icon className="size-[18px]" />
+              {item.label}
             </Link>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="outline"
-                className="max-w-[52vw] truncate border-[var(--line-soft)] bg-white text-[var(--ink-muted)]"
-              >
-                {userLabel}
-              </Badge>
-              {session ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => supabaseBrowserClient.auth.signOut()}
-                  className="border-[var(--line-soft)] bg-white"
-                >
-                  退出
-                </Button>
-              ) : null}
+          );
+        })}
+      </nav>
+
+      <Separator />
+
+      <div className="space-y-2 px-3 py-4">
+        {displayName ? (
+          <p className="truncate text-xs text-muted-foreground" title={email ?? undefined}>
+            {displayName}
+          </p>
+        ) : null}
+        {session ? (
+          <button
+            onClick={() => {
+              supabaseBrowserClient.auth.signOut();
+              onNavigate?.();
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+          >
+            <LogOut className="size-4" />
+            退出登录
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function DashboardShell({ title, description, actions, children }: DashboardShellProps) {
+  const pathname = usePathname();
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Desktop sidebar */}
+      <aside className="hidden w-[240px] shrink-0 border-r bg-sidebar md:block">
+        <SidebarNav pathname={pathname} />
+      </aside>
+
+      {/* Main content */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Top bar (mobile header + page title) */}
+        <header className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-3 md:px-6">
+          {/* Mobile hamburger */}
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="md:hidden">
+                <Menu className="size-5" />
+                <span className="sr-only">打开菜单</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[260px] bg-sidebar p-0">
+              <SheetHeader className="sr-only">
+                <SheetTitle>导航</SheetTitle>
+              </SheetHeader>
+              <SidebarNav pathname={pathname} onNavigate={() => setSheetOpen(false)} />
+            </SheetContent>
+          </Sheet>
+
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold">{title}</h1>
+              <p className="hidden truncate text-sm text-muted-foreground sm:block">{description}</p>
             </div>
+            {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
           </div>
+        </header>
 
-          <nav className="flex flex-wrap items-center gap-2">
-            {navItems.map((item) => {
-              const active = isActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    active
-                      ? "border-[var(--brand)] bg-[var(--brand-soft)] text-[var(--ink-strong)]"
-                      : "border-[var(--line-soft)] bg-white text-[var(--ink-muted)] hover:text-[var(--ink-strong)]"
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </header>
-
-      <section className="rounded-2xl border border-[var(--line-soft)] bg-white p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-[var(--ink-strong)] sm:text-3xl">
-              {title}
-            </h1>
-            <p className="text-sm text-[var(--ink-muted)]">{description}</p>
-          </div>
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        </div>
-      </section>
-
-      {children}
-    </main>
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

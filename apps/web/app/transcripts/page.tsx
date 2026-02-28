@@ -8,12 +8,18 @@ import {
   Badge,
   Button,
   Card,
+  CardContent,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { filterTranscriptEvents, paginateItems } from "@/src/features/historyFilters";
@@ -21,6 +27,7 @@ import {
   parseTranscriptQueryState,
   toTranscriptSearchParams,
 } from "@/src/features/historyQueryState";
+import { formatId, formatTime } from "@/src/lib/format";
 
 const PAGE_SIZE = 10;
 
@@ -129,66 +136,80 @@ export default function TranscriptsPage() {
 
   return (
     <DashboardShell
-      title="Transcripts"
-      description="先选 Agent，再选会话，直接查看轨迹。"
-      actions={
-        <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
-          <Link href="/chat">回到聊天</Link>
-        </Button>
-      }
+      title="轨迹记录"
+      description="按 Agent 与会话查看完整对话轨迹。"
     >
-      <section className="space-y-4">
-        <Card className="space-y-4 border-[var(--line-soft)] bg-white/92 p-5">
-          <div className="grid gap-3 lg:grid-cols-3">
-            <Select
-              value={agentId || undefined}
-              onValueChange={(value) => {
-                setAgentId(value);
-                setSessionId("");
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
-              </SelectTrigger>
-              <SelectContent>
-                {(agents.data ?? []).map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6">
+        {/* Filters */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Select
+            value={agentId || undefined}
+            onValueChange={(value) => { setAgentId(value); setSessionId(""); setPage(1); }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+            </SelectTrigger>
+            <SelectContent>
+              {(agents.data ?? []).map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            <Select
-              value={sessionId || undefined}
-              onValueChange={(value) => {
-                setSessionId(value);
-                setPage(1);
-              }}
-              disabled={!agentId || sessionList.isLoading}
-            >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder={sessionList.isLoading ? "加载会话..." : "选择会话"} />
-              </SelectTrigger>
-              <SelectContent>
-                {(sessionList.data ?? []).map((session) => (
-                  <SelectItem key={session.id} value={session.id}>
-                    {session.sessionKey}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <Select
+            value={sessionId || undefined}
+            onValueChange={(value) => { setSessionId(value); setPage(1); }}
+            disabled={!agentId || sessionList.isLoading}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={sessionList.isLoading ? "加载会话..." : "选择会话"} />
+            </SelectTrigger>
+            <SelectContent>
+              {(sessionList.data ?? []).map((session) => (
+                <SelectItem key={session.id} value={session.id}>{session.sessionKey}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
+          <Select
+            value={typeFilter}
+            onValueChange={(value) => {
+              setTypeFilter(value as typeof typeFilter);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="事件类型" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部事件</SelectItem>
+              <SelectItem value="user_message">user_message</SelectItem>
+              <SelectItem value="assistant_message">assistant_message</SelectItem>
+              <SelectItem value="tool_call">tool_call</SelectItem>
+              <SelectItem value="compaction">compaction</SelectItem>
+              <SelectItem value="memory_flush">memory_flush</SelectItem>
+              <SelectItem value="system">system</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Label htmlFor="transcript-search">搜索</Label>
+            <Input
+              id="transcript-search"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+              placeholder="搜索内容"
+            />
+          </div>
+          <div className="flex items-end gap-2">
             <Select
               value={String(limit)}
-              onValueChange={(value) => {
-                setLimit(Number(value));
-                setPage(1);
-              }}
+              onValueChange={(value) => { setLimit(Number(value)); setPage(1); }}
             >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="条数" />
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="50">50 条</SelectItem>
@@ -196,129 +217,89 @@ export default function TranscriptsPage() {
                 <SelectItem value="200">200 条</SelectItem>
               </SelectContent>
             </Select>
-
-            <Input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="搜索内容"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
-            <Select
-              value={typeFilter}
-              onValueChange={(value) => {
-                setTypeFilter(
-                  value as
-                    | "all"
-                    | "user_message"
-                    | "assistant_message"
-                    | "tool_call"
-                    | "compaction"
-                    | "memory_flush"
-                    | "system"
-                );
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="事件类型" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部事件</SelectItem>
-                <SelectItem value="user_message">user_message</SelectItem>
-                <SelectItem value="assistant_message">assistant_message</SelectItem>
-                <SelectItem value="tool_call">tool_call</SelectItem>
-                <SelectItem value="compaction">compaction</SelectItem>
-                <SelectItem value="memory_flush">memory_flush</SelectItem>
-                <SelectItem value="system">system</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
+            <Button variant="outline" onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
               刷新
             </Button>
           </div>
-        </Card>
+        </div>
 
+        {/* Stats */}
         {agentId && sessionId ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--ink-muted)]">
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              共 {filteredEvents.length} 条
-            </Badge>
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              第 {paged.page}/{paged.totalPages} 页
-            </Badge>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>共 {filteredEvents.length} 条</span>
+            <span>第 {paged.page}/{paged.totalPages || 1} 页</span>
           </div>
         ) : null}
 
-        <div className="grid gap-3">
+        {/* Event list */}
+        <div className="space-y-3">
           {transcripts.isLoading
             ? Array.from({ length: 4 }).map((_, idx) => (
-                <Card
-                  key={`loading-${idx}`}
-                  className="h-28 animate-pulse border-[var(--line-soft)] bg-white/70"
-                />
+                <Card key={`loading-${idx}`}>
+                  <CardContent className="py-4">
+                    <Skeleton className="h-16 w-full" />
+                  </CardContent>
+                </Card>
               ))
             : paged.items.map((event) => (
-                <Card
-                  key={event.id}
-                  className="space-y-3 border-[var(--line-soft)] bg-white/94 p-5 shadow-[0_10px_24px_rgba(24,38,64,0.05)]"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="border-[var(--line-soft)] bg-[var(--brand-soft)]">
-                      {event.type}
-                    </Badge>
-                    <Badge variant="outline" className="border-[var(--line-soft)] bg-white">
-                      {event.id}
-                    </Badge>
-                    <span className="text-xs text-[var(--ink-muted)]">{event.createdAt}</span>
-                  </div>
-
-                  <pre className="overflow-x-auto rounded-xl border border-[var(--line-soft)] bg-slate-50/90 p-3 text-xs text-slate-700">
-                    {JSON.stringify(event.content, null, 2)}
-                  </pre>
+                <Card key={event.id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="py-4">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{event.type}</Badge>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-default font-mono text-xs text-muted-foreground">
+                            {formatId(event.id)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-mono text-xs">{event.id}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <span className="text-xs text-muted-foreground">{formatTime(event.createdAt)}</span>
+                    </div>
+                    <pre className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs">
+                      {JSON.stringify(event.content, null, 2)}
+                    </pre>
+                  </CardContent>
                 </Card>
               ))}
 
           {!transcripts.isLoading && agentId && sessionId && paged.items.length === 0 ? (
-            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               没有符合筛选条件的 transcript。
-            </Card>
+            </div>
           ) : null}
 
           {!transcripts.isLoading && !hasAgents ? (
-            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-              你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
-            </Card>
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              你还没有 Agent。先去{" "}
+              <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
+              {" "}创建一个。
+            </div>
           ) : null}
 
           {!transcripts.isLoading && hasAgents && !hasSessions ? (
-            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-              这个 Agent 还没有会话，先去 <Link href={`/chat/${agentId}`} className="text-[var(--brand)] underline">Chat</Link> 发一条消息。
-            </Card>
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              这个 Agent 还没有会话，先去{" "}
+              <Link href={`/chat/${agentId}`} className="text-primary underline underline-offset-4">Chat</Link>
+              {" "}发一条消息。
+            </div>
           ) : null}
         </div>
 
+        {/* Pagination */}
         {paged.totalPages > 1 ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={paged.page <= 1}
-              onClick={() => setPage((prev) => prev - 1)}
-            >
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" disabled={paged.page <= 1} onClick={() => setPage((p) => p - 1)}>
               上一页
             </Button>
-            <Button
-              variant="secondary"
-              disabled={paged.page >= paged.totalPages}
-              onClick={() => setPage((prev) => prev + 1)}
-            >
+            <Button variant="outline" size="sm" disabled={paged.page >= paged.totalPages} onClick={() => setPage((p) => p + 1)}>
               下一页
             </Button>
           </div>
         ) : null}
-      </section>
+      </div>
     </DashboardShell>
   );
 }

@@ -3,7 +3,18 @@
   "compilerOptions": {
     "rootDir": "src",
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "baseUrl": ".",
+    "paths": {
+      "@/components/*": ["src/components/*"],
+      "@/components": ["src/components"],
+      "@/components/ui/*": ["src/components/ui/*"],
+      "@/components/ui": ["src/components/ui"],
+      "@/lib/*": ["src/lib/*"],
+      "@/lib": ["src/lib"],
+      "@/hooks/*": ["src/hooks/*"],
+      "@/hooks": ["src/hooks"]
+    }
   },
   "include": ["src"]
 }

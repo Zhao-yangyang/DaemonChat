@@ -8,11 +8,18 @@ import {
   Badge,
   Button,
   Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Label,
+  Progress,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import {
@@ -136,19 +143,16 @@ export default function UsagePage() {
   return (
     <DashboardShell
       title="Usage & Cost"
-      description="直接选择 Agent 查看成本，不再需要手动复制 ID。"
-      actions={
-        <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
-          <Link href="/agents">管理 Agent</Link>
-        </Button>
-      }
+      description="按 Agent 快速查看 token 与成本趋势。"
     >
-      <section className="space-y-4">
-        <Card className="border-[var(--line-soft)] bg-white/92 p-5">
-          <div className="grid gap-3 md:grid-cols-3">
+      <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+        {/* Filters */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <Label>Agent</Label>
             <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
+              <SelectTrigger>
+                <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
               </SelectTrigger>
               <SelectContent>
                 {(agents.data ?? []).map((agent) => (
@@ -158,168 +162,166 @@ export default function UsagePage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>统计周期</Label>
             <Select value={period} onValueChange={(value) => setPeriod(value as UsagePeriod)}>
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="统计周期" />
+              <SelectTrigger>
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="day">今日</SelectItem>
                 <SelectItem value="month">本月</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-end">
             <Button
               variant="outline"
-              className="border-[var(--line-soft)] bg-white"
-              onClick={() => {
-                usage.refetch();
-                trend.refetch();
-              }}
+              className="w-full"
+              onClick={() => { usage.refetch(); trend.refetch(); }}
               disabled={!agentId}
             >
               刷新
             </Button>
           </div>
-        </Card>
+        </div>
 
-        {agentId ? (
-          <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              Agent {(agents.data ?? []).find((item) => item.id === agentId)?.name ?? agentId}
-            </Badge>
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              范围：{period === "day" ? "今天" : "当月"}
-            </Badge>
-          </div>
-        ) : null}
-
+        {/* Summary cards */}
         {usage.isLoading ? (
           <div className="grid gap-3 sm:grid-cols-3">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <Card
-                key={`usage-loading-${idx}`}
-                className="h-28 animate-pulse border-[var(--line-soft)] bg-white/70"
-              />
+              <Card key={`usage-loading-${idx}`}>
+                <CardContent className="py-4">
+                  <Skeleton className="h-16 w-full" />
+                </CardContent>
+              </Card>
             ))}
           </div>
         ) : null}
 
         {!usage.isLoading && agentId ? (
           <div className="grid gap-3 sm:grid-cols-3">
-            <Card className="space-y-1 border-[var(--line-soft)] bg-white/95 p-5">
-              <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-muted)]">Tokens In</p>
-              <p className="text-3xl font-semibold text-[var(--ink-strong)]">
-                {formatNumber(usage.data?.tokensIn ?? 0)}
-              </p>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs text-muted-foreground">Tokens In</p>
+                <p className="mt-1 text-2xl font-semibold">{formatNumber(usage.data?.tokensIn ?? 0)}</p>
+              </CardContent>
             </Card>
-            <Card className="space-y-1 border-[var(--line-soft)] bg-white/95 p-5">
-              <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-muted)]">Tokens Out</p>
-              <p className="text-3xl font-semibold text-[var(--ink-strong)]">
-                {formatNumber(usage.data?.tokensOut ?? 0)}
-              </p>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs text-muted-foreground">Tokens Out</p>
+                <p className="mt-1 text-2xl font-semibold">{formatNumber(usage.data?.tokensOut ?? 0)}</p>
+              </CardContent>
             </Card>
-            <Card className="space-y-1 border-[var(--line-soft)] bg-white/95 p-5">
-              <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-muted)]">Cost Estimate</p>
-              <p className="text-3xl font-semibold text-[var(--ink-strong)]">
-                {formatUsd(usage.data?.costEstimate ?? 0)}
-              </p>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs text-muted-foreground">Cost Estimate</p>
+                <p className="mt-1 text-2xl font-semibold">{formatUsd(usage.data?.costEstimate ?? 0)}</p>
+              </CardContent>
             </Card>
           </div>
         ) : null}
 
+        {/* Token split */}
         {!usage.isLoading && agentId ? (
-          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <Card className="space-y-4 border-[var(--line-soft)] bg-white/95 p-5">
-              <p className="text-sm font-semibold text-[var(--ink-strong)]">Token Split</p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Token Split</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div className="space-y-2">
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-[var(--brand)]"
-                    style={{ width: `${Math.max(0, Math.min(100, inRatio * 100))}%` }}
-                  />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Input</span>
+                  <span>{Math.round(inRatio * 100)}%</span>
                 </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-[var(--accent)]"
-                    style={{ width: `${Math.max(0, Math.min(100, outRatio * 100))}%` }}
-                  />
-                </div>
+                <Progress value={Math.max(0, Math.min(100, inRatio * 100))} />
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--brand-soft)]/55 p-3 text-sm text-[var(--ink-muted)]">
-                  In {Math.round(inRatio * 100)}%
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Output</span>
+                  <span>{Math.round(outRatio * 100)}%</span>
                 </div>
-                <div className="rounded-xl border border-[var(--line-soft)] bg-amber-50 p-3 text-sm text-[var(--ink-muted)]">
-                  Out {Math.round(outRatio * 100)}%
-                </div>
+                <Progress
+                  value={Math.max(0, Math.min(100, outRatio * 100))}
+                  className="[&>div]:bg-[var(--accent-green)]"
+                />
               </div>
-            </Card>
-
-            <Card className="space-y-3 border-[var(--line-soft)] bg-white/95 p-5 text-sm text-[var(--ink-muted)]">
-              <p className="font-semibold text-[var(--ink-strong)]">Usage Notes</p>
-              <p>总 token：{formatNumber(totalTokens)}</p>
-              <p>
-                若你开启了硬上限、预算降级或 fallback 路由，可在审计与 usage meta 中看到决策记录。
-              </p>
-            </Card>
-          </div>
+              <p className="text-xs text-muted-foreground">总 token：{formatNumber(totalTokens)}</p>
+            </CardContent>
+          </Card>
         ) : null}
 
+        {/* Trend chart */}
         {!trend.isLoading && agentId ? (
-          <Card className="space-y-4 border-[var(--line-soft)] bg-white/95 p-5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-[var(--ink-strong)]">Token Trend</p>
-              <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-                {period === "day" ? "按小时" : "按天"}
-              </Badge>
-            </div>
-            {trendChart.polyline ? (
-              <div className="overflow-x-auto">
-                <svg viewBox="0 0 640 260" className="min-w-[640px]">
-                  <defs>
-                    <linearGradient id="usage-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.28" />
-                      <stop offset="100%" stopColor="var(--brand)" stopOpacity="0.03" />
-                    </linearGradient>
-                  </defs>
-                  <rect x="0" y="0" width="640" height="220" rx="12" fill="#f8fafc" />
-                  <path d={`M ${trendChart.fillPath}`} fill="url(#usage-fill)" />
-                  <polyline
-                    points={trendChart.polyline}
-                    fill="none"
-                    stroke="var(--brand)"
-                    strokeWidth="3"
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  <line x1="0" y1="220" x2="640" y2="220" stroke="#dbe3f0" strokeWidth="1" />
-                  {trendChart.labels.map((label, idx) => (
-                    <text
-                      key={`${label.text}-${idx}`}
-                      x={label.x}
-                      y="246"
-                      textAnchor={idx === 0 ? "start" : idx === trendChart.labels.length - 1 ? "end" : "middle"}
-                      className="fill-slate-500 text-[12px]"
-                    >
-                      {label.text}
-                    </text>
-                  ))}
-                  <text x="640" y="16" textAnchor="end" className="fill-slate-500 text-[12px]">
-                    峰值 {formatNumber(trendChart.maxValue)}
-                  </text>
-                </svg>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">Token Trend</CardTitle>
+                <Badge variant="secondary" className="text-xs">
+                  {period === "day" ? "按小时" : "按天"}
+                </Badge>
               </div>
-            ) : (
-              <p className="text-sm text-[var(--ink-muted)]">当前周期暂无可视化数据。</p>
-            )}
+            </CardHeader>
+            <CardContent>
+              {trendChart.polyline ? (
+                <div className="overflow-x-auto">
+                  <svg viewBox="0 0 640 260" className="min-w-[640px]">
+                    <defs>
+                      <linearGradient id="usage-fill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.02" />
+                      </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width="640" height="220" rx="8" fill="var(--secondary)" />
+                    <path d={`M ${trendChart.fillPath}`} fill="url(#usage-fill)" />
+                    <polyline
+                      points={trendChart.polyline}
+                      fill="none"
+                      stroke="var(--primary)"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    <line x1="0" y1="220" x2="640" y2="220" stroke="var(--border)" strokeWidth="1" />
+                    {trendChart.labels.map((label, idx) => (
+                      <text
+                        key={`${label.text}-${idx}`}
+                        x={label.x}
+                        y="246"
+                        textAnchor={idx === 0 ? "start" : idx === trendChart.labels.length - 1 ? "end" : "middle"}
+                        style={{ fill: "var(--muted-foreground)" }}
+                        className="text-[11px]"
+                      >
+                        {label.text}
+                      </text>
+                    ))}
+                    <text
+                      x="640"
+                      y="16"
+                      textAnchor="end"
+                      style={{ fill: "var(--muted-foreground)" }}
+                      className="text-[11px]"
+                    >
+                      峰值 {formatNumber(trendChart.maxValue)}
+                    </text>
+                  </svg>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">当前周期暂无数据。</p>
+              )}
+            </CardContent>
           </Card>
         ) : null}
 
         {!usage.isLoading && !hasAgents ? (
-          <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-            你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
-          </Card>
+          <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            你还没有 Agent。先去{" "}
+            <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
+            {" "}创建一个。
+          </div>
         ) : null}
-      </section>
+      </div>
     </DashboardShell>
   );
 }

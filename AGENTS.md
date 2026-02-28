@@ -77,9 +77,30 @@ Example scoped command:
   - Retry delay now uses exponential backoff with cap (`JOB_RETRY_BASE_MS`, `JOB_RETRY_MAX_MS`) and dead-letters at `JOB_MAX_ATTEMPTS`.
   - Worker currently accepts only `COMPACTION` / `MEMORY_FLUSH` / `EMBEDDING_BACKFILL`; unknown types are treated as failures and follow the same retry/dead-letter path.
 - UI foundation now uses shadcn-style primitives in `@daemon/ui`:
+  - `packages/ui/components.json` has been added and shadcn CLI is now wired for component generation/updates.
+  - core UI primitives were refreshed from shadcn official component sources (button/input/textarea/select/card/badge/dialog/dropdown-menu), then only minimally themed via global semantic tokens.
+  - `Skeleton` primitive has been added from shadcn and is now used for web loading placeholders instead of ad-hoc pulse blocks.
+  - `@daemon/ui` exports are now aligned to shadcn component surfaces (including `CardAction`, dialog overlay/portal, and extended dropdown items) for reuse across pages.
   - `Button`, `Input`, `Textarea`, `Card`, `Badge`, `Dialog`, `DropdownMenu`.
+  - design tokens have been refreshed to a neutral white-gray palette (ChatGPT/Claude inspired):
+    - primary brand: `#2563eb`
+    - accent-green: `#10b981`
+    - background: `#f7f7f8`, card: `#ffffff`, secondary: `#f0f0f1`
+    - sidebar: `#f0f0f1` with dedicated `--sidebar` / `--sidebar-foreground` / `--sidebar-muted` tokens
+  - `@daemon/ui` primitive styles (`Button/Input/Textarea/Select/Card/Badge`) are now variable-driven and use `bg-card` instead of `bg-transparent` for form controls.
+  - additional shadcn components installed: `Label`, `ScrollArea`, `Alert`, `Separator`, `Tooltip`, `Sheet`, `Progress`, `Avatar`, `Tabs`.
   - `apps/web` now uses Tailwind CSS v4 (`apps/web/postcss.config.mjs`, `apps/web/app/globals.css`).
-  - `apps/web` now has a unified dashboard shell (`apps/web/src/components/dashboard-shell.tsx`) with compact shared nav/user status and reduced visual noise.
+  - `apps/web` now uses a sidebar-based dashboard shell (`apps/web/src/components/dashboard-shell.tsx`) with left vertical navigation (icons + labels), mobile Sheet drawer, and compact top bar for page title/actions.
+  - navigation items are now icon-labeled Chinese: 聊天/Agents/记忆/轨迹/用量, all flat (no dropdown).
+  - `apps/web/src/hooks/use-session.ts` extracts duplicated Supabase auth subscription logic into a shared `useSession()` hook returning `{ session, isResolved, user }`.
+  - `apps/web/src/lib/format.ts` provides `formatId(uuid)` (truncated display) and `formatTime(iso)` (zh-CN Intl format) utilities.
+  - `apps/web/src/providers.tsx` now wraps children with `<TooltipProvider>` for global Tooltip availability.
+  - error states now use `<Alert variant="destructive">` instead of raw `text-rose-600` paragraphs.
+  - form fields now have `<Label>` components and Textarea has `aria-label` for accessibility.
+  - Usage page token split uses `<Progress>` component instead of hand-written div bars.
+  - Chat page uses `<ScrollArea>` instead of raw `overflow-y-auto` div.
+  - Chat page messages now have role avatar indicators ("你" / "AI" circles).
+  - Chat page input area uses a container-style design (rounded border wrapper with embedded textarea + icon send button).
   - core app pages (`/`, `/agents`, `/chat`, `/chat/[agentId]`, `/memory`, `/transcripts`, `/usage`) were visually redesigned for consistent layout hierarchy and clearer task flows.
   - `apps/web/app/memory` and `apps/web/app/transcripts` now include local filtering, pagination, loading skeleton, and empty states.
   - `apps/web/app/usage` is now available with day/month usage summary, token split, cost estimate, trend chart, and URL query-state sync.
@@ -87,7 +108,18 @@ Example scoped command:
   - navigation entry for Usage is now available on home page and per-agent quick links (`/usage?agent=...`) in `apps/web/app/agents`.
   - `apps/web/app/agents` now shows explicit list/create error messages and disables repeated auto-retries on failed list requests.
   - `apps/web/app/chat/[agentId]` now uses simplified chat-first layout with inline session selector + one-click new session creation (no manual sessionKey input).
+  - `apps/web/app/chat/[agentId]` chat input now follows mainstream UX: `Enter` to send, `Shift+Enter` newline, and auto-scroll to latest streamed output.
+  - `apps/web/app/chat/[agentId]` now hydrates message history from `transcript.list` for selected existing sessions and provides one-click "同步历史" to re-pull remote session messages into UI state.
+  - `apps/web/app/chat/[agentId]` layout is now consolidated into one primary chat surface (session controls + message stream + composer), with reduced card nesting and stable bottom composer interaction.
   - `apps/web/app/chat` and authenticated `/` now use chat-entry gating: auto-open most recent agent chat, and auto-bootstrap `Default Agent` when user has none.
+  - chat-entry gate loading/error states are now rendered with shared shadcn primitives (including `Skeleton`) for consistent login-to-chat transition feedback.
+  - `apps/web/app/agents` is now a single-column, chat-first management flow (top create bar + agent list), replacing the previous split left/right control panel to reduce navigation friction.
+  - `apps/web` dashboard navigation uses a fixed 240px sidebar with all 5 nav items visible at desktop, and a Sheet drawer at mobile.
+  - core data pages (`/memory`, `/transcripts`, `/usage`) now share centered content width (`max-w-3xl` / `max-w-4xl`) inside the sidebar shell layout.
+  - `apps/web` page layouts now prefer shadcn structural primitives (`CardHeader/CardContent/CardFooter/CardTitle/CardDescription`) over ad-hoc wrapper divs to reduce custom style divergence.
+  - `apps/web` page-level styling now prefers shadcn semantic utility tokens (`bg-background`, `text-foreground`, `text-muted-foreground`, `bg-primary`, `text-primary-foreground`, `border-border`) instead of direct `var(--ink-*/--brand-*)` usage.
+  - only non-semantic brand special-cases (for example `--accent-green`) are kept as explicit variables where no stock semantic token exists.
+  - dashboard/navigation layout has been simplified to chat-product style hierarchy: compact top nav card + lightweight page heading/actions section with reduced decorative containers.
   - API now exposes `session.list` (recent sessions) and `usage.trend` (bucketed usage series: hourly for day, daily for month).
 - Chat idempotency baseline is now wired:
   - `chatTurn/chatTurnStream` accept `idempotencyKey` and replay completed responses for duplicate keys.
@@ -153,6 +185,7 @@ Example scoped command:
 ## Current Implementation Notes
 
 - When adding new UI to `apps/web`, prefer `@daemon/ui` components and utility classes over inline `style`.
+- Prefer semantic Tailwind/shadcn token classes (`text-muted-foreground`, `bg-card`, `border-border`, etc.) over direct `var(--ink-*/--brand-*)` references in page components; keep direct CSS variable usage only for explicit brand accents that have no semantic alias.
 - For stream/chat API requests, send only access token header (`x-access-token`), never a client-asserted user id header.
 - For idempotent chat retries, provide the same `idempotencyKey` (or `x-idempotency-key`) when retrying the same user turn.
 - To enable accurate usage cost accounting for your active model pricing:
@@ -220,3 +253,4 @@ Example scoped command:
   - focused tests where applicable (for example `apps/web/src/server/auth.test.ts`, `apps/web/app/api/chat/stream/route.test.ts`, `apps/worker/src/claimJobs.test.ts`, `apps/worker/src/retry.test.ts`, `apps/web/src/features/historyFilters.test.ts`, `packages/api/src/__tests__/router.test.ts`)
 - For manual product QA and demos, use:
   - `docs/runbooks/local-experience.md`
+- Local web dev default port is now `3333` (`@daemon/web` dev script and local runbook/loadtest defaults are aligned).

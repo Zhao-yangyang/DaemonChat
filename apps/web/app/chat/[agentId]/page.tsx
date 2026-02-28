@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
 import {
   Badge,
   Button,
-  Card,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -18,10 +18,67 @@ import {
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
+import { Send } from "lucide-react";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
+
+const toMessageText = (content: unknown): string => {
+  if (typeof content === "string") return content;
+  if (typeof content === "number" || typeof content === "boolean") return String(content);
+  if (content && typeof content === "object") {
+    const value = content as Record<string, unknown>;
+    const direct = ["content", "text", "message", "value"];
+    for (const key of direct) {
+      if (typeof value[key] === "string") {
+        return value[key] as string;
+      }
+    }
+
+    const parts = value.parts;
+    if (Array.isArray(parts)) {
+      const joined = parts
+        .map((part) => {
+          if (typeof part === "string") return part;
+          if (part && typeof part === "object") {
+            const maybeText = (part as Record<string, unknown>).text;
+            if (typeof maybeText === "string") return maybeText;
+          }
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
+      if (joined) return joined;
+    }
+  }
+
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return String(content ?? "");
+  }
+};
+
+const toChatMessagesFromEvents = (
+  events: Array<{ type: string; content: unknown }>
+): ChatMessage[] => {
+  const items: ChatMessage[] = [];
+  for (const event of events) {
+    if (event.type !== "user_message" && event.type !== "assistant_message") {
+      continue;
+    }
+    const text = toMessageText(event.content).trim();
+    if (!text) {
+      continue;
+    }
+    items.push({
+      role: event.type === "user_message" ? "user" : "assistant",
+      content: text,
+    });
+  }
+  return items;
+};
 
 export default function ChatPage() {
   const params = useParams<{ agentId: string }>();
@@ -33,6 +90,7 @@ export default function ChatPage() {
     main: [],
   });
   const [isStreaming, setIsStreaming] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const sessionList = trpc.session.list.useQuery(
     { agentId, limit: 20 },
@@ -42,6 +100,20 @@ export default function ChatPage() {
   const currentSessionKey = sessionKey.trim() || "main";
   const messages = messagesBySession[currentSessionKey] ?? [];
 
+  const selectedSession = useMemo(
+    () => (sessionList.data ?? []).find((item) => item.sessionKey === currentSessionKey) ?? null,
+    [currentSessionKey, sessionList.data]
+  );
+  const currentSessionId = selectedSession?.id ?? "";
+
+  const transcript = trpc.transcript.list.useQuery(
+    { agentId, sessionId: currentSessionId, limit: 200 },
+    {
+      enabled: Boolean(agentId && currentSessionId),
+      refetchOnWindowFocus: false,
+    }
+  );
+
   const sessionKeys = useMemo(() => {
     const keys = new Set<string>(["main", ...Object.keys(messagesBySession)]);
     for (const item of sessionList.data ?? []) {
@@ -49,6 +121,33 @@ export default function ChatPage() {
     }
     return Array.from(keys);
   }, [messagesBySession, sessionList.data]);
+
+  useEffect(() => {
+    const viewport = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]");
+    if (!viewport) return;
+    viewport.scrollTop = viewport.scrollHeight;
+  }, [messages, currentSessionKey, isStreaming]);
+
+  useEffect(() => {
+    if (!currentSessionKey || !transcript.data) {
+      return;
+    }
+    const restored = toChatMessagesFromEvents(transcript.data);
+    if (restored.length === 0) {
+      return;
+    }
+
+    setMessagesBySession((prev) => {
+      const existing = prev[currentSessionKey] ?? [];
+      if (existing.length > 0) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [currentSessionKey]: restored,
+      };
+    });
+  }, [currentSessionKey, transcript.data]);
 
   const updateMessagesForSession = (
     targetSessionKey: string,
@@ -165,6 +264,9 @@ export default function ChatPage() {
       }
 
       sessionList.refetch();
+      if (currentSessionId) {
+        transcript.refetch();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知错误";
       appendAssistant(activeSessionKey, `\n错误: ${message}`);
@@ -179,101 +281,133 @@ export default function ChatPage() {
       description="直接对话即可，系统会自动记录会话和用量。"
       actions={
         <div className="flex items-center gap-2">
-          <Button asChild size="sm" variant="outline" className="border-[var(--line-soft)] bg-white">
-            <Link href={`/usage?agent=${encodeURIComponent(agentId)}`}>用量</Link>
+          <Select value={currentSessionKey} onValueChange={setSessionKey}>
+            <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectValue placeholder="选择会话" />
+            </SelectTrigger>
+            <SelectContent>
+              {sessionKeys.map((key) => (
+                <SelectItem key={key} value={key}>
+                  {key}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="xs" variant="outline" onClick={createSession} disabled={isStreaming}>
+            新会话
           </Button>
-          <Button asChild size="sm" variant="outline" className="border-[var(--line-soft)] bg-white">
-            <Link href={`/memory?agent=${encodeURIComponent(agentId)}`}>记忆</Link>
-          </Button>
+          {currentSessionId ? (
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={transcript.isFetching}
+              onClick={() => {
+                setMessagesBySession((prev) => ({ ...prev, [currentSessionKey]: [] }));
+                transcript.refetch();
+              }}
+            >
+              {transcript.isFetching ? "同步中" : "同步"}
+            </Button>
+          ) : null}
+          {isStreaming ? (
+            <Badge variant="secondary" className="text-xs">回复中</Badge>
+          ) : null}
         </div>
       }
     >
-      <section className="space-y-4">
-        <Card className="border-[var(--line-soft)] bg-white p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs uppercase tracking-[0.14em] text-[var(--ink-muted)]">Session</p>
-            <Select value={currentSessionKey} onValueChange={setSessionKey}>
-              <SelectTrigger className="w-[220px] border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="选择会话" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessionKeys.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {key}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-[var(--line-soft)] bg-white"
-              onClick={createSession}
-              disabled={isStreaming}
-            >
-              新会话
-            </Button>
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
-              {isStreaming ? "回复中" : "就绪"}
-            </Badge>
-            {sessionList.isFetching ? (
-              <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
-                同步中
-              </Badge>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="flex min-h-[68vh] flex-col border-[var(--line-soft)] bg-white p-4 sm:p-5">
-          <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+      {/* Chat fills entire content area */}
+      <div className="flex h-full flex-col">
+        {/* Messages */}
+        <ScrollArea ref={scrollAreaRef} className="flex-1">
+          <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
             {messages.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--line-soft)] bg-[var(--brand-soft)]/35 p-5 text-sm text-[var(--ink-muted)]">
-                直接输入你的问题即可开始。
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10">
+                  <MessageIcon className="size-6 text-primary" />
+                </div>
+                <h2 className="text-lg font-medium text-foreground">开始新对话</h2>
+                <p className="mt-1 text-sm text-muted-foreground">输入你的问题即可开始</p>
               </div>
             ) : null}
 
-            {messages.map((msg, idx) => {
-              const isUser = msg.role === "user";
-              const isPendingAssistant = msg.role === "assistant" && !msg.content && isStreaming;
+            <div className="space-y-6">
+              {messages.map((msg, idx) => {
+                const isUser = msg.role === "user";
+                const isPendingAssistant = msg.role === "assistant" && !msg.content && isStreaming;
 
-              return (
-                <div key={`${msg.role}-${idx}`} className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-                  <div
-                    className={cn(
-                      "max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                      isUser ? "bg-[var(--brand)] text-white" : "border border-[var(--line-soft)] bg-white text-[var(--ink)]"
-                    )}
-                  >
-                    <p className="whitespace-pre-wrap">{msg.content || (isPendingAssistant ? "思考中..." : "")}</p>
+                return (
+                  <div key={`${msg.role}-${idx}`} className={cn("flex gap-3", isUser && "flex-row-reverse")}>
+                    <div
+                      className={cn(
+                        "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                        isUser
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {isUser ? "你" : "AI"}
+                    </div>
+                    <div
+                      className={cn(
+                        "max-w-[min(85%,42rem)] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                        isUser
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-foreground"
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap">{msg.content || (isPendingAssistant ? "思考中..." : "")}</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="输入消息。Ctrl/⌘ + Enter 发送"
-              className="min-h-24 border-[var(--line-soft)] bg-white"
-              onKeyDown={(event) => {
-                if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                  event.preventDefault();
-                  void send();
-                }
-              }}
-            />
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-[var(--ink-muted)]">发送时会自动携带幂等键，避免重复计费。</p>
-              <Button onClick={send} disabled={isStreaming || !input.trim()}>
-                {isStreaming ? "发送中..." : "发送"}
-              </Button>
+                );
+              })}
             </div>
           </div>
-        </Card>
-      </section>
+        </ScrollArea>
+
+        {/* Input area — fixed at bottom, centered */}
+        <div className="border-t bg-card px-4 py-4 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex items-end gap-2 rounded-xl border bg-background p-2 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
+              <Textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="输入消息..."
+                aria-label="输入消息"
+                className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
+                onKeyDown={(event) => {
+                  if ((event.nativeEvent as KeyboardEvent).isComposing) {
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <Button
+                size="icon-sm"
+                className="shrink-0 rounded-lg"
+                onClick={send}
+                disabled={isStreaming || !input.trim()}
+              >
+                <Send className="size-4" />
+                <span className="sr-only">发送</span>
+              </Button>
+            </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Enter 发送 · Shift + Enter 换行
+            </p>
+          </div>
+        </div>
+      </div>
     </DashboardShell>
+  );
+}
+
+function MessageIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
   );
 }

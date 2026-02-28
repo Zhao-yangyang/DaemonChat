@@ -1,43 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { Badge, Card } from "@daemon/ui";
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@daemon/ui";
 import { ChatEntryGate } from "@/src/components/chat-entry-gate";
+import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
 export default function HomePage() {
-  const [session, setSession] = useState<any>(null);
-
-  useEffect(() => {
-    supabaseBrowserClient.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-    });
-
-    const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
+  const { session } = useSession();
 
   if (session) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-[840px] items-center px-4 py-8 sm:px-6">
-        <section className="mx-auto w-full max-w-[560px] space-y-4">
-          <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
-            DaemonChat
-          </Badge>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-[var(--ink-strong)] sm:text-4xl">
-              欢迎回来
-            </h1>
-            <p className="text-sm text-[var(--ink-muted)]">
-              账号：{session.user?.email ?? session.user?.id}
-            </p>
-          </div>
+      <main className="mx-auto flex min-h-screen w-full max-w-lg items-center px-4 py-8 sm:px-6">
+        <section className="w-full space-y-5">
+          <Badge variant="secondary">DaemonChat</Badge>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl tracking-tight sm:text-3xl">欢迎回来</CardTitle>
+              <CardDescription>账号：{session.user?.email ?? session.user?.id}</CardDescription>
+            </CardHeader>
+          </Card>
           <ChatEntryGate />
         </section>
       </main>
@@ -45,45 +29,69 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto grid min-h-screen w-full max-w-[1080px] items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_440px] lg:px-8">
+    <main className="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_400px] lg:px-8">
       <section className="space-y-6">
-        <Badge variant="outline" className="border-[var(--line-soft)] bg-white text-[var(--ink-muted)]">
-          DaemonChat
-        </Badge>
+        <Badge variant="secondary">DaemonChat</Badge>
 
-        <div className="space-y-3">
-          <h1 className="text-4xl font-semibold leading-tight tracking-tight text-[var(--ink-strong)] sm:text-5xl">
+        <div className="space-y-4">
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
             打开即聊
             <br />
-            简洁的 AI 工作台
+            一个干净的 AI 工作台
           </h1>
-          <p className="max-w-xl text-base leading-relaxed text-[var(--ink-muted)]">
-            登录后自动进入最近对话。记忆、会话记录和用量统计都围绕聊天主界面展开，不需要手动查找 Agent。
+          <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+            登录后自动进入最近会话。Agent、记忆与用量都围绕聊天主流程，不需要手动查找入口或复制 ID。
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <Card className="border-[var(--line-soft)] bg-white p-4">
-            <p className="text-sm font-semibold text-[var(--ink-strong)]">Chat First</p>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">默认直达聊天，不绕路。</p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Chat First</CardTitle>
+              <CardDescription>默认直达聊天，不绕路。</CardDescription>
+            </CardHeader>
           </Card>
-          <Card className="border-[var(--line-soft)] bg-white p-4">
-            <p className="text-sm font-semibold text-[var(--ink-strong)]">Built-in Guardrails</p>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">限流、预算和审计默认启用。</p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Built-in Guardrails</CardTitle>
+              <CardDescription>限流、预算和审计默认启用。</CardDescription>
+            </CardHeader>
           </Card>
         </div>
       </section>
 
-      <Card className="border-[var(--line-soft)] bg-white p-6">
-        <div className="mb-4 space-y-1">
-          <h2 className="text-2xl font-semibold text-[var(--ink-strong)]">登录</h2>
-          <p className="text-sm text-[var(--ink-muted)]">使用 Supabase Auth 登录或注册。</p>
-        </div>
-        <Auth
-          supabaseClient={supabaseBrowserClient}
-          appearance={{ theme: ThemeSupa }}
-          providers={[]}
-        />
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">开始使用</CardTitle>
+          <CardDescription>使用邮箱登录或注册。</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Auth
+            supabaseClient={supabaseBrowserClient}
+            appearance={{
+              theme: ThemeSupa,
+              variables: {
+                default: {
+                  colors: {
+                    brand: "#2563eb",
+                    brandAccent: "#1d4ed8",
+                    inputBackground: "#ffffff",
+                    inputBorder: "#e4e4e7",
+                    inputBorderHover: "#2563eb",
+                    inputBorderFocus: "#2563eb",
+                    inputText: "#0d0d0d",
+                    defaultButtonBackground: "#f0f0f1",
+                    defaultButtonBackgroundHover: "#e4e4e7",
+                    defaultButtonBorder: "#e4e4e7",
+                    defaultButtonText: "#18181b",
+                    anchorTextColor: "#2563eb",
+                  },
+                },
+              },
+            }}
+            providers={[]}
+          />
+        </CardContent>
       </Card>
     </main>
   );

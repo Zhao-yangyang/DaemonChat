@@ -4,7 +4,17 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trpc } from "@daemon/hooks";
-import { Button, Card } from "@daemon/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+} from "@daemon/ui";
 
 export function ChatEntryGate() {
   const router = useRouter();
@@ -47,43 +57,60 @@ export function ChatEntryGate() {
 
   if (agents.error) {
     return (
-      <Card className="space-y-3 border-rose-200 bg-rose-50 p-4">
-        <p className="text-sm text-rose-700">加载 Agent 失败：{agents.error.message}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="border-rose-200 bg-white" onClick={() => agents.refetch()}>
-            重试
-          </Button>
-          <Button asChild variant="outline" className="border-rose-200 bg-white">
-            <Link href="/agents">前往 Agents</Link>
-          </Button>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">加载失败</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Alert variant="destructive">
+            <AlertDescription>加载 Agent 失败：{agents.error.message}</AlertDescription>
+          </Alert>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => agents.refetch()}>
+              重试
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/agents">前往 Agents</Link>
+            </Button>
+          </div>
+        </CardContent>
       </Card>
     );
   }
 
   if (createAgent.error) {
     return (
-      <Card className="space-y-3 border-rose-200 bg-rose-50 p-4">
-        <p className="text-sm text-rose-700">自动初始化失败：{createAgent.error.message}</p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            className="border-rose-200 bg-white"
-            onClick={() => createAgent.mutate({ name: "Default Agent" })}
-          >
-            重试初始化
-          </Button>
-          <Button asChild variant="outline" className="border-rose-200 bg-white">
-            <Link href="/agents">手动创建 Agent</Link>
-          </Button>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">初始化失败</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Alert variant="destructive">
+            <AlertDescription>自动初始化失败：{createAgent.error.message}</AlertDescription>
+          </Alert>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => createAgent.mutate({ name: "Default Agent" })}>
+              重试初始化
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/agents">手动创建 Agent</Link>
+            </Button>
+          </div>
+        </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="border-[var(--line-soft)] bg-white p-4 text-sm text-[var(--ink-muted)]">
-      正在打开聊天空间...
+    <Card className="shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">正在进入聊天</CardTitle>
+        <CardDescription>正在获取最近 Agent 会话...</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Skeleton className="h-4 w-3/5" />
+        <Skeleton className="h-4 w-2/5" />
+      </CardContent>
     </Card>
   );
 }

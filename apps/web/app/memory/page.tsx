@@ -8,12 +8,18 @@ import {
   Badge,
   Button,
   Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { filterMemoryItems, paginateItems } from "@/src/features/historyFilters";
@@ -21,7 +27,7 @@ import {
   parseMemoryQueryState,
   toMemorySearchParams,
 } from "@/src/features/historyQueryState";
-import { supabaseBrowserClient } from "@/src/supabaseClient";
+import { useSession } from "@/src/hooks/use-session";
 
 const PAGE_SIZE = 8;
 
@@ -30,6 +36,7 @@ export default function MemoryPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const parsedState = useMemo(() => parseMemoryQueryState(searchParams), [searchParams]);
+  const { user } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
     retry: false,
@@ -37,7 +44,6 @@ export default function MemoryPage() {
   });
 
   const [agentId, setAgentId] = useState(parsedState.agentId);
-  const [userId, setUserId] = useState("");
   const [content, setContent] = useState("");
   const [query, setQuery] = useState(parsedState.query);
   const [sensitivityFilter, setSensitivityFilter] = useState<
@@ -47,6 +53,8 @@ export default function MemoryPage() {
     "all" | "eligible" | "ineligible"
   >(parsedState.eligibilityFilter);
   const [page, setPage] = useState(parsedState.page);
+
+  const userId = user?.id ?? "";
 
   const memoryList = trpc.memory.list.useQuery(
     { agentId, limit: 50 },
@@ -78,18 +86,6 @@ export default function MemoryPage() {
       }),
     [filteredItems, page]
   );
-
-  useEffect(() => {
-    supabaseBrowserClient.auth.getSession().then(({ data }) => {
-      setUserId(data.session?.user?.id ?? "");
-    });
-
-    const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? "");
-    });
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
 
   useEffect(() => {
     if (parsedState.agentId) {
@@ -129,98 +125,90 @@ export default function MemoryPage() {
     if (next !== current) {
       router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
     }
-  }, [
-    agentId,
-    query,
-    sensitivityFilter,
-    eligibilityFilter,
-    page,
-    pathname,
-    router,
-    searchParams,
-  ]);
+  }, [agentId, query, sensitivityFilter, eligibilityFilter, page, pathname, router, searchParams]);
 
   const hasAgents = (agents.data?.length ?? 0) > 0;
 
   return (
     <DashboardShell
-      title="Memory 管理"
-      description="直接按 Agent 管理记忆，不再手填 ID。"
-      actions={
-        <Button asChild variant="outline" className="border-[var(--line-soft)] bg-white">
-          <Link href="/agents">管理 Agent</Link>
-        </Button>
-      }
+      title="记忆管理"
+      description="围绕当前 Agent 浏览、筛选和新增记忆。"
     >
-      <section className="space-y-4">
-        <Card className="space-y-4 border-[var(--line-soft)] bg-white/92 p-5">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder={agents.isLoading ? "加载 Agent..." : "选择 Agent"} />
-              </SelectTrigger>
-              <SelectContent>
-                {(agents.data ?? []).map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+        {/* Filters */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
+            <SelectTrigger>
+              <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+            </SelectTrigger>
+            <SelectContent>
+              {(agents.data ?? []).map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="memory-search">搜索</Label>
             <Input
+              id="memory-search"
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
               placeholder="按内容或标签搜索"
-              className="h-10 border-[var(--line-soft)] bg-white"
             />
-            <Select
-              value={sensitivityFilter}
-              onValueChange={(value) => {
-                setSensitivityFilter(value as "all" | "public" | "private" | "secret");
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="敏感级别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部敏感级别</SelectItem>
-                <SelectItem value="public">public</SelectItem>
-                <SelectItem value="private">private</SelectItem>
-                <SelectItem value="secret">secret</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={eligibilityFilter}
-              onValueChange={(value) => {
-                setEligibilityFilter(value as "all" | "eligible" | "ineligible");
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-10 border-[var(--line-soft)] bg-white">
-                <SelectValue placeholder="上下文可用性" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="eligible">eligible</SelectItem>
-                <SelectItem value="ineligible">ineligible</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
-        </Card>
+          <Select
+            value={sensitivityFilter}
+            onValueChange={(value) => {
+              setSensitivityFilter(value as "all" | "public" | "private" | "secret");
+              setPage(1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="敏感级别" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部敏感级别</SelectItem>
+              <SelectItem value="public">public</SelectItem>
+              <SelectItem value="private">private</SelectItem>
+              <SelectItem value="secret">secret</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={eligibilityFilter}
+            onValueChange={(value) => {
+              setEligibilityFilter(value as "all" | "eligible" | "ineligible");
+              setPage(1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="上下文可用性" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="eligible">eligible</SelectItem>
+              <SelectItem value="ineligible">ineligible</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Card className="space-y-3 border-[var(--line-soft)] bg-white/92 p-5">
-          <p className="text-xs uppercase tracking-[0.16em] text-[var(--ink-muted)]">Create Memory Item</p>
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
-            <Input
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="记录一条可复用事实，例如：偏好英文输出"
-              className="h-10 border-[var(--line-soft)] bg-white"
-            />
+        {/* Create memory */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">新增记忆</CardTitle>
+            <CardDescription>写入当前 Agent 可复用的事实。</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label htmlFor="memory-content">记忆内容</Label>
+              <Input
+                id="memory-content"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="记录一条可复用事实，例如：偏好英文输出"
+              />
+            </div>
             <Button
               onClick={() =>
                 createMemory.mutate({
@@ -238,80 +226,69 @@ export default function MemoryPage() {
             >
               {createMemory.isPending ? "保存中..." : "保存"}
             </Button>
-          </div>
+          </CardContent>
         </Card>
 
+        {/* Stats bar */}
         {agentId ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--ink-muted)]">
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              共 {filteredItems.length} 条
-            </Badge>
-            <Badge variant="outline" className="border-[var(--line-soft)] bg-white/80">
-              第 {paged.page}/{paged.totalPages} 页
-            </Badge>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>共 {filteredItems.length} 条</span>
+            <span>第 {paged.page}/{paged.totalPages || 1} 页</span>
           </div>
         ) : null}
 
-        <div className="grid gap-3">
+        {/* Memory list */}
+        <div className="space-y-3">
           {memoryList.isLoading
             ? Array.from({ length: 3 }).map((_, idx) => (
-                <Card
-                  key={`loading-${idx}`}
-                  className="h-24 animate-pulse border-[var(--line-soft)] bg-white/75"
-                />
+                <Card key={`loading-${idx}`}>
+                  <CardContent className="py-4">
+                    <Skeleton className="h-12 w-full" />
+                  </CardContent>
+                </Card>
               ))
             : paged.items.map((item) => (
-                <Card
-                  key={item.id}
-                  className="space-y-3 border-[var(--line-soft)] bg-white/94 p-5 shadow-[0_10px_24px_rgba(24,38,64,0.05)]"
-                >
-                  <p className="text-sm leading-relaxed text-[var(--ink)]">{item.content}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="border-[var(--line-soft)] bg-white">
-                      {item.type}
-                    </Badge>
-                    <Badge variant="outline" className="border-[var(--line-soft)] bg-white">
-                      {item.sensitivity}
-                    </Badge>
-                    <Badge variant={item.contextEligible ? "secondary" : "outline"}>
-                      {item.contextEligible ? "eligible" : "ineligible"}
-                    </Badge>
-                  </div>
+                <Card key={item.id} className="transition-shadow hover:shadow-md">
+                  <CardContent className="py-4">
+                    <p className="text-sm leading-relaxed">{item.content}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="text-xs">{item.type}</Badge>
+                      <Badge variant="secondary" className="text-xs">{item.sensitivity}</Badge>
+                      <Badge variant={item.contextEligible ? "default" : "secondary"} className="text-xs">
+                        {item.contextEligible ? "eligible" : "ineligible"}
+                      </Badge>
+                    </div>
+                  </CardContent>
                 </Card>
               ))}
 
           {!memoryList.isLoading && agentId && paged.items.length === 0 ? (
-            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               没有符合筛选条件的记忆。
-            </Card>
+            </div>
           ) : null}
 
           {!memoryList.isLoading && !hasAgents ? (
-            <Card className="border-[var(--line-soft)] bg-white/86 p-5 text-sm text-[var(--ink-muted)]">
-              你还没有 Agent。先去 <Link href="/agents" className="text-[var(--brand)] underline">Agents</Link> 创建一个。
-            </Card>
+            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+              你还没有 Agent。先去{" "}
+              <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
+              {" "}创建一个。
+            </div>
           ) : null}
         </div>
 
+        {/* Pagination */}
         {paged.totalPages > 1 ? (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              disabled={paged.page <= 1}
-              onClick={() => setPage((prev) => prev - 1)}
-            >
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" disabled={paged.page <= 1} onClick={() => setPage((p) => p - 1)}>
               上一页
             </Button>
-            <Button
-              variant="secondary"
-              disabled={paged.page >= paged.totalPages}
-              onClick={() => setPage((prev) => prev + 1)}
-            >
+            <Button variant="outline" size="sm" disabled={paged.page >= paged.totalPages} onClick={() => setPage((p) => p + 1)}>
               下一页
             </Button>
           </div>
         ) : null}
-      </section>
+      </div>
     </DashboardShell>
   );
 }
