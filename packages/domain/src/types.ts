@@ -1,10 +1,27 @@
 export type UUID = string;
 export type Timestamp = string; // ISO-8601 string
 
+export interface AgentConfig {
+  systemPrompt: string;
+  model: string;
+  memoryTopK: number;
+  recentMessages: number;
+  temperature: number;
+}
+
+export const DEFAULT_AGENT_CONFIG: AgentConfig = {
+  systemPrompt: "You are a helpful AI assistant.",
+  model: "",
+  memoryTopK: 8,
+  recentMessages: 20,
+  temperature: 0.7,
+};
+
 export interface Agent {
   id: UUID;
   ownerUserId: UUID;
   name: string;
+  config: AgentConfig;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
