@@ -11,6 +11,9 @@ create table if not exists public.agents (
   updated_at timestamptz not null default now()
 );
 
+-- Agent config (added post-MVP)
+alter table public.agents add column if not exists config jsonb not null default '{}';
+
 create index if not exists agents_owner_user_id_idx on public.agents (owner_user_id);
 
 -- Sessions

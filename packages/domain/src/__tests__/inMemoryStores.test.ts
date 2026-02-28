@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { DEFAULT_AGENT_CONFIG } from "../types";
 import { createInMemoryStores } from "../testing/memoryStores";
 
 const now = "2026-02-03T00:00:00Z";
@@ -10,12 +11,14 @@ describe("In-memory stores", () => {
     const agentA = await stores.agents.createAgent({
       ownerUserId: "user-1",
       name: "Alpha",
+      config: { ...DEFAULT_AGENT_CONFIG },
       now,
     });
 
     const agentB = await stores.agents.createAgent({
       ownerUserId: "user-2",
       name: "Beta",
+      config: { ...DEFAULT_AGENT_CONFIG },
       now,
     });
 
