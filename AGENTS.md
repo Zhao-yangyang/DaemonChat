@@ -299,3 +299,22 @@ Example scoped command:
 - If you change workspace/template tables, update both:
   - DB schema/migration in `supabase/migrations/` and `packages/adapters/supabase/sql/schema.sql`
   - API router in `packages/api/src/router.ts` and corresponding UI pages in `apps/web/app/`
+- Vercel deployment CI/CD is now wired:
+  - `.github/workflows/deploy.yml` triggers on push to `main` and `workflow_dispatch`.
+  - deploys directly to production (single-step, no staging/preview split).
+  - requires three GitHub Secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+  - `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` are stored in `.vercel/project.json` (local link).
+  - `VERCEL_TOKEN` must be created at https://vercel.com/account/tokens.
+  - Vercel environment variables (Supabase URL/key, OpenAI, etc.) are configured in Vercel Dashboard → Settings → Environment Variables, currently Production-only.
+- Vercel Hobby plan constraints:
+  - cron jobs limited to once per day; `vercel.json` cron schedule must be daily (e.g., `0 3 * * *`), not per-minute.
+  - if upgrading to Pro, cron can be changed to more frequent schedules.
+- Supabase CLI migration workflow:
+  - `supabase/` directory is initialized via `supabase init`.
+  - create migrations with `supabase migration new <name>`.
+  - push migrations with `supabase db push --db-url "<connection_string>"`.
+  - if CLI connection fails (TLS EOF), execute SQL directly in Supabase Dashboard → SQL Editor.
+- RLS self-referencing policy pattern:
+  - when a table's RLS `USING` clause queries itself, PostgreSQL triggers infinite recursion.
+  - fix: wrap the sub-query in a `SECURITY DEFINER` + `STABLE` function (e.g., `is_workspace_member()`).
+  - this pattern is used for `workspace_members` read policy.
