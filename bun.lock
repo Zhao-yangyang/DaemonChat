@@ -64,6 +64,7 @@
       "name": "@daemon/worker",
       "version": "0.0.0",
       "dependencies": {
+        "@daemon/adapters-llm-vercel": "workspace:*",
         "@daemon/adapters-supabase": "workspace:*",
         "@daemon/domain": "workspace:*",
         "@supabase/supabase-js": "^2.49.1",

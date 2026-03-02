@@ -62,5 +62,13 @@ export function createAgentStore(client: SupabaseClient): AgentStore {
       if (error) throw error;
       return mapAgent(data);
     },
+
+    async deleteAgent(agentId) {
+      const { error } = await client
+        .from("agents")
+        .delete()
+        .eq("id", agentId);
+      if (error) throw error;
+    },
   };
 }

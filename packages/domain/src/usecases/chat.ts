@@ -3,6 +3,7 @@ import { IdempotencyConflictError } from "../errors";
 import type { ContextBudget, ContextPack, MemoryItem, TranscriptEvent } from "../types";
 import type {
   Clock,
+  JobQueue,
   LlmModelSelection,
   LlmPort,
   MemoryStore,
@@ -79,6 +80,7 @@ const buildTurnUsageMeta = (
 });
 
 export function createChatService(ports: {
+  jobs?: JobQueue;
   sessions: SessionStore;
   transcripts: TranscriptStore;
   memory: MemoryStore;
@@ -223,6 +225,10 @@ export function createChatService(ports: {
     assistantText: string;
     userTokens: number;
     context: ContextPack;
+    memoryScope?: {
+      scopeType: MemoryItem["scopeType"];
+      scopeId: string;
+    };
   }) => {
     const assistantTokens = countTokens(input.assistantText, input.model);
     const costEstimate = estimateCostUsd({
@@ -262,6 +268,22 @@ export function createChatService(ports: {
       shouldCompact: input.context.shouldCompact,
       messages: input.context.messages,
     });
+
+    if (ports.jobs && input.memoryScope) {
+      try {
+        await ports.jobs.enqueue({
+          type: "MEMORY_FLUSH",
+          payload: {
+            agentId: input.agentId,
+            sessionId: input.sessionId,
+            scopeType: input.memoryScope.scopeType,
+            scopeId: input.memoryScope.scopeId,
+          },
+        });
+      } catch {
+        // best effort: memory flush enqueue should not block chat completion
+      }
+    }
   };
 
   return {
@@ -349,6 +371,7 @@ export function createChatService(ports: {
         assistantText,
         userTokens,
         context,
+        memoryScope: options.memoryScope,
       });
 
       return {
@@ -443,6 +466,7 @@ export function createChatService(ports: {
             assistantText: assistantText.trim(),
             userTokens,
             context,
+            memoryScope: options.memoryScope,
           });
         }
       }();

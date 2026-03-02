@@ -6,13 +6,22 @@ import { resolveRetryState } from "./retry";
 const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? "",
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  OPENAI_EMBED_MODEL: process.env.OPENAI_EMBED_MODEL ?? "text-embedding-3-small",
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  LLM_PROVIDER_NAME: process.env.LLM_PROVIDER_NAME as "openai" | "deepseek" | undefined,
+  LLM_COMPATIBILITY: process.env.LLM_COMPATIBILITY as "strict" | "compatible" | undefined,
+  EMBEDDING_MODE: process.env.EMBEDDING_MODE as "remote" | "local" | undefined,
+  ALLOW_LOCAL_EMBEDDING_FALLBACK: process.env.ALLOW_LOCAL_EMBEDDING_FALLBACK,
+  LOCAL_EMBED_DIMENSIONS: process.env.LOCAL_EMBED_DIMENSIONS,
 };
 
 if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 }
 
-const { client } = createWorkerContainer(env);
+const { client, memoryExtraction } = createWorkerContainer(env);
 
 const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_INTERVAL_MS ?? 5000);
 const MAX_JOB_ATTEMPTS = Number(process.env.JOB_MAX_ATTEMPTS ?? 5);
@@ -32,7 +41,40 @@ async function processJob(
       throw new Error(`Unsupported job type: ${job.type}`);
     }
 
-    // TODO: route by job.type handlers once domain worker usecases are implemented.
+    const payloadValue = job.payload;
+    const payload =
+      payloadValue && typeof payloadValue === "object"
+        ? (payloadValue as Record<string, unknown>)
+        : {};
+
+    if (job.type === "MEMORY_FLUSH") {
+      const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
+      const sessionId = typeof payload.sessionId === "string" ? payload.sessionId : "";
+      const scopeType =
+        payload.scopeType === "user" || payload.scopeType === "team" || payload.scopeType === "org"
+          ? payload.scopeType
+          : "user";
+      const scopeId = typeof payload.scopeId === "string" ? payload.scopeId : "";
+
+      if (!agentId || !sessionId || !scopeId) {
+        throw new Error("MEMORY_FLUSH payload missing agentId/sessionId/scopeId");
+      }
+
+      const extracted = await memoryExtraction.extractMemoryFromSession(agentId, sessionId, {
+        scopeType,
+        scopeId,
+      });
+      logInfo("worker.job.memory_flushed", {
+        request_id: requestId,
+        route: "worker.processJob",
+        job_id: job.id,
+        job_type: job.type,
+        agent_id: agentId,
+        session_id: sessionId,
+        extracted_count: extracted.length,
+      });
+    }
+
     logInfo("worker.job.processing", {
       request_id: requestId,
       route: "worker.processJob",

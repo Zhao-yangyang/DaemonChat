@@ -1,8 +1,8 @@
-import { ValidationError } from "../errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import type { Session } from "../types";
-import type { Clock, SessionStore } from "../container/types";
+import type { AgentStore, Clock, SessionStore } from "../container/types";
 
-export function createSessionService(ports: { sessions: SessionStore; clock: Clock }) {
+export function createSessionService(ports: { sessions: SessionStore; agents?: AgentStore; clock: Clock }) {
   return {
     async resolveSession(agentId: string, sessionKey: string): Promise<Session> {
       const trimmed = sessionKey.trim();
@@ -41,6 +41,24 @@ export function createSessionService(ports: { sessions: SessionStore; clock: Clo
         agentId,
         limit: Math.min(normalizedLimit, 100),
       });
+    },
+
+    async deleteSession(agentId: string, sessionId: string, ownerUserId: string): Promise<void> {
+      if (!ports.agents) {
+        throw new ValidationError("Session delete requires agent store");
+      }
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent) {
+        throw new NotFoundError("Agent not found");
+      }
+      if (agent.ownerUserId !== ownerUserId) {
+        throw new ForbiddenError("Agent access denied");
+      }
+      const trimmedSessionId = sessionId.trim();
+      if (!trimmedSessionId) {
+        throw new ValidationError("Session id is required");
+      }
+      await ports.sessions.deleteSession({ agentId, sessionId: trimmedSessionId });
     },
   };
 }

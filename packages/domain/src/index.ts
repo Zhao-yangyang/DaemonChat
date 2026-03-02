@@ -8,5 +8,6 @@ export * from "./usecases/agent";
 export * from "./usecases/session";
 export * from "./usecases/transcript";
 export * from "./usecases/memory";
+export * from "./usecases/memoryExtraction";
 export * from "./usecases/compaction";
 export * from "./usecases/chat";

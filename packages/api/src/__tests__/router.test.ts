@@ -28,8 +28,10 @@ const buildContainer = (overrides?: {
   createAgent?: Services["agent"]["createAgent"];
   listAgents?: Services["agent"]["listAgents"];
   getAgent?: Services["agent"]["getAgent"];
+  deleteAgent?: Services["agent"]["deleteAgent"];
   writeMemoryItem?: Services["memory"]["writeMemoryItem"];
   listSessions?: Services["session"]["listRecentSessions"];
+  deleteSession?: Services["session"]["deleteSession"];
   rateLimitConsume?: NonNullable<Services["ports"]["rateLimit"]>["consumeLimit"];
 }): Services =>
   ({
@@ -70,6 +72,7 @@ const buildContainer = (overrides?: {
           createdAt: "2026-02-03T00:00:00.000Z",
           updatedAt: "2026-02-03T00:00:00.000Z",
         })),
+      deleteAgent: overrides?.deleteAgent ?? (async () => {}),
     },
     chat: {
       chatTurn:
@@ -101,6 +104,7 @@ const buildContainer = (overrides?: {
       listRecentSessions:
         overrides?.listSessions ??
         (async () => []),
+      deleteSession: overrides?.deleteSession ?? (async () => {}),
     },
   }) as unknown as Services;
 
@@ -393,6 +397,47 @@ describe("api router", () => {
     expect(capturedCalls[0]?.limit).toBe(10);
     expect(result).toHaveLength(1);
     expect(result[0]?.sessionKey).toBe("main");
+  });
+
+  test("agent.delete deletes owned agent", async () => {
+    let captured: any = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          deleteAgent: async (agentId, userId) => {
+            captured = { agentId, userId };
+          },
+        }),
+      })
+    );
+
+    await caller.agent.delete({ agentId: "agent-1" });
+    if (!captured) {
+      throw new Error("Expected deleteAgent input to be captured");
+    }
+    expect(captured.agentId).toBe("agent-1");
+    expect(captured.userId).toBe("user-1");
+  });
+
+  test("session.delete deletes session through agent ownership", async () => {
+    let captured: any = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          deleteSession: async (agentId, sessionId, userId) => {
+            captured = { agentId, sessionId, userId };
+          },
+        }),
+      })
+    );
+
+    await caller.session.delete({ agentId: "agent-1", sessionId: "session-1" });
+    if (!captured) {
+      throw new Error("Expected deleteSession input to be captured");
+    }
+    expect(captured.agentId).toBe("agent-1");
+    expect(captured.sessionId).toBe("session-1");
+    expect(captured.userId).toBe("user-1");
   });
 
   test("chat.turn maps idempotency conflict to TRPC CONFLICT", async () => {

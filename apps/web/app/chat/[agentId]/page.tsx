@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { trpc } from "@daemon/hooks";
 import {
   Badge,
   Button,
+  Input,
   ScrollArea,
   Select,
   SelectContent,
@@ -84,16 +85,35 @@ const toChatMessagesFromEvents = (
   return items;
 };
 
+const toExportMarkdown = (items: ChatMessage[]): string =>
+  items
+    .map((item) => `## ${item.role === "user" ? "用户" : "AI"}\n\n${item.content.trim()}`)
+    .join("\n\n---\n\n");
+
+const safeFilePart = (value: string): string =>
+  value.trim().replace(/[^\w\u4e00-\u9fa5-]+/g, "_").slice(0, 40) || "chat";
+
 export default function ChatPage() {
   const params = useParams<{ agentId: string }>();
   const agentId = params.agentId;
+  const router = useRouter();
 
   const [input, setInput] = useState("");
+  const [localModelOverride, setLocalModelOverride] = useState("");
   const [sessionKey, setSessionKey] = useState("");
   const [localSessionKeys, setLocalSessionKeys] = useState<string[]>([]);
   const [messagesBySession, setMessagesBySession] = useState<Record<string, ChatMessage[]>>({});
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  const agentList = trpc.agent.list.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  const currentAgent = useMemo(
+    () => (agentList.data ?? []).find((a) => a.id === agentId) ?? null,
+    [agentList.data, agentId]
+  );
 
   const sessionList = trpc.session.list.useQuery(
     { agentId, limit: 20 },
@@ -116,6 +136,11 @@ export default function ChatPage() {
       refetchOnWindowFocus: false,
     }
   );
+  const deleteSessionMutation = trpc.session.delete.useMutation({
+    onSuccess: async () => {
+      await sessionList.refetch();
+    },
+  });
 
   const sessionKeys = useMemo(() => {
     const keys: string[] = [];
@@ -205,6 +230,33 @@ export default function ChatPage() {
     setMessagesBySession((prev) => (prev[key] ? prev : { ...prev, [key]: [] }));
   };
 
+  const removeSessionLocally = (targetKey: string) => {
+    setMessagesBySession((prev) => {
+      const next = { ...prev };
+      delete next[targetKey];
+      return next;
+    });
+    setLocalSessionKeys((prev) => prev.filter((key) => key !== targetKey));
+    const fallback = sessionKeys.find((key) => key !== targetKey) ?? "";
+    setSessionKey(fallback);
+  };
+
+  const deleteCurrentSession = async () => {
+    const key = currentSessionKey;
+    if (!key) return;
+    const confirmed = window.confirm(`确认删除会话「${key}」吗？`);
+    if (!confirmed) return;
+    if (!currentSessionId) {
+      removeSessionLocally(key);
+      return;
+    }
+    await deleteSessionMutation.mutateAsync({
+      agentId,
+      sessionId: currentSessionId,
+    });
+    removeSessionLocally(key);
+  };
+
   const send = async () => {
     if (!input.trim() || isStreaming) {
       return;
@@ -218,6 +270,7 @@ export default function ChatPage() {
       );
     }
     const userMessage = input.trim();
+    const modelOverride = localModelOverride.trim();
 
     setInput("");
     updateMessagesForSession(activeSessionKey, (items) => [
@@ -247,6 +300,7 @@ export default function ChatPage() {
           sessionKey: activeSessionKey,
           userInput: userMessage,
           system: "",
+          model: modelOverride || undefined,
           idempotencyKey,
         }),
       });
@@ -321,27 +375,70 @@ export default function ChatPage() {
     }
   };
 
+  const exportChat = () => {
+    if (messages.length === 0) return;
+    const now = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `chat-${safeFilePart(currentAgent?.name ?? "agent")}-${safeFilePart(currentSessionKey || "session")}-${now}.md`;
+    const blob = new Blob([toExportMarkdown(messages)], { type: "text/markdown;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(href);
+  };
+
   return (
     <DashboardShell
-      title="Chat"
+      title={currentAgent ? currentAgent.name : "Chat"}
       description="直接对话即可，系统会自动记录会话和用量。"
       actions={
         <div className="flex items-center gap-2">
-          <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
-            <SelectTrigger className="h-8 w-[160px] text-xs">
-              <SelectValue placeholder="选择会话" />
+          {/* Agent 切换 */}
+          <Select value={agentId} onValueChange={(id) => router.push(`/chat/${id}`)}>
+            <SelectTrigger className="h-8 w-[140px] text-xs">
+              <SelectValue placeholder="选择 Agent" />
             </SelectTrigger>
             <SelectContent>
-              {sessionKeys.map((key) => (
-                <SelectItem key={key} value={key}>
-                  {key}
+              {(agentList.data ?? []).map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+
+          {/* Session 切换 */}
+          {sessionKeys.length > 0 ? (
+            <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
+              <SelectTrigger className="h-8 w-[130px] text-xs">
+                <SelectValue placeholder="会话" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessionKeys.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
           <Button size="xs" variant="outline" onClick={createSession} disabled={isStreaming}>
             新会话
           </Button>
+          {currentSessionKey ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void deleteCurrentSession()}
+              disabled={deleteSessionMutation.isPending || isStreaming}
+            >
+              {deleteSessionMutation.isPending ? "删除中" : "删会话"}
+            </Button>
+          ) : null}
           {currentSessionId ? (
             <Button
               size="xs"
@@ -358,6 +455,11 @@ export default function ChatPage() {
           ) : null}
           {isStreaming ? (
             <Badge variant="secondary" className="text-xs">回复中</Badge>
+          ) : null}
+          {messages.length > 0 ? (
+            <Button size="xs" variant="outline" onClick={exportChat}>
+              导出
+            </Button>
           ) : null}
         </div>
       }
@@ -426,6 +528,14 @@ export default function ChatPage() {
         {/* Input area — fixed at bottom, centered */}
         <div className="border-t bg-card px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-3xl">
+            <div className="mb-2">
+              <Input
+                value={localModelOverride}
+                onChange={(e) => setLocalModelOverride(e.target.value)}
+                placeholder={`模型覆盖（留空使用默认${currentAgent?.config.model ? `: ${currentAgent.config.model}` : ""}）`}
+                className="h-8 text-xs"
+              />
+            </div>
             <div className="flex items-end gap-2 rounded-xl border bg-background p-2 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
               <Textarea
                 value={input}

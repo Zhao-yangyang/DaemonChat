@@ -54,6 +54,7 @@ type ChatStreamInput = {
   sessionKey: string;
   userInput: string;
   system?: string;
+  model?: string;
   idempotencyKey?: string;
 };
 
@@ -329,6 +330,11 @@ export const createPostHandler = (
     const fallbackModel = env.OPENAI_FALLBACK_MODEL?.trim() || undefined;
     const routeStrategy = fallbackModel ? "primary_then_fallback" : "primary_only";
     const agentConfig = { ...DEFAULT_AGENT_CONFIG, ...(agentRecord.config ?? {}) };
+    const selectedModel =
+      body.model?.trim() ||
+      agentConfig.model?.trim() ||
+      env.OPENAI_MODEL;
+    const selectedModelPricing = resolveModelPricingFromEnv(selectedModel, env) ?? defaultModelPricing;
     const configuredBudget = {
       ...defaultBudget,
       ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
@@ -397,7 +403,7 @@ export const createPostHandler = (
                   agent_id: body.agentId,
                   session_key: body.sessionKey,
                   idempotency_key: idempotencyKey ?? null,
-                  model: env.OPENAI_MODEL,
+                  model: selectedModel,
                   period,
                   cap_tokens: cap,
                   used_tokens: usedTokens,
@@ -443,7 +449,7 @@ export const createPostHandler = (
             agent_id: body.agentId,
             session_key: body.sessionKey,
             idempotency_key: idempotencyKey ?? null,
-            model: env.OPENAI_MODEL,
+            model: selectedModel,
             period,
             cap_tokens: cap,
             used_tokens: usedTokens,
@@ -490,12 +496,12 @@ export const createPostHandler = (
             scopeId: user.id,
           },
           idempotencyKey,
-          model: env.OPENAI_MODEL,
-          pricing: defaultModelPricing,
+          model: selectedModel,
+          pricing: selectedModelPricing,
           usageMeta: budgetDegraded
             ? {
                 model_route_strategy: routeStrategy,
-                model_route_primary: env.OPENAI_MODEL,
+                model_route_primary: selectedModel,
                 model_route_fallback: fallbackModel ?? null,
                 budget_degraded: true,
                 budget_degrade_period: budgetDegraded.period,
@@ -510,7 +516,7 @@ export const createPostHandler = (
               }
             : {
                 model_route_strategy: routeStrategy,
-                model_route_primary: env.OPENAI_MODEL,
+                model_route_primary: selectedModel,
                 model_route_fallback: fallbackModel ?? null,
               },
           budget: effectiveBudget,
@@ -524,7 +530,7 @@ export const createPostHandler = (
           user_id: user.id,
           agent_id: body.agentId,
           idempotency_key: idempotencyKey ?? null,
-          model: env.OPENAI_MODEL,
+          model: selectedModel,
           error_code: "CONFLICT",
           latency_ms: Date.now() - startedAt,
         });
@@ -537,7 +543,7 @@ export const createPostHandler = (
         user_id: user.id,
         agent_id: body.agentId,
         idempotency_key: idempotencyKey ?? null,
-        model: env.OPENAI_MODEL,
+        model: selectedModel,
         error_code: "UPSTREAM_ERROR",
         error_name: details.name ?? null,
         error_message: details.message,
@@ -568,7 +574,7 @@ export const createPostHandler = (
             agent_id: body.agentId,
             session_id: result.sessionId,
             idempotency_key: idempotencyKey ?? null,
-            model: env.OPENAI_MODEL,
+            model: selectedModel,
             budget_degraded: Boolean(budgetDegraded),
             tokens_in: userTokens,
             tokens_out: approxTokens(assistantText),
@@ -582,7 +588,7 @@ export const createPostHandler = (
               agent_id: body.agentId,
               session_id: result.sessionId,
               idempotency_key: idempotencyKey ?? null,
-              model: env.OPENAI_MODEL,
+              model: selectedModel,
               latency_ms: latencyMs,
               threshold_ms: chatLatencyAlertMs,
               error_code: "SLOW_REQUEST",
@@ -599,7 +605,7 @@ export const createPostHandler = (
             agent_id: body.agentId,
             session_id: result.sessionId,
             idempotency_key: idempotencyKey ?? null,
-            model: env.OPENAI_MODEL,
+            model: selectedModel,
             budget_degraded: Boolean(budgetDegraded),
             tokens_in: userTokens,
             tokens_out: approxTokens(assistantText),
@@ -620,7 +626,7 @@ export const createPostHandler = (
           agent_id: body.agentId,
           session_id: result.sessionId,
           idempotency_key: idempotencyKey ?? null,
-          model: env.OPENAI_MODEL,
+          model: selectedModel,
           budget_degraded: Boolean(budgetDegraded),
           tokens_in: userTokens,
           tokens_out: approxTokens(assistantText),

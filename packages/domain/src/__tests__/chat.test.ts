@@ -119,6 +119,49 @@ describe("chat usecases", () => {
     expect(memoryMessage?.content).toContain("likes sushi");
   });
 
+  test("chatTurn enqueues MEMORY_FLUSH when memoryScope is provided", async () => {
+    const { ports, stores } = createTestPorts({
+      llm: {
+        streamChat: () => streamFromText("ok"),
+      },
+    });
+    const service = createChatService({
+      jobs: ports.jobs,
+      sessions: ports.sessions,
+      transcripts: ports.transcripts,
+      memory: ports.memory,
+      usage: ports.usage,
+      llm: ports.llm,
+      clock: ports.clock,
+    });
+
+    await service.chatTurn("agent-1", "main", "hello", {
+      system: "system",
+      constraints: [],
+      taskState: null,
+      memoryTopK: 2,
+      recentMessages: 5,
+      memoryScope: { scopeType: "user", scopeId: "user-1" },
+      budget: {
+        modelWindow: 100,
+        reserveOutputTokens: 0,
+        reserveToolTokens: 0,
+        memoryTopK: 2,
+        recentMessages: 5,
+      },
+    });
+
+    expect(stores.jobs.items.at(-1)).toEqual({
+      type: "MEMORY_FLUSH",
+      payload: {
+        agentId: "agent-1",
+        sessionId: "session-1",
+        scopeType: "user",
+        scopeId: "user-1",
+      },
+    });
+  });
+
   test("chatTurn only injects public memory by default", async () => {
     let capturedMessages: Array<{ role: string; content: string }> = [];
 

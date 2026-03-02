@@ -10,7 +10,7 @@ export function createServices(ports: Ports): Services {
   return {
     ports,
     agent: createAgentService({ agents: ports.agents, clock: ports.clock }),
-    session: createSessionService({ sessions: ports.sessions, clock: ports.clock }),
+    session: createSessionService({ sessions: ports.sessions, agents: ports.agents, clock: ports.clock }),
     transcript: createTranscriptService({ transcripts: ports.transcripts }),
     memory: createMemoryService({ memory: ports.memory, llm: ports.llm, clock: ports.clock }),
     compaction: createCompactionService({
@@ -19,6 +19,7 @@ export function createServices(ports: Ports): Services {
       clock: ports.clock,
     }),
     chat: createChatService({
+      jobs: ports.jobs,
       sessions: ports.sessions,
       transcripts: ports.transcripts,
       memory: ports.memory,

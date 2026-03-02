@@ -64,5 +64,14 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
 
       if (error) throw error;
     },
+
+    async deleteSession({ agentId, sessionId }) {
+      const { error } = await client
+        .from("sessions")
+        .delete()
+        .eq("id", sessionId)
+        .eq("agent_id", agentId);
+      if (error) throw error;
+    },
   };
 }

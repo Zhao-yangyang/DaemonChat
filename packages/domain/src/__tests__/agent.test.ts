@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ForbiddenError, ValidationError } from "../errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { DEFAULT_AGENT_CONFIG } from "../types";
 import { createAgentService } from "../usecases/agent";
 import { createTestPorts } from "../testing/fixtures";
@@ -78,5 +78,22 @@ describe("agent usecases", () => {
     await expect(
       service.updateAgent(agent.id, "user-2", { name: "Stolen" })
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  test("deleteAgent removes owned agent", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+    const agent = await service.createAgent("user-1", "ToDelete");
+
+    await service.deleteAgent(agent.id, "user-1");
+    await expect(service.getAgent(agent.id, "user-1")).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  test("deleteAgent enforces ownership", async () => {
+    const { ports } = createTestPorts();
+    const service = createAgentService({ agents: ports.agents, clock: ports.clock });
+    const agent = await service.createAgent("user-1", "Owned");
+
+    await expect(service.deleteAgent(agent.id, "user-2")).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

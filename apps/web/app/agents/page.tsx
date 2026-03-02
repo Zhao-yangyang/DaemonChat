@@ -60,6 +60,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
 export default function AgentsPage() {
   const [name, setName] = useState("");
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
   const { session, isResolved } = useSession();
@@ -81,6 +82,12 @@ export default function AgentsPage() {
       setEditingAgentId(null);
       setConfigForm(EMPTY_CONFIG_FORM);
       setConfigFormError(null);
+      agents.refetch();
+    },
+  });
+  const deleteAgent = trpc.agent.delete.useMutation({
+    onSuccess: () => {
+      setDeletingAgentId(null);
       agents.refetch();
     },
   });
@@ -107,10 +114,21 @@ export default function AgentsPage() {
         : null,
     [updateAgent.error]
   );
+  const deleteErrorMessage = useMemo(
+    () =>
+      deleteAgent.error
+        ? getErrorMessage(deleteAgent.error, "删除 Agent 失败，请稍后重试。")
+        : null,
+    [deleteAgent.error]
+  );
 
   const selectedAgent = useMemo(
     () => (agents.data ?? []).find((agent) => agent.id === editingAgentId) ?? null,
     [agents.data, editingAgentId]
+  );
+  const deletingAgent = useMemo(
+    () => (agents.data ?? []).find((agent) => agent.id === deletingAgentId) ?? null,
+    [agents.data, deletingAgentId]
   );
 
   const closeConfigDialog = () => {
@@ -118,6 +136,10 @@ export default function AgentsPage() {
     setConfigForm(EMPTY_CONFIG_FORM);
     setConfigFormError(null);
     updateAgent.reset();
+  };
+  const closeDeleteDialog = () => {
+    setDeletingAgentId(null);
+    deleteAgent.reset();
   };
 
   const openConfigDialog = (agent: {
@@ -295,6 +317,14 @@ export default function AgentsPage() {
                       <Button variant="outline" size="sm" onClick={() => openConfigDialog(agent)}>
                         配置
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeletingAgentId(agent.id)}
+                        disabled={deleteAgent.isPending}
+                      >
+                        删除
+                      </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>用量</Link>
                       </Button>
@@ -401,6 +431,38 @@ export default function AgentsPage() {
               </Button>
               <Button onClick={saveConfig} disabled={updateAgent.isPending || !editingAgentId}>
                 {updateAgent.isPending ? "保存中..." : "保存配置"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={Boolean(deletingAgentId)} onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>删除 Agent</DialogTitle>
+              <DialogDescription>
+                {deletingAgent
+                  ? `确认删除「${deletingAgent.name}」吗？此操作不可恢复。`
+                  : "确认删除该 Agent 吗？此操作不可恢复。"}
+              </DialogDescription>
+            </DialogHeader>
+            {deleteErrorMessage ? (
+              <Alert variant="destructive">
+                <AlertDescription>{deleteErrorMessage}</AlertDescription>
+              </Alert>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={closeDeleteDialog} disabled={deleteAgent.isPending}>
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteAgent.isPending || !deletingAgentId}
+                onClick={() => {
+                  if (!deletingAgentId) return;
+                  deleteAgent.mutate({ agentId: deletingAgentId });
+                }}
+              >
+                {deleteAgent.isPending ? "删除中..." : "确认删除"}
               </Button>
             </DialogFooter>
           </DialogContent>

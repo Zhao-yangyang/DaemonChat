@@ -47,5 +47,10 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
         now: ports.clock.now(),
       });
     },
+
+    async deleteAgent(agentId: string, ownerUserId: string): Promise<void> {
+      await this.getAgent(agentId, ownerUserId);
+      await ports.agents.deleteAgent(agentId);
+    },
   };
 }

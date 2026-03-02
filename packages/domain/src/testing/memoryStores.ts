@@ -113,6 +113,13 @@ export function createInMemoryStores(): {
       agent.updatedAt = now;
       return { ...agent };
     },
+
+    async deleteAgent(agentId) {
+      const index = agents.findIndex((agent) => agent.id === agentId);
+      if (index >= 0) {
+        agents.splice(index, 1);
+      }
+    },
   };
 
   const sessionStore: SessionStore = {
@@ -148,6 +155,20 @@ export function createInMemoryStores(): {
       const session = sessions.find((entry) => entry.id === sessionId);
       if (session) {
         session.lastActiveAt = lastActiveAt;
+      }
+    },
+
+    async deleteSession({ agentId, sessionId }) {
+      const index = sessions.findIndex(
+        (session) => session.id === sessionId && session.agentId === agentId
+      );
+      if (index < 0) return;
+      const [removed] = sessions.splice(index, 1);
+      if (!removed) return;
+      const key = `${removed.agentId}:${removed.sessionKey}`;
+      const current = currentSessions.get(key);
+      if (current === removed.id) {
+        currentSessions.delete(key);
       }
     },
   };

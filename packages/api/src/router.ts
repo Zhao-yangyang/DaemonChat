@@ -206,6 +206,14 @@ export const appRouter = t.router({
           })
         );
       }),
+    delete: t.procedure
+      .input(z.object({ agentId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.agent.deleteAgent(input.agentId, user.id)
+        );
+      }),
   }),
 
   session: t.router({
@@ -219,6 +227,19 @@ export const appRouter = t.router({
       .query(async ({ ctx, input }) => {
         await ensureAgentAccess(ctx, input.agentId);
         return ctx.container.session.listRecentSessions(input.agentId, input.limit);
+      }),
+    delete: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.session.deleteSession(input.agentId, input.sessionId, user.id)
+        );
       }),
   }),
 

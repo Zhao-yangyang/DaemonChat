@@ -21,6 +21,7 @@ export interface AgentStore {
   getAgentById(agentId: UUID): Promise<Agent | null>;
   listAgentsByOwner(ownerUserId: UUID): Promise<Agent[]>;
   updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; now: Timestamp }): Promise<Agent>;
+  deleteAgent(agentId: UUID): Promise<void>;
 }
 
 export interface SessionStore {
@@ -32,6 +33,7 @@ export interface SessionStore {
     now: Timestamp;
   }): Promise<Session>;
   touchSession(input: { sessionId: UUID; lastActiveAt: Timestamp }): Promise<void>;
+  deleteSession(input: { agentId: UUID; sessionId: UUID }): Promise<void>;
 }
 
 export interface TranscriptStore {

@@ -15,17 +15,29 @@ export function useSession(): UseSessionResult {
   const [isResolved, setIsResolved] = useState(false);
 
   useEffect(() => {
-    supabaseBrowserClient.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-      setIsResolved(true);
-    });
+    let isMounted = true;
+    supabaseBrowserClient.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!isMounted) return;
+        setSession(data.session ?? null);
+        setIsResolved(true);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setSession(null);
+        setIsResolved(true);
+      });
 
     const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession ?? null);
       setIsResolved(true);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   return { session, isResolved, user: session?.user ?? null };
