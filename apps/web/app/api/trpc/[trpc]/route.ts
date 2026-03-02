@@ -3,27 +3,17 @@ import { appRouter } from "@daemon/api";
 import { createContext } from "@/src/server/trpc";
 import { logError } from "@/src/server/logger";
 
-const withRequestIdHeader = (req: Request): { request: Request; requestId: string } => {
-  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
-  const headers = new Headers(req.headers);
-  headers.set("x-request-id", requestId);
-  return {
-    request: new Request(req, { headers }),
-    requestId,
-  };
-};
-
 const handler = async (req: Request) => {
-  const { request, requestId } = withRequestIdHeader(req);
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
   const response = await fetchRequestHandler({
     endpoint: "/api/trpc",
-    req: request,
+    req,
     router: appRouter,
-    createContext: () => createContext({ req: request }),
+    createContext: () => createContext({ req, requestId }),
     onError({ path, error, type, req: request }) {
-      const requestId = request.headers.get("x-request-id") ?? null;
+      const rid = request.headers.get("x-request-id") ?? requestId;
       logError("trpc.request.error", {
-        request_id: requestId,
+        request_id: rid,
         route: "/api/trpc",
         trpc_path: path ?? null,
         trpc_type: type,

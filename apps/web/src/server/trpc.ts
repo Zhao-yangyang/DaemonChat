@@ -20,9 +20,12 @@ const env = {
   LOCAL_EMBED_DIMENSIONS: process.env.LOCAL_EMBED_DIMENSIONS,
 };
 
-export async function createContext(opts: { req: Request }): Promise<ApiContext> {
+export async function createContext(opts: {
+  req: Request;
+  requestId?: string;
+}): Promise<ApiContext> {
   const startedAt = Date.now();
-  const requestId = opts.req.headers.get("x-request-id") ?? crypto.randomUUID();
+  const requestId = opts.requestId ?? opts.req.headers.get("x-request-id") ?? crypto.randomUUID();
   const route = "/api/trpc";
 
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
