@@ -2,6 +2,8 @@ import { buildContextPack } from "../context/buildContextPack";
 import { IdempotencyConflictError } from "../errors";
 import type { ContextBudget, ContextPack, MemoryItem, TranscriptEvent } from "../types";
 import type {
+  ChatContentPart,
+  ChatMessageContent,
   Clock,
   JobQueue,
   AbortSignalLike,
@@ -48,6 +50,7 @@ type ChatTurnOptions = {
   includePrivateMemory?: boolean;
   idempotencyKey?: string;
   model?: string;
+  imageUrls?: Array<{ url: string; mimeType?: string }>;
   pricing?: {
     inputPer1MUsd: number;
     outputPer1MUsd: number;
@@ -128,6 +131,7 @@ export function createChatService(ports: {
       memoryItems,
       recentMessages,
       userInput,
+      imageUrls: options.imageUrls,
       model: options.model,
       countTokens: ({ text, model }) => countTokens(text, model),
       budget: options.budget,
@@ -355,6 +359,7 @@ export function createChatService(ports: {
       let modelSelection: LlmModelSelection | null = null;
       for await (const chunk of ports.llm.streamChat({
         messages: context.messages,
+        model: options.model,
         onModelResolved: (selection) => {
           modelSelection = selection;
         },
@@ -451,6 +456,7 @@ export function createChatService(ports: {
         try {
           for await (const chunk of ports.llm.streamChat({
             messages: context.messages,
+            model: options.model,
             onModelResolved: (selection) => {
               modelSelection = selection;
             },

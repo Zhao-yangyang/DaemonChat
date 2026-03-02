@@ -56,6 +56,7 @@ type ChatStreamInput = {
   system?: string;
   model?: string;
   idempotencyKey?: string;
+  imageUrls?: Array<{ url: string; mimeType?: string }>;
 };
 
 type ChatStreamRouteEnv = Record<string, string | undefined> & {
@@ -530,6 +531,7 @@ export const createPostHandler = (
                 model_route_primary: selectedModel,
                 model_route_fallback: fallbackModel ?? null,
               },
+          imageUrls: body.imageUrls,
           budget: effectiveBudget,
           abortSignal: abortController.signal,
         }

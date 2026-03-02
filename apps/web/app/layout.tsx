@@ -1,3 +1,4 @@
+import Script from "next/script";
 import { Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import { AppProviders } from "@/src/providers";
@@ -19,11 +20,15 @@ const fontDisplay = Noto_Serif_SC({
 export const metadata = {
   title: "DaemonChat",
   description: "AI 长期助手",
+  viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh">
+    <html lang="zh" suppressHydrationWarning>
+      <head>
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
+      </head>
       <body className={`${fontSans.variable} ${fontDisplay.variable} min-h-screen`}>
         <AppProviders>{children}</AppProviders>
       </body>

@@ -1,6 +1,6 @@
 import { createContext as baseCreateContext } from "@daemon/api";
 import type { ApiContext } from "@daemon/api";
-import { createContainer } from "./container";
+import { createContainer, createRawSupabaseClient } from "./container";
 import { resolveApiUserFromAccessToken } from "./auth";
 import { logError, logInfo, logWarn, serializeError } from "./logger";
 
@@ -82,11 +82,14 @@ export async function createContext(opts: {
       logError(event, { request_id: requestId, route, ...fields }),
   };
 
+  const supabase = createRawSupabaseClient(env, accessToken ?? undefined);
+
   try {
     return baseCreateContext({
       user,
       container,
       logger,
+      supabase,
       requestMeta: {
         requestId,
         route,

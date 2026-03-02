@@ -3,5 +3,11 @@
   "installCommand": "bun install",
   "buildCommand": "bun run build",
   "devCommand": "bun run dev",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/internal/jobs/drain",
+      "schedule": "* * * * *"
+    }
+  ]
 }

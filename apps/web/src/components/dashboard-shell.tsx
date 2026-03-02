@@ -12,7 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@daemon/ui";
-import { Menu, MessageSquare, Bot, Brain, FileText, BarChart3, LogOut } from "lucide-react";
+import { Menu, MessageSquare, Bot, Brain, FileText, BarChart3, LogOut, LayoutGrid, Users } from "lucide-react";
 import { ThemeToggle } from "@/src/components/theme-toggle";
 import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
@@ -23,6 +23,8 @@ const navItems: Array<{ label: string; href: string; icon: React.ElementType }> 
   { label: "记忆", href: "/memory", icon: Brain },
   { label: "轨迹", href: "/transcripts", icon: FileText },
   { label: "用量", href: "/usage", icon: BarChart3 },
+  { label: "模板", href: "/templates", icon: LayoutGrid },
+  { label: "空间", href: "/workspaces", icon: Users },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {
@@ -108,7 +110,7 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-[240px] shrink-0 border-r bg-sidebar md:block">
         <SidebarNav pathname={pathname} />
@@ -116,9 +118,8 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
 
       {/* Main content */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar (mobile header + page title) */}
-        <header className="flex shrink-0 items-center gap-3 border-b bg-card px-4 py-3 md:px-6">
-          {/* Mobile hamburger */}
+        {/* Top bar */}
+        <header className="flex shrink-0 items-center gap-2 border-b bg-card px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 md:px-6">
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon-sm" className="md:hidden">
@@ -134,17 +135,19 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
             </SheetContent>
           </Sheet>
 
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold">{title}</h1>
+              <h1 className="truncate text-sm font-semibold sm:text-base">{title}</h1>
               <p className="hidden truncate text-sm text-muted-foreground sm:block">{description}</p>
             </div>
-            {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+            {actions ? (
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">{actions}</div>
+            ) : null}
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           {children}
         </main>
       </div>

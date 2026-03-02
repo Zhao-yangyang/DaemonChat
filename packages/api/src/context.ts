@@ -19,11 +19,16 @@ export interface ApiRequestMeta {
   userAgent?: string | null;
 }
 
+export interface SupabaseLike {
+  from(table: string): any;
+}
+
 export interface ApiContext {
   user: ApiUser | null;
   container: Services;
   logger?: ApiLogger;
   requestMeta?: ApiRequestMeta;
+  supabase?: SupabaseLike;
 }
 
 export function createContext(input: ApiContext): ApiContext {

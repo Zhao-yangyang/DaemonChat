@@ -162,9 +162,30 @@ bun run dev --filter @daemon/worker
 - `CHAT_MAX_INPUT_TOKENS`
 - `MODEL_PRICING_JSON`（或 `OPENAI_INPUT_PRICE_PER_1M` + `OPENAI_OUTPUT_PRICE_PER_1M`）
 
-### 6.3 Worker 部署说明
+### 6.3 Cron Worker 配置（Vercel 内置）
 
-`@daemon/worker` 不是 Next.js 路由的一部分，需要独立部署（例如 Railway/fly.io/Render）。
+后台任务（MEMORY_FLUSH / COMPACTION / EMBEDDING_BACKFILL）通过 Vercel Cron 触发 `/api/internal/jobs/drain` 路由处理，无需独立 Worker 平台。
+
+Vercel 项目需要额外配置以下环境变量：
+
+- `CRON_SECRET`（自定义密钥，Vercel Cron 请求鉴权用）
+- `SUPABASE_SERVICE_ROLE_KEY`（service role key，drain 路由用于跨用户操作 jobs 表）
+
+`vercel.json` 已内置 Cron 配置（每分钟触发）：
+
+```json
+"crons": [{ "path": "/api/internal/jobs/drain", "schedule": "* * * * *" }]
+```
+
+Cron 路由特性：
+- 每次最多处理 20 个 job，时间预算 50 秒
+- 自动回收卡死超过 5 分钟的 `processing` 状态 job
+- 队列深度超过阈值（默认 50）时触发 warn 级别告警
+- 失败率超过 50% 时触发 warn 级别告警
+
+### 6.4 独立 Worker 部署（可选）
+
+如需更高频轮询（<1 分钟），可另外部署 `@daemon/worker`（Railway/fly.io/Render）。
 
 Worker 必需环境变量：
 
@@ -178,3 +199,45 @@ Worker 必需环境变量：
 
 - `bun run loadtest:chat`
 - `bun run loadtest:claim`
+
+## 7. 生产排障
+
+### 7.1 Supabase RLS 验证
+
+如果遇到 `42501 permission denied` 或数据不可见，按以下步骤检查：
+
+```sql
+-- 1. 确认 RLS 已启用
+SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public';
+
+-- 2. 列出所有 policy
+SELECT tablename, policyname, cmd, qual, with_check
+FROM pg_policies WHERE schemaname = 'public' ORDER BY tablename;
+
+-- 3. 用特定用户身份验证
+SET request.jwt.claim.sub = '<user-uuid>';
+SELECT * FROM agents WHERE owner_user_id = '<user-uuid>';
+RESET request.jwt.claim.sub;
+```
+
+如果 policy 缺失或不完整：
+1. 先 `DROP POLICY IF EXISTS <policy_name> ON <table>` 清理残留
+2. 重新执行 `packages/adapters/supabase/sql/rls.sql`
+
+### 7.2 常见生产错误
+
+| 错误 | 可能原因 | 快速修复 |
+|------|----------|----------|
+| `500` on `/api/trpc/*` | SUPABASE_URL/ANON_KEY 未配置 | 检查 Vercel 环境变量 |
+| `42P01` relation not found | schema 未执行 | 执行 `schema.sql` |
+| `42501` permission denied | RLS policy 缺失 | 执行 `rls.sql` |
+| `429` Too Many Requests | 触发限流/hard cap | 检查 `CHAT_QPS_LIMIT`/`CHAT_DAILY_TOKEN_HARD_CAP` |
+| Cron 返回 `401` | `CRON_SECRET` 不匹配 | 检查 Vercel env 与 cron 请求头 |
+| Job 一直 `processing` | 函数超时后卡死 | drain 路由自动回收（5 分钟阈值）|
+
+### 7.3 回滚流程
+
+1. 在 Vercel Dashboard > Deployments 找到上一个正常的 production deployment
+2. 点击 "..." > "Promote to Production"
+3. 验证回滚后功能正常
+4. 排查问题后再重新部署

@@ -1,15 +1,22 @@
 "use client";
 
-import Link from "next/link";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@daemon/ui";
 import { ChatEntryGate } from "@/src/components/chat-entry-gate";
 import { useSession } from "@/src/hooks/use-session";
+import { useTheme } from "@/src/hooks/use-theme";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
+
+function getSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
 export default function HomePage() {
   const { session } = useSession();
+  const { theme } = useTheme();
+  const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
 
   if (session) {
     return (
@@ -68,6 +75,7 @@ export default function HomePage() {
         <CardContent>
           <Auth
             supabaseClient={supabaseBrowserClient}
+            theme={resolvedTheme}
             appearance={{
               theme: ThemeSupa,
               variables: {
@@ -85,6 +93,22 @@ export default function HomePage() {
                     defaultButtonBorder: "#e4e4e7",
                     defaultButtonText: "#18181b",
                     anchorTextColor: "#2563eb",
+                  },
+                },
+                dark: {
+                  colors: {
+                    brand: "#3b82f6",
+                    brandAccent: "#2563eb",
+                    inputBackground: "#232323",
+                    inputBorder: "#333333",
+                    inputBorderHover: "#3b82f6",
+                    inputBorderFocus: "#3b82f6",
+                    inputText: "#ededed",
+                    defaultButtonBackground: "#2a2a2a",
+                    defaultButtonBackgroundHover: "#333333",
+                    defaultButtonBorder: "#333333",
+                    defaultButtonText: "#ededed",
+                    anchorTextColor: "#3b82f6",
                   },
                 },
               },

@@ -92,6 +92,16 @@ export default function AgentsPage() {
     },
   });
 
+  const [publishAgentId, setPublishAgentId] = useState<string | null>(null);
+  const [publishDesc, setPublishDesc] = useState("");
+  const [publishPublic, setPublishPublic] = useState(true);
+  const publishTemplate = trpc.template.publish.useMutation({
+    onSuccess: () => {
+      setPublishAgentId(null);
+      setPublishDesc("");
+    },
+  });
+
   const listErrorMessage = useMemo(
     () =>
       agents.error
@@ -232,9 +242,14 @@ export default function AgentsPage() {
       title="Agent 工作台"
       description="管理你的长期助手实例。"
       actions={
-        <Button asChild variant="outline" size="sm">
-          <Link href="/chat">打开聊天</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/templates">模板市场</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/chat">打开聊天</Link>
+          </Button>
+        </div>
       }
     >
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
@@ -330,6 +345,18 @@ export default function AgentsPage() {
                       </Button>
                       <Button asChild variant="ghost" size="sm">
                         <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>记忆</Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setPublishAgentId(agent.id);
+                          setPublishDesc("");
+                          setPublishPublic(true);
+                          publishTemplate.reset();
+                        }}
+                      >
+                        发布
                       </Button>
                     </div>
                   </CardContent>
@@ -463,6 +490,80 @@ export default function AgentsPage() {
                 }}
               >
                 {deleteAgent.isPending ? "删除中..." : "确认删除"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog
+          open={Boolean(publishAgentId)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPublishAgentId(null);
+              publishTemplate.reset();
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>发布为模板</DialogTitle>
+              <DialogDescription>将当前 Agent 的配置发布到模板市场，其他用户可以一键克隆使用。</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="publish-desc">模板描述</Label>
+                <Textarea
+                  id="publish-desc"
+                  rows={3}
+                  value={publishDesc}
+                  onChange={(e) => setPublishDesc(e.target.value)}
+                  placeholder="简要介绍此 Agent 的用途和特点..."
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={publishPublic}
+                  onChange={(e) => setPublishPublic(e.target.checked)}
+                  className="rounded"
+                />
+                公开发布（所有用户可见）
+              </label>
+              {publishTemplate.error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    {getErrorMessage(publishTemplate.error, "发布失败，请稍后重试。")}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {publishTemplate.isSuccess ? (
+                <Alert>
+                  <AlertDescription>模板发布成功！</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPublishAgentId(null);
+                  publishTemplate.reset();
+                }}
+                disabled={publishTemplate.isPending}
+              >
+                取消
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!publishAgentId) return;
+                  publishTemplate.mutate({
+                    agentId: publishAgentId,
+                    description: publishDesc,
+                    isPublic: publishPublic,
+                  });
+                }}
+                disabled={publishTemplate.isPending || !publishAgentId || publishTemplate.isSuccess}
+              >
+                {publishTemplate.isPending ? "发布中..." : "确认发布"}
               </Button>
             </DialogFooter>
           </DialogContent>

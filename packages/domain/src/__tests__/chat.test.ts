@@ -63,7 +63,7 @@ describe("chat usecases", () => {
   });
 
   test("chatTurn injects memory into LLM messages", async () => {
-    let capturedMessages: Array<{ role: string; content: string }> = [];
+    let capturedMessages: Array<{ role: string; content: string | unknown[] }> = [];
 
     const { ports } = createTestPorts({
       llm: {
@@ -113,7 +113,7 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && message.content.includes("Memory")
+      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
     );
 
     expect(memoryMessage?.content).toContain("likes sushi");
@@ -163,7 +163,7 @@ describe("chat usecases", () => {
   });
 
   test("chatTurn only injects public memory by default", async () => {
-    let capturedMessages: Array<{ role: string; content: string }> = [];
+    let capturedMessages: Array<{ role: string; content: string | unknown[] }> = [];
 
     const { ports } = createTestPorts({
       llm: {
@@ -239,7 +239,7 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && message.content.includes("Memory")
+      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
     );
 
     expect(memoryMessage?.content).toContain("public memory");
@@ -248,7 +248,7 @@ describe("chat usecases", () => {
   });
 
   test("chatTurn filters memory injection by explicit memory scope", async () => {
-    let capturedMessages: Array<{ role: string; content: string }> = [];
+    let capturedMessages: Array<{ role: string; content: string | unknown[] }> = [];
 
     const { ports } = createTestPorts({
       llm: {
@@ -315,7 +315,7 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && message.content.includes("Memory")
+      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
     );
 
     expect(memoryMessage?.content).toContain("user one memory");

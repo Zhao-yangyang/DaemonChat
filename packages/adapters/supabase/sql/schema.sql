@@ -290,3 +290,75 @@ language sql stable as $$
   order by m.embedding <=> query_embedding
   limit match_count;
 $$;
+
+-- Agent templates (marketplace MVP)
+create table if not exists public.agent_templates (
+  id uuid primary key default gen_random_uuid(),
+  author_user_id uuid not null,
+  name text not null,
+  description text not null default '',
+  config jsonb not null default '{}',
+  is_public boolean not null default false,
+  clone_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists agent_templates_public_idx
+  on public.agent_templates (is_public, created_at desc)
+  where is_public = true;
+
+create index if not exists agent_templates_author_idx
+  on public.agent_templates (author_user_id);
+
+-- Chat attachments (multimodal MVP – images)
+create table if not exists public.chat_attachments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  agent_id uuid not null references public.agents(id) on delete cascade,
+  session_id text not null,
+  file_name text not null,
+  content_type text not null,
+  storage_path text not null,
+  byte_size integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists chat_attachments_session_idx
+  on public.chat_attachments (agent_id, session_id, created_at desc);
+
+-- Workspaces (multi-tenant foundation)
+create table if not exists public.workspaces (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  slug text not null unique,
+  owner_user_id uuid not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists workspaces_owner_idx
+  on public.workspaces (owner_user_id);
+
+-- Workspace members
+create type public.workspace_role as enum ('owner', 'admin', 'member', 'viewer');
+
+create table if not exists public.workspace_members (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces(id) on delete cascade,
+  user_id uuid not null,
+  role public.workspace_role not null default 'member',
+  invited_by uuid,
+  created_at timestamptz not null default now(),
+  unique (workspace_id, user_id)
+);
+
+create index if not exists workspace_members_user_idx
+  on public.workspace_members (user_id);
+
+create index if not exists workspace_members_workspace_idx
+  on public.workspace_members (workspace_id);
+
+-- Optional workspace scope on agents (null = personal agent)
+alter table public.agents add column if not exists workspace_id uuid references public.workspaces(id) on delete set null;
+create index if not exists agents_workspace_idx on public.agents (workspace_id) where workspace_id is not null;

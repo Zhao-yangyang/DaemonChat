@@ -39,6 +39,14 @@ const toPositiveInt = (value: string | undefined, fallback: number): number => {
 const isTruthy = (value: string | undefined): boolean =>
   value === "1" || value === "true" || value === "yes";
 
+export function createRawSupabaseClient(env: WebEnv, accessToken?: string) {
+  return createSupabaseClient({
+    url: env.SUPABASE_URL,
+    anonKey: env.SUPABASE_ANON_KEY,
+    accessToken,
+  });
+}
+
 export function createContainer(env: WebEnv, accessToken?: string) {
   const supabase = createSupabaseClient({
     url: env.SUPABASE_URL,

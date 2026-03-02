@@ -270,3 +270,32 @@ Example scoped command:
 - For manual product QA and demos, use:
   - `docs/runbooks/local-experience.md`
 - Local web dev default port is now `3333` (`@daemon/web` dev script and local runbook/loadtest defaults are aligned).
+- Post-MVP Phase 4 – platform expansion features are now in place:
+  - Template marketplace MVP:
+    - `public.agent_templates` table with public/private visibility, clone count tracking.
+    - API routes: `template.list`, `template.publish`, `template.clone` in `packages/api/src/router.ts`.
+    - UI page: `apps/web/app/templates/page.tsx` with browse/filter/clone UX.
+  - Workspace (multi-tenant) foundation:
+    - `public.workspaces`, `public.workspace_members` tables with `workspace_role` enum (`owner/admin/member/viewer`).
+    - `public.agents.workspace_id` optional FK for workspace-scoped agents.
+    - API routes: `workspace.create`, `workspace.list`, `workspace.members`, `workspace.invite` in `packages/api/src/router.ts`.
+    - UI page: `apps/web/app/workspaces/page.tsx` with create/list/member management UX.
+    - Domain types: `Workspace`, `WorkspaceMember`, `WorkspaceRole` in `packages/domain/src/types.ts`.
+    - RLS: `workspace_members` read policy uses `SECURITY DEFINER` helper function `is_workspace_member()` to avoid self-referencing recursion.
+  - Chat attachments (multimodal) foundation:
+    - `public.chat_attachments` table for file metadata storage.
+    - Upload API route: `apps/web/app/api/chat/upload/route.ts`.
+  - Session export:
+    - `export.session` API route supporting markdown and JSON export formats.
+  - Supabase CLI migrations:
+    - `supabase/` directory initialized with timestamped migration files.
+    - migrations cover all new tables, indexes, RLS policies, and helper functions.
+  - Infrastructure additions:
+    - `apps/web/public/theme-init.js` for theme hydration before React mount.
+    - `apps/web/app/layout.tsx` now uses `next/script` with `beforeInteractive` strategy for theme init.
+    - `apps/worker/src/runOnce.ts` for single-pass job processing.
+    - `apps/web/app/api/internal/jobs/drain` internal endpoint for job queue management.
+    - `.github/workflows/deploy.yml` deployment workflow added.
+- If you change workspace/template tables, update both:
+  - DB schema/migration in `supabase/migrations/` and `packages/adapters/supabase/sql/schema.sql`
+  - API router in `packages/api/src/router.ts` and corresponding UI pages in `apps/web/app/`

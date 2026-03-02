@@ -1,5 +1,6 @@
 import type {
   ContextBudget,
+  ContextContentPart,
   ContextMessage,
   ContextPack,
   MemoryItem,
@@ -60,6 +61,7 @@ const buildMessages = (input: {
   memoryItems: MemoryItem[];
   recentMessages: TranscriptEvent[];
   userInput: string;
+  imageUrls?: Array<{ url: string; mimeType?: string }>;
 }): ContextMessage[] => {
   const messages: ContextMessage[] = [];
 
@@ -87,17 +89,41 @@ const buildMessages = (input: {
     }
   }
 
-  messages.push({ role: "user", content: input.userInput });
+  if (input.imageUrls && input.imageUrls.length > 0) {
+    const parts: ContextContentPart[] = [{ type: "text", text: input.userInput }];
+    for (const img of input.imageUrls) {
+      parts.push({ type: "image", url: img.url, mimeType: img.mimeType });
+    }
+    messages.push({ role: "user", content: parts });
+  } else {
+    messages.push({ role: "user", content: input.userInput });
+  }
 
   return messages;
 };
+
+const contentToText = (content: string | ContextContentPart[]): string => {
+  if (typeof content === "string") return content;
+  return content
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("\n");
+};
+
+const IMAGE_TOKEN_ESTIMATE = 765;
 
 const estimateTokens = (
   messages: ContextMessage[],
   model: string | undefined,
   countTokens: (input: { text: string; model?: string }) => number
 ): number =>
-  messages.reduce((sum, message) => sum + countTokens({ text: message.content, model }), 0);
+  messages.reduce((sum, message) => {
+    const textTokens = countTokens({ text: contentToText(message.content), model });
+    const imageCount = Array.isArray(message.content)
+      ? message.content.filter((p) => p.type === "image").length
+      : 0;
+    return sum + textTokens + imageCount * IMAGE_TOKEN_ESTIMATE;
+  }, 0);
 
 export function buildContextPack(input: {
   system: string;
@@ -106,6 +132,7 @@ export function buildContextPack(input: {
   memoryItems: MemoryItem[];
   recentMessages: TranscriptEvent[];
   userInput: string;
+  imageUrls?: Array<{ url: string; mimeType?: string }>;
   model?: string;
   budget: ContextBudget;
   countTokens?: (input: { text: string; model?: string }) => number;
@@ -122,42 +149,31 @@ export function buildContextPack(input: {
   let trimmedMemory = false;
   let trimmedRecent = false;
 
-  let messages = buildMessages({
+  const buildMsgArgs = () => ({
     system: input.system,
     constraints: input.constraints,
     taskState: input.taskState,
     memoryItems: memoryTopK,
     recentMessages,
     userInput: input.userInput,
+    imageUrls: input.imageUrls,
   });
+
+  let messages = buildMessages(buildMsgArgs());
 
   let tokenEstimate = estimateTokens(messages, input.model, countTokens);
 
   while (recentMessages.length > 0 && tokenEstimate > maxContextTokens) {
     recentMessages = recentMessages.slice(1);
     trimmedRecent = true;
-    messages = buildMessages({
-      system: input.system,
-      constraints: input.constraints,
-      taskState: input.taskState,
-      memoryItems: memoryTopK,
-      recentMessages,
-      userInput: input.userInput,
-    });
+    messages = buildMessages(buildMsgArgs());
     tokenEstimate = estimateTokens(messages, input.model, countTokens);
   }
 
   while (memoryTopK.length > 0 && tokenEstimate > maxContextTokens) {
     memoryTopK = memoryTopK.slice(0, -1);
     trimmedMemory = true;
-    messages = buildMessages({
-      system: input.system,
-      constraints: input.constraints,
-      taskState: input.taskState,
-      memoryItems: memoryTopK,
-      recentMessages,
-      userInput: input.userInput,
-    });
+    messages = buildMessages(buildMsgArgs());
     tokenEstimate = estimateTokens(messages, input.model, countTokens);
   }
 

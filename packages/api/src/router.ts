@@ -729,6 +729,394 @@ export const appRouter = t.router({
         };
       }),
   }),
+
+  export: t.router({
+    session: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          sessionId: z.string().min(1),
+          format: z.enum(["markdown", "json"]).default("markdown"),
+        })
+      )
+      .query(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        const events = await ctx.container.ports.transcripts.listRecentEvents({
+          agentId: input.agentId,
+          sessionId: input.sessionId,
+          limit: 500,
+        });
+
+        const messages = events
+          .filter((e) => e.type === "user_message" || e.type === "assistant_message")
+          .map((e) => ({
+            role: e.type === "user_message" ? ("user" as const) : ("assistant" as const),
+            content:
+              typeof (e.content as any)?.text === "string"
+                ? (e.content as any).text
+                : JSON.stringify(e.content),
+            createdAt: e.createdAt,
+          }));
+
+        if (input.format === "json") {
+          return { format: "json" as const, data: messages };
+        }
+
+        const md = messages
+          .map(
+            (m) =>
+              `## ${m.role === "user" ? "用户" : "AI"}\n\n${m.content.trim()}`
+          )
+          .join("\n\n---\n\n");
+        return { format: "markdown" as const, data: md };
+      }),
+  }),
+
+  template: t.router({
+    list: t.procedure
+      .input(
+        z
+          .object({
+            onlyMine: z.boolean().default(false),
+            limit: z.number().int().min(1).max(100).default(20),
+          })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        const params = input ?? { onlyMine: false, limit: 20 };
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          let query = supabase
+            .from("agent_templates")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(params.limit);
+
+          if (params.onlyMine) {
+            query = query.eq("author_user_id", user.id);
+          } else {
+            query = query.or(`is_public.eq.true,author_user_id.eq.${user.id}`);
+          }
+          const { data, error } = await query;
+          if (error) throw error;
+          return (data ?? []) as Array<{
+            id: string;
+            author_user_id: string;
+            name: string;
+            description: string;
+            config: Record<string, unknown>;
+            is_public: boolean;
+            clone_count: number;
+            created_at: string;
+          }>;
+        });
+      }),
+
+    publish: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          description: z.string().default(""),
+          isPublic: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(async () => {
+          const agent = await ctx.container.agent.getAgent(input.agentId, user.id);
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const now = new Date().toISOString();
+          const { data, error } = await supabase
+            .from("agent_templates")
+            .insert({
+              author_user_id: user.id,
+              name: agent.name,
+              description: input.description,
+              config: agent.config ?? {},
+              is_public: input.isPublic,
+              created_at: now,
+              updated_at: now,
+            })
+            .select("*")
+            .single();
+          if (error) throw error;
+          return data as {
+            id: string;
+            name: string;
+            description: string;
+            config: Record<string, unknown>;
+            is_public: boolean;
+          };
+        });
+      }),
+
+    clone: t.procedure
+      .input(z.object({ templateId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const { data: template, error: fetchError } = await supabase
+            .from("agent_templates")
+            .select("*")
+            .eq("id", input.templateId)
+            .single();
+          if (fetchError || !template) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          }
+          if (!template.is_public && template.author_user_id !== user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Template is private" });
+          }
+
+          const agent = await ctx.container.agent.createAgent(
+            user.id,
+            `${template.name} (copy)`,
+            template.config ?? {},
+          );
+
+          await supabase
+            .from("agent_templates")
+            .update({ clone_count: (template.clone_count ?? 0) + 1 })
+            .eq("id", input.templateId);
+
+          return { agentId: agent.id, name: agent.name };
+        });
+      }),
+  }),
+
+  workspace: t.router({
+    create: t.procedure
+      .input(
+        z.object({
+          name: z.string().min(1).max(100),
+          slug: z
+            .string()
+            .min(2)
+            .max(50)
+            .regex(/^[a-z0-9-]+$/),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+          }
+          const now = new Date().toISOString();
+          const { data, error } = await supabase
+            .from("workspaces")
+            .insert({
+              name: input.name,
+              slug: input.slug,
+              owner_user_id: user.id,
+              created_at: now,
+              updated_at: now,
+            })
+            .select("*")
+            .single();
+          if (error) throw error;
+
+          await supabase.from("workspace_members").insert({
+            workspace_id: data.id,
+            user_id: user.id,
+            role: "owner",
+            invited_by: null,
+            created_at: now,
+          });
+
+          return data as {
+            id: string;
+            name: string;
+            slug: string;
+            owner_user_id: string;
+            created_at: string;
+          };
+        });
+      }),
+
+    list: t.procedure.query(async ({ ctx }) => {
+      const user = requireUser(ctx);
+      return withInfrastructureErrorMapping(async () => {
+        const supabase = ctx.supabase;
+        if (!supabase?.from) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+        }
+        const { data: memberships, error: memErr } = await supabase
+          .from("workspace_members")
+          .select("workspace_id, role")
+          .eq("user_id", user.id);
+        if (memErr) throw memErr;
+        if (!memberships || memberships.length === 0) return [];
+
+        const ids = memberships.map((m: { workspace_id: string }) => m.workspace_id);
+        const roleMap = Object.fromEntries(
+          memberships.map((m: { workspace_id: string; role: string }) => [m.workspace_id, m.role])
+        );
+
+        const { data: workspaces, error: wsErr } = await supabase
+          .from("workspaces")
+          .select("*")
+          .in("id", ids)
+          .order("created_at", { ascending: false });
+        if (wsErr) throw wsErr;
+        return (workspaces ?? []).map((ws: any) => ({
+          id: ws.id,
+          name: ws.name,
+          slug: ws.slug,
+          ownerUserId: ws.owner_user_id,
+          role: roleMap[ws.id] ?? "member",
+          createdAt: ws.created_at,
+        }));
+      });
+    }),
+
+    members: t.procedure
+      .input(z.object({ workspaceId: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+          }
+          const { data: membership } = await supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", input.workspaceId)
+            .eq("user_id", user.id)
+            .single();
+          if (!membership) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Not a workspace member" });
+          }
+          const { data, error } = await supabase
+            .from("workspace_members")
+            .select("id, user_id, role, created_at")
+            .eq("workspace_id", input.workspaceId)
+            .order("created_at", { ascending: true });
+          if (error) throw error;
+          return (data ?? []) as Array<{
+            id: string;
+            user_id: string;
+            role: string;
+            created_at: string;
+          }>;
+        });
+      }),
+
+    invite: t.procedure
+      .input(
+        z.object({
+          workspaceId: z.string().min(1),
+          userId: z.string().min(1),
+          role: z.enum(["admin", "member", "viewer"]).default("member"),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+          }
+          const { data: membership } = await supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", input.workspaceId)
+            .eq("user_id", user.id)
+            .single();
+          if (!membership || !["owner", "admin"].includes(membership.role)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Only owners and admins can invite members",
+            });
+          }
+          const now = new Date().toISOString();
+          const { data, error } = await supabase
+            .from("workspace_members")
+            .insert({
+              workspace_id: input.workspaceId,
+              user_id: input.userId,
+              role: input.role,
+              invited_by: user.id,
+              created_at: now,
+            })
+            .select("id, user_id, role, created_at")
+            .single();
+          if (error) throw error;
+          return data as { id: string; user_id: string; role: string; created_at: string };
+        });
+      }),
+
+    removeMember: t.procedure
+      .input(
+        z.object({
+          workspaceId: z.string().min(1),
+          memberId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+          }
+          const { data: callerMembership } = await supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", input.workspaceId)
+            .eq("user_id", user.id)
+            .single();
+          if (!callerMembership || !["owner", "admin"].includes(callerMembership.role)) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Only owners and admins can remove members",
+            });
+          }
+          const { data: target } = await supabase
+            .from("workspace_members")
+            .select("id, role, user_id")
+            .eq("id", input.memberId)
+            .eq("workspace_id", input.workspaceId)
+            .single();
+          if (!target) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Member not found" });
+          }
+          if (target.role === "owner") {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Cannot remove workspace owner",
+            });
+          }
+          const { error } = await supabase
+            .from("workspace_members")
+            .delete()
+            .eq("id", input.memberId);
+          if (error) throw error;
+          return { removed: true };
+        });
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

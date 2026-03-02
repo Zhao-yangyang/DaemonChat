@@ -1,6 +1,6 @@
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import { streamText, generateText, embed } from "ai";
-import type { LlmModelSelection, LlmPort } from "@daemon/domain";
+import type { ChatMessageContent, LlmModelSelection, LlmPort } from "@daemon/domain";
 
 export interface VercelLlmConfig {
   model: string;
@@ -90,6 +90,18 @@ export const createDeterministicLocalEmbedding = (
   return vector.map((value) => Number((value / norm).toFixed(8)));
 };
 
+const toSdkContent = (content: ChatMessageContent): any => {
+  if (typeof content === "string") return content;
+  return content.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    return { type: "image", image: new URL(part.url), mimeType: part.mimeType };
+  });
+};
+
+const toSdkMessages = (
+  messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>
+): any[] => messages.map((m) => ({ role: m.role, content: toSdkContent(m.content) }));
+
 export function createVercelLlmAdapter(
   config: VercelLlmConfig,
   deps: VercelLlmRuntimeDeps = {}
@@ -113,12 +125,21 @@ export function createVercelLlmAdapter(
     : null;
   const embeddingDimensions = toPositiveInt(config.embeddingDimensions, 1536);
 
+  const resolveModel = (override?: string): { model: any; name: string } => {
+    if (override && override !== config.model) {
+      return { model: (provider as any)(override), name: override };
+    }
+    return { model: chatModel, name: config.model };
+  };
+
   const resolveRemoteEmbedding = () =>
     (provider as any).embedding?.(config.embeddingModel) ??
     (provider as any)(config.embeddingModel);
 
   return {
-    async *streamChat({ messages, onModelResolved, abortSignal }) {
+    async *streamChat({ messages, model: modelOverride, onModelResolved, abortSignal }) {
+      const sdkMessages = toSdkMessages(messages);
+      const primary = resolveModel(modelOverride);
       let resolved = false;
       const reportResolved = (selection: LlmModelSelection) => {
         if (resolved) return;
@@ -129,15 +150,15 @@ export function createVercelLlmAdapter(
       let yielded = false;
       try {
         const primaryResult: any = await streamTextImpl({
-          model: chatModel,
-          messages,
+          model: primary.model,
+          messages: sdkMessages,
           abortSignal,
         });
         let primaryChunked = false;
         for await (const chunk of primaryResult.textStream) {
           if (!primaryChunked) {
             primaryChunked = true;
-            reportResolved({ model: config.model, route: "primary" });
+            reportResolved({ model: primary.name, route: "primary" });
           }
           yielded = true;
           yield chunk;
@@ -146,11 +167,11 @@ export function createVercelLlmAdapter(
           const fullText = await readStreamResultText(primaryResult);
           if (fullText) {
             yielded = true;
-            reportResolved({ model: config.model, route: "primary" });
+            reportResolved({ model: primary.name, route: "primary" });
             yield fullText;
             return;
           }
-          reportResolved({ model: config.model, route: "primary" });
+          reportResolved({ model: primary.name, route: "primary" });
         }
         return;
       } catch (error) {
@@ -161,7 +182,7 @@ export function createVercelLlmAdapter(
 
       const fallbackResult: any = await streamTextImpl({
         model: fallbackChatModel,
-        messages,
+        messages: sdkMessages,
         abortSignal,
       });
       let fallbackChunked = false;
@@ -183,13 +204,15 @@ export function createVercelLlmAdapter(
       }
     },
 
-    async completeChat({ messages, onModelResolved }) {
+    async completeChat({ messages, model: modelOverride, onModelResolved }) {
+      const sdkMessages = toSdkMessages(messages);
+      const primary = resolveModel(modelOverride);
       try {
         const result: any = await generateTextImpl({
-          model: chatModel,
-          messages,
+          model: primary.model,
+          messages: sdkMessages,
         });
-        onModelResolved?.({ model: config.model, route: "primary" });
+        onModelResolved?.({ model: primary.name, route: "primary" });
         return result.text ?? "";
       } catch (error) {
         if (!fallbackChatModel) {
@@ -199,7 +222,7 @@ export function createVercelLlmAdapter(
 
       const fallbackResult: any = await generateTextImpl({
         model: fallbackChatModel,
-        messages,
+        messages: sdkMessages,
       });
       onModelResolved?.({ model: config.fallbackModel ?? "", route: "fallback" });
       return fallbackResult.text ?? "";

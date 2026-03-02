@@ -22,8 +22,29 @@ export interface Agent {
   ownerUserId: UUID;
   name: string;
   config: AgentConfig;
+  workspaceId?: UUID | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
+
+export interface Workspace {
+  id: UUID;
+  name: string;
+  slug: string;
+  ownerUserId: UUID;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface WorkspaceMember {
+  id: UUID;
+  workspaceId: UUID;
+  userId: UUID;
+  role: WorkspaceRole;
+  invitedBy: UUID | null;
+  createdAt: Timestamp;
 }
 
 export interface Session {
@@ -104,9 +125,13 @@ export interface UsageSeriesPoint {
 
 export type ContextRole = "system" | "user" | "assistant";
 
+export type ContextContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; url: string; mimeType?: string };
+
 export interface ContextMessage {
   role: ContextRole;
-  content: string;
+  content: string | ContextContentPart[];
 }
 
 export interface ContextBudget {

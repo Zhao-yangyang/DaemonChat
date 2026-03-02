@@ -134,14 +134,22 @@ export type AbortSignalLike = {
   readonly aborted: boolean;
 };
 
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; url: string; mimeType?: string };
+
+export type ChatMessageContent = string | ChatContentPart[];
+
 export interface LlmPort {
   streamChat(input: {
-    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>;
+    model?: string;
     onModelResolved?: (selection: LlmModelSelection) => void;
     abortSignal?: AbortSignalLike;
   }): AsyncIterable<string>;
   completeChat(input: {
-    messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+    messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>;
+    model?: string;
     onModelResolved?: (selection: LlmModelSelection) => void;
   }): Promise<string>;
   embed(input: { text: string }): Promise<number[]>;

@@ -17,33 +17,71 @@ const parseAlertMinLevel = (value: string | undefined): LogLevel => {
 
 const alertWebhookUrl = process.env.ALERT_WEBHOOK_URL ?? "";
 const alertMinLevel = parseAlertMinLevel(process.env.ALERT_MIN_LEVEL);
+const ALERT_TIMEOUT_MS = 5000;
+const ALERT_MAX_RETRIES = 1;
+const ALERT_SUPPRESS_WINDOW_MS = 60_000;
+const ALERT_SUPPRESS_MAX = 5;
+
+const alertSuppressionMap = new Map<string, { count: number; firstAt: number }>();
+
+const isAlertSuppressed = (event: string): boolean => {
+  const now = Date.now();
+  const entry = alertSuppressionMap.get(event);
+  if (!entry || now - entry.firstAt > ALERT_SUPPRESS_WINDOW_MS) {
+    alertSuppressionMap.set(event, { count: 1, firstAt: now });
+    return false;
+  }
+  entry.count++;
+  return entry.count > ALERT_SUPPRESS_MAX;
+};
+
+const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs: number) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 const sendAlert = async (level: LogLevel, event: string, fields: LogFields) => {
   if (!alertWebhookUrl) return;
   if (alertLevelRank[level] < alertLevelRank[alertMinLevel]) return;
-  try {
-    await fetch(alertWebhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        source: "web",
-        level,
-        event,
-        ts: new Date().toISOString(),
-        ...fields,
-      }),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      JSON.stringify({
-        level: "error",
-        event: "alert.delivery_failed",
-        ts: new Date().toISOString(),
-        source: "web",
-        error_message: message,
-      })
-    );
+  if (isAlertSuppressed(event)) return;
+
+  const body = JSON.stringify({
+    source: "web",
+    level,
+    event,
+    ts: new Date().toISOString(),
+    ...fields,
+  });
+
+  for (let attempt = 0; attempt <= ALERT_MAX_RETRIES; attempt++) {
+    try {
+      await fetchWithTimeout(
+        alertWebhookUrl,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body },
+        ALERT_TIMEOUT_MS
+      );
+      return;
+    } catch (error) {
+      if (attempt >= ALERT_MAX_RETRIES) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "alert.delivery_failed",
+            ts: new Date().toISOString(),
+            source: "web",
+            alert_event: event,
+            attempt: attempt + 1,
+            error_message: message,
+          })
+        );
+      }
+    }
   }
 };
 
@@ -52,6 +90,7 @@ const emit = (level: LogLevel, event: string, fields: LogFields) => {
     level,
     event,
     ts: new Date().toISOString(),
+    source: "web",
     ...fields,
   };
   const line = JSON.stringify(payload);
