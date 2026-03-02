@@ -241,6 +241,25 @@ export const appRouter = t.router({
           ctx.container.session.deleteSession(input.agentId, input.sessionId, user.id)
         );
       }),
+    rename: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          sessionId: z.string().min(1),
+          displayName: z.string().min(1).max(80),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.session.renameSession(
+            input.agentId,
+            input.sessionId,
+            input.displayName,
+            user.id
+          )
+        );
+      }),
   }),
 
   transcript: t.router({
@@ -304,6 +323,41 @@ export const appRouter = t.router({
           sensitivity: input.sensitivity,
           contextEligible: input.contextEligible,
         });
+      }),
+    update: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          memoryId: z.string().min(1),
+          content: z.string().min(1).optional(),
+          tags: z.array(z.string()).optional(),
+          sensitivity: z.enum(["public", "private", "secret"]).optional(),
+          contextEligible: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.memory.updateMemoryItem(input.agentId, input.memoryId, {
+            content: input.content,
+            tags: input.tags,
+            sensitivity: input.sensitivity,
+            contextEligible: input.contextEligible,
+          })
+        );
+      }),
+    delete: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          memoryId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.memory.deleteMemoryItem(input.agentId, input.memoryId)
+        );
       }),
   }),
 

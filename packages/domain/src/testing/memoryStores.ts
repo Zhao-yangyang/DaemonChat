@@ -143,6 +143,7 @@ export function createInMemoryStores(): {
         id: nextId("session"),
         agentId,
         sessionKey,
+        displayName: null,
         createdAt: now,
         lastActiveAt: now,
       };
@@ -155,6 +156,15 @@ export function createInMemoryStores(): {
       const session = sessions.find((entry) => entry.id === sessionId);
       if (session) {
         session.lastActiveAt = lastActiveAt;
+      }
+    },
+
+    async renameSession({ agentId, sessionId, displayName }) {
+      const session = sessions.find(
+        (entry) => entry.id === sessionId && entry.agentId === agentId
+      );
+      if (session) {
+        session.displayName = displayName;
       }
     },
 
@@ -292,6 +302,27 @@ export function createInMemoryStores(): {
       scored.sort((a, b) => b.score - a.score);
 
       return scored.slice(0, topK).map((entry) => entry.item);
+    },
+
+    async updateMemoryItem({ agentId, id, content, tags, sensitivity, contextEligible, embedding, now }) {
+      const item = memoryItems.find((entry) => entry.id === id && entry.agentId === agentId);
+      if (!item) {
+        throw new Error("Memory not found");
+      }
+      if (content !== undefined) item.content = content;
+      if (tags !== undefined) item.tags = [...tags];
+      if (sensitivity !== undefined) item.sensitivity = sensitivity;
+      if (contextEligible !== undefined) item.contextEligible = contextEligible;
+      if (embedding !== undefined) item.embedding = embedding;
+      item.updatedAt = now;
+      return { ...item };
+    },
+
+    async deleteMemoryItem({ agentId, id }) {
+      const index = memoryItems.findIndex((entry) => entry.id === id && entry.agentId === agentId);
+      if (index >= 0) {
+        memoryItems.splice(index, 1);
+      }
     },
   };
 

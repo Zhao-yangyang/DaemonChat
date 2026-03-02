@@ -479,6 +479,17 @@ export const createPostHandler = (
       }
     }
 
+    const abortController = new AbortController();
+    const syncAbortFromRequest = () => {
+      if (!abortController.signal.aborted) {
+        abortController.abort();
+      }
+    };
+    req.signal.addEventListener("abort", syncAbortFromRequest);
+    if (req.signal.aborted) {
+      syncAbortFromRequest();
+    }
+
     let result;
     try {
       result = await container.chat.chatTurnStream(
@@ -520,10 +531,12 @@ export const createPostHandler = (
                 model_route_fallback: fallbackModel ?? null,
               },
           budget: effectiveBudget,
+          abortSignal: abortController.signal,
         }
       );
     } catch (error) {
       if (error instanceof IdempotencyConflictError) {
+        req.signal.removeEventListener("abort", syncAbortFromRequest);
         logWarn("chat_stream.idempotency_conflict", {
           request_id: requestId,
           route: routePath,
@@ -536,6 +549,7 @@ export const createPostHandler = (
         });
         return new Response(error.message, { status: 409 });
       }
+      req.signal.removeEventListener("abort", syncAbortFromRequest);
       const details = serializeError(error);
       logError("chat_stream.start_failed", {
         request_id: requestId,
@@ -554,6 +568,7 @@ export const createPostHandler = (
 
     const iterator = result.stream[Symbol.asyncIterator]();
     let assistantText = "";
+    let streamClosed = false;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -615,10 +630,15 @@ export const createPostHandler = (
             latency_ms: Date.now() - startedAt,
           });
         } finally {
-          controller.close();
+          if (!streamClosed) {
+            streamClosed = true;
+            controller.close();
+          }
+          req.signal.removeEventListener("abort", syncAbortFromRequest);
         }
       },
       async cancel() {
+        syncAbortFromRequest();
         logWarn("chat_stream.cancelled", {
           request_id: requestId,
           route: routePath,
@@ -635,6 +655,7 @@ export const createPostHandler = (
         if (iterator.return) {
           await iterator.return();
         }
+        req.signal.removeEventListener("abort", syncAbortFromRequest);
       },
     });
 

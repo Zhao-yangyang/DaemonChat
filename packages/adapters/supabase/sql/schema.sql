@@ -21,10 +21,13 @@ create table if not exists public.sessions (
   id uuid primary key default gen_random_uuid(),
   agent_id uuid not null references public.agents(id) on delete cascade,
   session_key text not null,
+  display_name text,
   current boolean not null default true,
   created_at timestamptz not null default now(),
   last_active_at timestamptz not null default now()
 );
+
+alter table public.sessions add column if not exists display_name text;
 
 create unique index if not exists sessions_agent_key_current_idx
   on public.sessions (agent_id, session_key)

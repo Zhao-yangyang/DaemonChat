@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
   Skeleton,
+  Textarea,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { filterMemoryItems, paginateItems } from "@/src/features/historyFilters";
@@ -53,6 +54,15 @@ export default function MemoryPage() {
     "all" | "eligible" | "ineligible"
   >(parsedState.eligibilityFilter);
   const [page, setPage] = useState(parsedState.page);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState("");
+  const [editingTags, setEditingTags] = useState("");
+  const [editingSensitivity, setEditingSensitivity] = useState<"public" | "private" | "secret">(
+    "public"
+  );
+  const [editingEligibility, setEditingEligibility] = useState<"eligible" | "ineligible">(
+    "eligible"
+  );
 
   const userId = user?.id ?? "";
 
@@ -64,6 +74,19 @@ export default function MemoryPage() {
   const createMemory = trpc.memory.create.useMutation({
     onSuccess: () => {
       setContent("");
+      memoryList.refetch();
+    },
+  });
+  const updateMemory = trpc.memory.update.useMutation({
+    onSuccess: () => {
+      setEditingMemoryId(null);
+      setEditingContent("");
+      setEditingTags("");
+      memoryList.refetch();
+    },
+  });
+  const deleteMemory = trpc.memory.delete.useMutation({
+    onSuccess: () => {
       memoryList.refetch();
     },
   });
@@ -128,6 +151,48 @@ export default function MemoryPage() {
   }, [agentId, query, sensitivityFilter, eligibilityFilter, page, pathname, router, searchParams]);
 
   const hasAgents = (agents.data?.length ?? 0) > 0;
+
+  const beginEdit = (item: {
+    id: string;
+    content: string;
+    tags: string[];
+    sensitivity: "public" | "private" | "secret";
+    contextEligible: boolean;
+  }) => {
+    setEditingMemoryId(item.id);
+    setEditingContent(item.content);
+    setEditingTags(item.tags.join(", "));
+    setEditingSensitivity(item.sensitivity);
+    setEditingEligibility(item.contextEligible ? "eligible" : "ineligible");
+  };
+
+  const cancelEdit = () => {
+    setEditingMemoryId(null);
+    setEditingContent("");
+    setEditingTags("");
+  };
+
+  const saveEdit = async () => {
+    if (!agentId || !editingMemoryId || !editingContent.trim()) return;
+    await updateMemory.mutateAsync({
+      agentId,
+      memoryId: editingMemoryId,
+      content: editingContent.trim(),
+      tags: editingTags
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      sensitivity: editingSensitivity,
+      contextEligible: editingEligibility === "eligible",
+    });
+  };
+
+  const removeMemory = async (memoryId: string) => {
+    if (!agentId) return;
+    const confirmed = window.confirm("确认删除这条记忆吗？");
+    if (!confirmed) return;
+    await deleteMemory.mutateAsync({ agentId, memoryId });
+  };
 
   return (
     <DashboardShell
@@ -259,14 +324,112 @@ export default function MemoryPage() {
             : paged.items.map((item) => (
                 <Card key={item.id} className="transition-shadow hover:shadow-md">
                   <CardContent className="py-4">
-                    <p className="text-sm leading-relaxed">{item.content}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <Badge variant="secondary" className="text-xs">{item.type}</Badge>
-                      <Badge variant="secondary" className="text-xs">{item.sensitivity}</Badge>
-                      <Badge variant={item.contextEligible ? "default" : "secondary"} className="text-xs">
-                        {item.contextEligible ? "eligible" : "ineligible"}
-                      </Badge>
-                    </div>
+                    {editingMemoryId === item.id ? (
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <Label>内容</Label>
+                          <Textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            className="min-h-20"
+                          />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div className="space-y-1.5">
+                            <Label>标签（逗号分隔）</Label>
+                            <Input
+                              value={editingTags}
+                              onChange={(e) => setEditingTags(e.target.value)}
+                              placeholder="例如：偏好, 输出"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>敏感级别</Label>
+                            <Select
+                              value={editingSensitivity}
+                              onValueChange={(value) =>
+                                setEditingSensitivity(value as "public" | "private" | "secret")
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="public">public</SelectItem>
+                                <SelectItem value="private">private</SelectItem>
+                                <SelectItem value="secret">secret</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>上下文可用性</Label>
+                            <Select
+                              value={editingEligibility}
+                              onValueChange={(value) =>
+                                setEditingEligibility(value as "eligible" | "ineligible")
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="eligible">eligible</SelectItem>
+                                <SelectItem value="ineligible">ineligible</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button size="xs" variant="secondary" onClick={cancelEdit}>
+                            取消
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            onClick={() => void saveEdit()}
+                            disabled={updateMemory.isPending || !editingContent.trim()}
+                          >
+                            {updateMemory.isPending ? "保存中..." : "保存"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm leading-relaxed">{item.content}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{item.type}</Badge>
+                          <Badge variant="secondary" className="text-xs">{item.sensitivity}</Badge>
+                          <Badge variant={item.contextEligible ? "default" : "secondary"} className="text-xs">
+                            {item.contextEligible ? "eligible" : "ineligible"}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() =>
+                              beginEdit({
+                                id: item.id,
+                                content: item.content,
+                                tags: item.tags,
+                                sensitivity: item.sensitivity,
+                                contextEligible: item.contextEligible,
+                              })
+                            }
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            disabled={deleteMemory.isPending}
+                            onClick={() => void removeMemory(item.id)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               ))}

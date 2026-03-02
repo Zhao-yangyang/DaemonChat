@@ -126,3 +126,55 @@ bun run dev --filter @daemon/worker
   - `OPENAI_API_KEY` 未配置或不可用。
 - 看不到 Usage 增长：
   - 先确认聊天请求成功完成（有 assistant 输出）。
+
+## 6. Staging 部署（Vercel）
+
+### 6.1 Vercel 项目设置
+
+1. 在 Vercel 新建项目并导入本仓库。
+2. Root Directory 选择 `apps/web`。
+3. Build & Output Settings 采用仓库内配置（`vercel.json` + Next.js 默认）。
+
+### 6.2 Staging 环境变量（Web）
+
+最少需要配置：
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_EMBED_MODEL`
+
+建议同步配置（成本/稳定性相关）：
+
+- `OPENAI_FALLBACK_MODEL`
+- `MODEL_CONTEXT_WINDOW`
+- `RESERVE_OUTPUT_TOKENS`
+- `RESERVE_TOOL_TOKENS`
+- `MEMORY_TOPK`
+- `RECENT_MESSAGES`
+- `CHAT_QPS_LIMIT`
+- `CHAT_QPM_LIMIT`
+- `CHAT_DAILY_TOKEN_HARD_CAP`
+- `CHAT_MONTHLY_TOKEN_HARD_CAP`
+- `CHAT_MAX_INPUT_TOKENS`
+- `MODEL_PRICING_JSON`（或 `OPENAI_INPUT_PRICE_PER_1M` + `OPENAI_OUTPUT_PRICE_PER_1M`）
+
+### 6.3 Worker 部署说明
+
+`@daemon/worker` 不是 Next.js 路由的一部分，需要独立部署（例如 Railway/fly.io/Render）。
+
+Worker 必需环境变量：
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_EMBED_MODEL`
+- `OPENAI_API_KEY`
+
+建议在 Staging 环境中先验证：
+
+- `bun run loadtest:chat`
+- `bun run loadtest:claim`

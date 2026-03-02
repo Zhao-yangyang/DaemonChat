@@ -30,8 +30,11 @@ const buildContainer = (overrides?: {
   getAgent?: Services["agent"]["getAgent"];
   deleteAgent?: Services["agent"]["deleteAgent"];
   writeMemoryItem?: Services["memory"]["writeMemoryItem"];
+  updateMemoryItem?: Services["memory"]["updateMemoryItem"];
+  deleteMemoryItem?: Services["memory"]["deleteMemoryItem"];
   listSessions?: Services["session"]["listRecentSessions"];
   deleteSession?: Services["session"]["deleteSession"];
+  renameSession?: Services["session"]["renameSession"];
   rateLimitConsume?: NonNullable<Services["ports"]["rateLimit"]>["consumeLimit"];
 }): Services =>
   ({
@@ -99,12 +102,30 @@ const buildContainer = (overrides?: {
           createdAt: "2026-02-03T00:00:00.000Z",
           updatedAt: "2026-02-03T00:00:00.000Z",
         })),
+      updateMemoryItem:
+        overrides?.updateMemoryItem ??
+        (async (agentId, memoryId, input) => ({
+          id: memoryId,
+          agentId,
+          scopeType: "user",
+          scopeId: "user-1",
+          type: "fact",
+          content: input.content ?? "updated",
+          tags: input.tags ?? [],
+          sensitivity: input.sensitivity ?? "public",
+          contextEligible: input.contextEligible ?? true,
+          embedding: [1, 0, 0],
+          createdAt: "2026-02-03T00:00:00.000Z",
+          updatedAt: "2026-02-03T00:00:00.000Z",
+        })),
+      deleteMemoryItem: overrides?.deleteMemoryItem ?? (async () => {}),
     },
     session: {
       listRecentSessions:
         overrides?.listSessions ??
         (async () => []),
       deleteSession: overrides?.deleteSession ?? (async () => {}),
+      renameSession: overrides?.renameSession ?? (async () => {}),
     },
   }) as unknown as Services;
 
@@ -379,6 +400,7 @@ describe("api router", () => {
                 id: "session-1",
                 agentId,
                 sessionKey: "main",
+                displayName: null,
                 createdAt: "2026-02-03T00:00:00.000Z",
                 lastActiveAt: "2026-02-03T10:00:00.000Z",
               },
@@ -437,6 +459,32 @@ describe("api router", () => {
     }
     expect(captured.agentId).toBe("agent-1");
     expect(captured.sessionId).toBe("session-1");
+    expect(captured.userId).toBe("user-1");
+  });
+
+  test("session.rename renames session through agent ownership", async () => {
+    let captured: any = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          renameSession: async (agentId, sessionId, displayName, userId) => {
+            captured = { agentId, sessionId, displayName, userId };
+          },
+        }),
+      })
+    );
+
+    await caller.session.rename({
+      agentId: "agent-1",
+      sessionId: "session-1",
+      displayName: "我的会话",
+    });
+    if (!captured) {
+      throw new Error("Expected renameSession input to be captured");
+    }
+    expect(captured.agentId).toBe("agent-1");
+    expect(captured.sessionId).toBe("session-1");
+    expect(captured.displayName).toBe("我的会话");
     expect(captured.userId).toBe("user-1");
   });
 
@@ -831,5 +879,73 @@ describe("api router", () => {
 
     expect(item.scopeId).toBe("user-1");
     expect(capturedScopeId).toBe("user-1");
+  });
+
+  test("memory.update forwards updates for owned agent", async () => {
+    let captured: any = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          updateMemoryItem: async (agentId, memoryId, input) => {
+            captured = { agentId, memoryId, input };
+            return {
+              id: memoryId,
+              agentId,
+              scopeType: "user",
+              scopeId: "user-1",
+              type: "fact",
+              content: input.content ?? "updated",
+              tags: input.tags ?? [],
+              sensitivity: input.sensitivity ?? "public",
+              contextEligible: input.contextEligible ?? true,
+              embedding: [1, 0, 0],
+              createdAt: "2026-02-03T00:00:00.000Z",
+              updatedAt: "2026-02-03T00:00:00.000Z",
+            };
+          },
+        }),
+      })
+    );
+
+    await caller.memory.update({
+      agentId: "agent-1",
+      memoryId: "memory-1",
+      content: "新的内容",
+      tags: ["偏好"],
+      sensitivity: "private",
+      contextEligible: false,
+    });
+
+    expect(captured).toBeTruthy();
+    expect(captured.agentId).toBe("agent-1");
+    expect(captured.memoryId).toBe("memory-1");
+    expect(captured.input).toMatchObject({
+      content: "新的内容",
+      tags: ["偏好"],
+      sensitivity: "private",
+      contextEligible: false,
+    });
+  });
+
+  test("memory.delete forwards delete call for owned agent", async () => {
+    let captured: any = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          deleteMemoryItem: async (agentId, memoryId) => {
+            captured = { agentId, memoryId };
+          },
+        }),
+      })
+    );
+
+    await caller.memory.delete({
+      agentId: "agent-1",
+      memoryId: "memory-1",
+    });
+
+    expect(captured).toBeTruthy();
+    expect(captured.agentId).toBe("agent-1");
+    expect(captured.memoryId).toBe("memory-1");
   });
 });

@@ -68,5 +68,50 @@ export function createMemoryService(ports: {
     async listMemoryItems(agentId: string, limit: number): Promise<MemoryItem[]> {
       return ports.memory.listMemoryItems({ agentId, limit });
     },
+
+    async updateMemoryItem(
+      agentId: string,
+      memoryId: string,
+      input: {
+        content?: string;
+        tags?: string[];
+        sensitivity?: MemoryItem["sensitivity"];
+        contextEligible?: boolean;
+      }
+    ): Promise<MemoryItem> {
+      const trimmedMemoryId = memoryId.trim();
+      if (!trimmedMemoryId) {
+        throw new ValidationError("Memory id is required");
+      }
+
+      let normalizedContent: string | undefined;
+      let embedding: number[] | undefined;
+      if (input.content !== undefined) {
+        normalizedContent = input.content.trim();
+        if (!normalizedContent) {
+          throw new ValidationError("Memory content is required");
+        }
+        embedding = await ports.llm.embed({ text: normalizedContent });
+      }
+
+      return ports.memory.updateMemoryItem({
+        agentId,
+        id: trimmedMemoryId,
+        content: normalizedContent,
+        tags: input.tags,
+        sensitivity: input.sensitivity,
+        contextEligible: input.contextEligible,
+        embedding,
+        now: ports.clock.now(),
+      });
+    },
+
+    async deleteMemoryItem(agentId: string, memoryId: string): Promise<void> {
+      const trimmedMemoryId = memoryId.trim();
+      if (!trimmedMemoryId) {
+        throw new ValidationError("Memory id is required");
+      }
+      await ports.memory.deleteMemoryItem({ agentId, id: trimmedMemoryId });
+    },
   };
 }

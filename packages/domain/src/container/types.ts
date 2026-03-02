@@ -33,6 +33,7 @@ export interface SessionStore {
     now: Timestamp;
   }): Promise<Session>;
   touchSession(input: { sessionId: UUID; lastActiveAt: Timestamp }): Promise<void>;
+  renameSession(input: { agentId: UUID; sessionId: UUID; displayName: string }): Promise<void>;
   deleteSession(input: { agentId: UUID; sessionId: UUID }): Promise<void>;
 }
 
@@ -79,6 +80,17 @@ export interface MemoryStore {
     scopeType?: MemoryItem["scopeType"];
     scopeId?: UUID;
   }): Promise<MemoryItem[]>;
+  updateMemoryItem(input: {
+    agentId: UUID;
+    id: UUID;
+    content?: string;
+    tags?: string[];
+    sensitivity?: MemoryItem["sensitivity"];
+    contextEligible?: boolean;
+    embedding?: number[];
+    now: Timestamp;
+  }): Promise<MemoryItem>;
+  deleteMemoryItem(input: { agentId: UUID; id: UUID }): Promise<void>;
 }
 
 export interface UsageStore {
@@ -118,10 +130,15 @@ export type LlmModelSelection = {
   route: "primary" | "fallback";
 };
 
+export type AbortSignalLike = {
+  readonly aborted: boolean;
+};
+
 export interface LlmPort {
   streamChat(input: {
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
     onModelResolved?: (selection: LlmModelSelection) => void;
+    abortSignal?: AbortSignalLike;
   }): AsyncIterable<string>;
   completeChat(input: {
     messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;

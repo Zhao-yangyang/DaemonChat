@@ -60,5 +60,36 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       }
       await ports.sessions.deleteSession({ agentId, sessionId: trimmedSessionId });
     },
+
+    async renameSession(
+      agentId: string,
+      sessionId: string,
+      displayName: string,
+      ownerUserId: string
+    ): Promise<void> {
+      if (!ports.agents) {
+        throw new ValidationError("Session rename requires agent store");
+      }
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent) {
+        throw new NotFoundError("Agent not found");
+      }
+      if (agent.ownerUserId !== ownerUserId) {
+        throw new ForbiddenError("Agent access denied");
+      }
+      const trimmedSessionId = sessionId.trim();
+      if (!trimmedSessionId) {
+        throw new ValidationError("Session id is required");
+      }
+      const trimmedDisplayName = displayName.trim();
+      if (!trimmedDisplayName) {
+        throw new ValidationError("Session display name is required");
+      }
+      await ports.sessions.renameSession({
+        agentId,
+        sessionId: trimmedSessionId,
+        displayName: trimmedDisplayName,
+      });
+    },
   };
 }

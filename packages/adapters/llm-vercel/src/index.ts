@@ -118,7 +118,7 @@ export function createVercelLlmAdapter(
     (provider as any)(config.embeddingModel);
 
   return {
-    async *streamChat({ messages, onModelResolved }) {
+    async *streamChat({ messages, onModelResolved, abortSignal }) {
       let resolved = false;
       const reportResolved = (selection: LlmModelSelection) => {
         if (resolved) return;
@@ -131,6 +131,7 @@ export function createVercelLlmAdapter(
         const primaryResult: any = await streamTextImpl({
           model: chatModel,
           messages,
+          abortSignal,
         });
         let primaryChunked = false;
         for await (const chunk of primaryResult.textStream) {
@@ -161,6 +162,7 @@ export function createVercelLlmAdapter(
       const fallbackResult: any = await streamTextImpl({
         model: fallbackChatModel,
         messages,
+        abortSignal,
       });
       let fallbackChunked = false;
       for await (const chunk of fallbackResult.textStream) {

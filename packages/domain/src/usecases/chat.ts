@@ -4,6 +4,7 @@ import type { ContextBudget, ContextPack, MemoryItem, TranscriptEvent } from "..
 import type {
   Clock,
   JobQueue,
+  AbortSignalLike,
   LlmModelSelection,
   LlmPort,
   MemoryStore,
@@ -53,6 +54,7 @@ type ChatTurnOptions = {
   };
   usageMeta?: Record<string, unknown>;
   budget: ContextBudget;
+  abortSignal?: AbortSignalLike;
 };
 
 const estimateCostUsd = (input: {
@@ -356,6 +358,7 @@ export function createChatService(ports: {
         onModelResolved: (selection) => {
           modelSelection = selection;
         },
+        abortSignal: options.abortSignal,
       })) {
         assistantText = assistantText
           ? `${assistantText} ${chunk}`.trim()
@@ -451,6 +454,7 @@ export function createChatService(ports: {
             onModelResolved: (selection) => {
               modelSelection = selection;
             },
+            abortSignal: options.abortSignal,
           })) {
             assistantText += chunk;
             yield chunk;

@@ -6,6 +6,7 @@ const mapSession = (row: any): Session => ({
   id: row.id,
   agentId: row.agent_id,
   sessionKey: row.session_key,
+  displayName: row.display_name ?? null,
   createdAt: row.created_at,
   lastActiveAt: row.last_active_at,
 });
@@ -62,6 +63,15 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
         .update({ last_active_at: lastActiveAt })
         .eq("id", sessionId);
 
+      if (error) throw error;
+    },
+
+    async renameSession({ agentId, sessionId, displayName }) {
+      const { error } = await client
+        .from("sessions")
+        .update({ display_name: displayName })
+        .eq("id", sessionId)
+        .eq("agent_id", agentId);
       if (error) throw error;
     },
 

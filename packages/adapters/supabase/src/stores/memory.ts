@@ -75,5 +75,35 @@ export function createMemoryStore(client: SupabaseClient): MemoryStore {
       if (error) throw error;
       return (data ?? []).map(mapMemory);
     },
+
+    async updateMemoryItem({ agentId, id, content, tags, sensitivity, contextEligible, embedding, now }) {
+      const updates: Record<string, unknown> = {
+        updated_at: now,
+      };
+      if (content !== undefined) updates.content = content;
+      if (tags !== undefined) updates.tags = tags;
+      if (sensitivity !== undefined) updates.sensitivity = sensitivity;
+      if (contextEligible !== undefined) updates.context_eligible = contextEligible;
+      if (embedding !== undefined) updates.embedding = embedding;
+
+      const { data, error } = await client
+        .from("memory_items")
+        .update(updates)
+        .eq("id", id)
+        .eq("agent_id", agentId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return mapMemory(data);
+    },
+
+    async deleteMemoryItem({ agentId, id }) {
+      const { error } = await client
+        .from("memory_items")
+        .delete()
+        .eq("id", id)
+        .eq("agent_id", agentId);
+      if (error) throw error;
+    },
   };
 }

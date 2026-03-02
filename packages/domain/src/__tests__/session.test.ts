@@ -54,4 +54,30 @@ describe("session usecases", () => {
       NotFoundError
     );
   });
+
+  test("renameSession enforces owner check and updates displayName", async () => {
+    const stores = createInMemoryStores();
+    const clock = new ManualClock("2026-02-03T00:00:00Z");
+    const service = createSessionService({ sessions: stores.sessions, agents: stores.agents, clock });
+
+    const agent = await stores.agents.createAgent({
+      ownerUserId: "user-1",
+      name: "Agent A",
+      config: { ...DEFAULT_AGENT_CONFIG },
+      now: clock.now(),
+    });
+    const session = await stores.sessions.createSession({
+      agentId: agent.id,
+      sessionKey: "main",
+      now: clock.now(),
+    });
+
+    await expect(service.renameSession(agent.id, session.id, "我的会话", "user-2")).rejects.toBeInstanceOf(
+      ForbiddenError
+    );
+    await service.renameSession(agent.id, session.id, "我的会话", "user-1");
+
+    const list = await stores.sessions.listRecentSessions({ agentId: agent.id, limit: 10 });
+    expect(list[0]?.displayName).toBe("我的会话");
+  });
 });

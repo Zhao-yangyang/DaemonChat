@@ -30,6 +30,7 @@ export interface Session {
   id: UUID;
   agentId: UUID;
   sessionKey: string;
+  displayName: string | null;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
 }

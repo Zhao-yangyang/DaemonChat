@@ -128,6 +128,12 @@ Example scoped command:
   - only non-semantic brand special-cases (for example `--accent-green`) are kept as explicit variables where no stock semantic token exists.
   - dashboard/navigation layout has been simplified to chat-product style hierarchy: compact top nav card + lightweight page heading/actions section with reduced decorative containers.
   - API now exposes `session.list` (recent sessions) and `usage.trend` (bucketed usage series: hourly for day, daily for month).
+- Post-MVP Phase 3 baseline upgrades are now in place:
+  - chat stream now supports end-to-end cancel propagation (`AbortSignalLike` in domain ports, adapter pass-through to provider stream, route-level request abort wiring).
+  - `apps/web/app/chat/[agentId]` now includes stop generation, regenerate last assistant response, user-message edit-and-resend, and session rename UX.
+  - sessions now support optional `displayName` persisted in DB (`public.sessions.display_name`) and exposed via domain/adapters/tRPC (`session.rename`).
+  - memory lifecycle now supports update/delete end-to-end (`memory.update` / `memory.delete` in API, with adapter/domain/store support).
+  - staging readiness baseline added: root `vercel.json`, monorepo-safe Next `transpilePackages`, CI workflow (`.github/workflows/ci.yml`), and runbook deployment/env guidance.
 - Chat idempotency baseline is now wired:
   - `chatTurn/chatTurnStream` accept `idempotencyKey` and replay completed responses for duplicate keys.
   - duplicate in-flight key now returns conflict (`IdempotencyConflictError`) instead of re-running model calls.
