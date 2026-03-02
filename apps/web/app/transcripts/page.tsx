@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -31,7 +31,7 @@ import { formatId, formatTime } from "@/src/lib/format";
 
 const PAGE_SIZE = 10;
 
-export default function TranscriptsPage() {
+function TranscriptsPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -311,5 +311,27 @@ export default function TranscriptsPage() {
         ) : null}
       </div>
     </DashboardShell>
+  );
+}
+
+export default function TranscriptsPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardShell title="轨迹记录" description="按 Agent 与会话查看完整对话轨迹。">
+          <div className="mx-auto w-full max-w-4xl space-y-3 px-4 py-6 sm:px-6">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <Card key={`transcripts-page-fallback-${idx}`}>
+                <CardContent className="py-4">
+                  <Skeleton className="h-16 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DashboardShell>
+      }
+    >
+      <TranscriptsPageContent />
+    </Suspense>
   );
 }

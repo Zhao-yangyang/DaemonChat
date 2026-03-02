@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -47,7 +47,7 @@ const formatBucketLabel = (value: string, period: UsagePeriod): string => {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 };
 
-export default function UsagePage() {
+function UsagePageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -244,7 +244,7 @@ export default function UsagePage() {
                 </div>
                 <Progress
                   value={Math.max(0, Math.min(100, outRatio * 100))}
-                  className="[&>div]:bg-[var(--accent-green)]"
+                  className="[&>div]:bg-(--accent-green)"
                 />
               </div>
               <p className="text-xs text-muted-foreground">总 token：{formatNumber(totalTokens)}</p>
@@ -323,5 +323,29 @@ export default function UsagePage() {
         ) : null}
       </div>
     </DashboardShell>
+  );
+}
+
+export default function UsagePage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardShell title="Usage & Cost" description="按 Agent 快速查看 token 与成本趋势。">
+          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6 sm:px-6">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <Card key={`usage-page-fallback-${idx}`}>
+                  <CardContent className="py-4">
+                    <Skeleton className="h-16 w-full" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </DashboardShell>
+      }
+    >
+      <UsagePageContent />
+    </Suspense>
   );
 }

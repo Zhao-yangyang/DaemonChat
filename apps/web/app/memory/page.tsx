@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -32,7 +32,7 @@ import { useSession } from "@/src/hooks/use-session";
 
 const PAGE_SIZE = 8;
 
-export default function MemoryPage() {
+function MemoryPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -462,5 +462,27 @@ export default function MemoryPage() {
         ) : null}
       </div>
     </DashboardShell>
+  );
+}
+
+export default function MemoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <DashboardShell title="记忆管理" description="围绕当前 Agent 浏览、筛选和新增记忆。">
+          <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6 sm:px-6">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <Card key={`memory-page-fallback-${idx}`}>
+                <CardContent className="py-4">
+                  <Skeleton className="h-12 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DashboardShell>
+      }
+    >
+      <MemoryPageContent />
+    </Suspense>
   );
 }
