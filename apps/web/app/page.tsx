@@ -2,7 +2,14 @@
 
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@daemon/ui";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@daemon/ui";
 import { ChatEntryGate } from "@/src/components/chat-entry-gate";
 import { useSession } from "@/src/hooks/use-session";
 import { useTheme } from "@/src/hooks/use-theme";
@@ -10,7 +17,9 @@ import { supabaseBrowserClient } from "@/src/supabaseClient";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 export default function HomePage() {
@@ -22,11 +31,22 @@ export default function HomePage() {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-lg items-center px-4 py-8 sm:px-6">
         <section className="w-full space-y-5">
-          <Badge variant="secondary">DaemonChat</Badge>
+          <img
+            src="/logo.png"
+            alt="DaemonChat Logo"
+            className="h-10 w-auto object-contain"
+          />
+          <Badge className="w-fit" variant="secondary">
+            DaemonChat
+          </Badge>
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl tracking-tight sm:text-3xl">欢迎回来</CardTitle>
-              <CardDescription>账号：{session.user?.email ?? session.user?.id}</CardDescription>
+              <CardTitle className="text-2xl tracking-tight sm:text-3xl">
+                欢迎回来
+              </CardTitle>
+              <CardDescription>
+                账号：{session.user?.email ?? session.user?.id}
+              </CardDescription>
             </CardHeader>
           </Card>
           <ChatEntryGate />
@@ -38,7 +58,14 @@ export default function HomePage() {
   return (
     <main className="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_400px] lg:px-8">
       <section className="space-y-6">
-        <Badge variant="secondary">DaemonChat</Badge>
+        <img
+          src="/logo.png"
+          alt="DaemonChat Logo"
+          className="h-12 w-auto object-contain"
+        />
+        <Badge className="w-fit" variant="secondary">
+          DaemonChat
+        </Badge>
 
         <div className="space-y-4">
           <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
@@ -47,7 +74,8 @@ export default function HomePage() {
             一个干净的 AI 工作台
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            登录后自动进入最近会话。Agent、记忆与用量都围绕聊天主流程，不需要手动查找入口或复制 ID。
+            登录后自动进入最近会话。Agent、记忆与用量都围绕聊天主流程，不需要手动查找入口或复制
+            ID。
           </p>
         </div>
 

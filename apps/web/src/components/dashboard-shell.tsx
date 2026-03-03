@@ -12,12 +12,26 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@daemon/ui";
-import { Menu, MessageSquare, Bot, Brain, FileText, BarChart3, LogOut, LayoutGrid, Users } from "lucide-react";
+import {
+  Menu,
+  MessageSquare,
+  Bot,
+  Brain,
+  FileText,
+  BarChart3,
+  LogOut,
+  LayoutGrid,
+  Users,
+} from "lucide-react";
 import { ThemeToggle } from "@/src/components/theme-toggle";
 import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
-const navItems: Array<{ label: string; href: string; icon: React.ElementType }> = [
+const navItems: Array<{
+  label: string;
+  href: string;
+  icon: React.ElementType;
+}> = [
   { label: "聊天", href: "/chat", icon: MessageSquare },
   { label: "Agents", href: "/agents", icon: Bot },
   { label: "记忆", href: "/memory", icon: Brain },
@@ -41,7 +55,13 @@ type DashboardShellProps = {
   children: React.ReactNode;
 };
 
-function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function SidebarNav({
+  pathname,
+  onNavigate,
+}: {
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   const { session, user } = useSession();
   const email = user?.email;
   const displayName = email ? email.split("@")[0] : null;
@@ -49,7 +69,16 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
   return (
     <div className="flex h-full flex-col">
       <div className="px-4 py-5">
-        <Link href="/" className="text-base font-semibold tracking-tight" onClick={onNavigate}>
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-base font-semibold tracking-tight"
+          onClick={onNavigate}
+        >
+          <img
+            src="/logo.png"
+            alt="DaemonChat Logo"
+            className="size-6 object-contain"
+          />
           DaemonChat
         </Link>
       </div>
@@ -84,7 +113,10 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
       <div className="space-y-2 px-3 py-4">
         {displayName ? (
-          <p className="truncate text-xs text-muted-foreground" title={email ?? undefined}>
+          <p
+            className="truncate text-xs text-muted-foreground"
+            title={email ?? undefined}
+          >
             {displayName}
           </p>
         ) : null}
@@ -105,7 +137,12 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
   );
 }
 
-export function DashboardShell({ title, description, actions, children }: DashboardShellProps) {
+export function DashboardShell({
+  title,
+  description,
+  actions,
+  children,
+}: DashboardShellProps) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -131,17 +168,26 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
               <SheetHeader className="sr-only">
                 <SheetTitle>导航</SheetTitle>
               </SheetHeader>
-              <SidebarNav pathname={pathname} onNavigate={() => setSheetOpen(false)} />
+              <SidebarNav
+                pathname={pathname}
+                onNavigate={() => setSheetOpen(false)}
+              />
             </SheetContent>
           </Sheet>
 
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold sm:text-base">{title}</h1>
-              <p className="hidden truncate text-sm text-muted-foreground sm:block">{description}</p>
+              <h1 className="truncate text-sm font-semibold sm:text-base">
+                {title}
+              </h1>
+              <p className="hidden truncate text-sm text-muted-foreground sm:block">
+                {description}
+              </p>
             </div>
             {actions ? (
-              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">{actions}</div>
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                {actions}
+              </div>
             ) : null}
           </div>
         </header>

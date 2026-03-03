@@ -817,7 +817,7 @@ export default function ChatPage() {
                       >
                         {isUser ? "你" : "AI"}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div className={cn("min-w-0 flex-1 flex flex-col", isUser ? "items-end" : "items-start")}>
                         <div
                           className={cn(
                             "inline-block max-w-[min(85%,42rem)] rounded-2xl px-4 py-3",
