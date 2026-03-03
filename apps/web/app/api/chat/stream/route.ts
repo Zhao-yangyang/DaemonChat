@@ -20,7 +20,7 @@ import {
   wouldExceedChatMaxInputTokens,
   wouldExceedTokenHardCap,
 } from "@daemon/api";
-import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { createChatService, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 
 const env = {
@@ -322,8 +322,11 @@ export const createPostHandler = (
     // Dynamically create LLM from Agent config
     let agentLlm;
     try {
-      const finalModelName = typeof body.model === "string" && body.model.trim() ? body.model.trim() : llmProvider.model;
-      agentLlm = createLlmFromAgentConfig({ ...llmProvider, model: finalModelName });
+      const finalModelName = llmProvider.model;
+      agentLlm = createLlmFromAgentConfig(
+        { ...llmProvider, model: finalModelName },
+        { temperature: agentConfig.temperature },
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "LLM 创建失败";
       logError("chat_stream.llm_create_failed", {
@@ -338,13 +341,21 @@ export const createPostHandler = (
       return new Response(message, { status: 400 });
     }
 
-    // Inject dynamic LLM into container ports
-    (container.ports as any).llm = agentLlm;
+    // Create a new chat service with the real per-agent LLM
+    // (monkey-patching container.ports.llm does NOT work because
+    //  createChatService captures llm in a closure at construction time)
+    const agentChatService = createChatService({
+      jobs: container.ports.jobs,
+      sessions: container.ports.sessions,
+      transcripts: container.ports.transcripts,
+      memory: container.ports.memory,
+      usage: container.ports.usage,
+      llm: agentLlm,
+      clock: container.ports.clock,
+      tokenizer: container.ports.tokenizer,
+    });
 
-    const selectedModel =
-      body.model?.trim() ||
-      agentConfig.model?.trim() ||
-      llmProvider.model;
+    const selectedModel = llmProvider.model;
     const selectedModelPricing = resolveModelPricingFromEnv(selectedModel, env) ?? undefined;
     const configuredBudget = {
       ...defaultBudget,
@@ -503,7 +514,7 @@ export const createPostHandler = (
 
     let result;
     try {
-      result = await container.chat.chatTurnStream(
+      result = await agentChatService.chatTurnStream(
         body.agentId,
         body.sessionKey,
         body.userInput,

@@ -21,12 +21,24 @@ import {
   DialogTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@daemon/ui";
+import {
+  LLM_PROVIDER_PRESETS,
+  CUSTOM_PROVIDER_ID,
+  findProviderPreset,
+  getDefaultModelForPreset,
+  detectPresetFromConfig,
+} from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
@@ -43,24 +55,24 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 
 type AgentConfigForm = {
   systemPrompt: string;
-  model: string;
   memoryTopK: string;
   recentMessages: string;
   temperature: string;
   llmProvider: {
+    presetId: string;
     model: string;
     baseURL: string;
     apiKey: string;
+    sdkProvider: "openai" | "anthropic";
   };
 };
 
 const EMPTY_CONFIG_FORM: AgentConfigForm = {
   systemPrompt: "",
-  model: "",
   memoryTopK: "8",
   recentMessages: "20",
   temperature: "0.7",
-  llmProvider: { model: "", baseURL: "", apiKey: "" },
+  llmProvider: { presetId: "", model: "", baseURL: "", apiKey: "", sdkProvider: "openai" },
 };
 
 export default function AgentsPage() {
@@ -170,20 +182,31 @@ export default function AgentsPage() {
         model?: string;
         baseURL?: string;
         apiKey?: string;
+        presetId?: string;
+        sdkProvider?: "openai" | "anthropic";
       } | null;
     };
   }) => {
     setEditingAgentId(agent.id);
+
+    const detected = detectPresetFromConfig({
+      baseURL: agent.config.llmProvider?.baseURL,
+      model: agent.config.llmProvider?.model,
+    });
+
     setConfigForm({
       systemPrompt: agent.config.systemPrompt ?? "",
-      model: agent.config.model ?? "",
       memoryTopK: String(agent.config.memoryTopK ?? 8),
       recentMessages: String(agent.config.recentMessages ?? 20),
       temperature: String(agent.config.temperature ?? 0.7),
       llmProvider: {
+        presetId: agent.config.llmProvider?.presetId
+          ?? detected?.providerId
+          ?? (agent.config.llmProvider?.baseURL ? CUSTOM_PROVIDER_ID : ""),
         model: agent.config.llmProvider?.model ?? "",
         baseURL: agent.config.llmProvider?.baseURL ?? "",
         apiKey: agent.config.llmProvider?.apiKey ?? "",
+        sdkProvider: agent.config.llmProvider?.sdkProvider ?? "openai",
       },
     });
     setConfigFormError(null);
@@ -211,16 +234,29 @@ export default function AgentsPage() {
       return;
     }
 
+    const lp = configForm.llmProvider;
+    const hasProvider = lp.baseURL && lp.model && lp.apiKey;
+    const preset = findProviderPreset(lp.presetId);
+
     updateAgent.mutate({
       agentId: editingAgentId,
       config: {
         systemPrompt: configForm.systemPrompt,
-        model: configForm.model.trim(),
+        model: lp.model.trim(),
         memoryTopK,
         recentMessages,
         temperature,
-        ...(configForm.llmProvider.baseURL && configForm.llmProvider.model && configForm.llmProvider.apiKey
-          ? { llmProvider: configForm.llmProvider }
+        ...(hasProvider
+          ? {
+              llmProvider: {
+                baseURL: lp.baseURL,
+                model: lp.model.trim(),
+                apiKey: lp.apiKey,
+                presetId: lp.presetId || undefined,
+                sdkProvider: lp.sdkProvider,
+                compatibility: preset?.compatibility ?? "compatible",
+              },
+            }
           : {}),
       },
     });
@@ -410,48 +446,124 @@ export default function AgentsPage() {
                 />
               </div>
 
-              <div className="grid gap-1.5">
-                <Label htmlFor="agent-model">模型</Label>
-                <Input
-                  id="agent-model"
-                  value={configForm.model}
-                  onChange={(e) => setConfigForm((prev) => ({ ...prev, model: e.target.value }))}
-                  placeholder="留空则使用系统默认模型"
-                />
-              </div>
-
               <div className="grid gap-1.5 rounded-md border p-4 bg-muted/20">
-                <Label className="text-base font-semibold">自配置大模型 (LLM Provider)</Label>
-                <p className="text-xs text-muted-foreground mb-2">如果您想让该 Agent 独立使用指定的大模型接口，请在此配置。若需要使配置生效，三项必须全部填写。</p>
+                <Label className="text-base font-semibold">LLM Provider</Label>
+                <p className="text-xs text-muted-foreground mb-2">选择大模型提供商，填入 API Key 即可使用。</p>
                 <div className="grid gap-3">
                   <div className="grid gap-1.5">
-                    <Label htmlFor="llm-baseurl" className="text-xs">Base URL</Label>
-                    <Input
-                      id="llm-baseurl"
-                      value={configForm.llmProvider.baseURL}
-                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, baseURL: e.target.value } }))}
-                      placeholder="https://api.deepseek.com"
-                    />
+                    <Label className="text-xs">提供商</Label>
+                    <Select
+                      value={configForm.llmProvider.presetId}
+                      onValueChange={(val) => {
+                        if (val === CUSTOM_PROVIDER_ID) {
+                          setConfigForm((prev) => ({
+                            ...prev,
+                            llmProvider: {
+                              ...prev.llmProvider,
+                              presetId: CUSTOM_PROVIDER_ID,
+                              baseURL: "",
+                              model: "",
+                              sdkProvider: "openai",
+                            },
+                          }));
+                        } else {
+                          const preset = findProviderPreset(val);
+                          if (!preset) return;
+                          setConfigForm((prev) => ({
+                            ...prev,
+                            llmProvider: {
+                              ...prev.llmProvider,
+                              presetId: val,
+                              baseURL: preset.baseURL,
+                              model: getDefaultModelForPreset(preset),
+                              sdkProvider: preset.sdkProvider ?? "openai",
+                            },
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="选择提供商..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LLM_PROVIDER_PRESETS.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                        ))}
+                        <SelectItem value={CUSTOM_PROVIDER_ID}>自定义 (Advanced)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="llm-model" className="text-xs">Model Name</Label>
-                    <Input
-                      id="llm-model"
-                      value={configForm.llmProvider.model}
-                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, model: e.target.value } }))}
-                      placeholder="deepseek-chat"
-                    />
-                  </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="llm-apikey" className="text-xs">API Key</Label>
-                    <Input
-                      id="llm-apikey"
-                      type="password"
-                      value={configForm.llmProvider.apiKey}
-                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, apiKey: e.target.value } }))}
-                      placeholder="sk-..."
-                    />
-                  </div>
+
+                  {configForm.llmProvider.presetId && configForm.llmProvider.presetId !== CUSTOM_PROVIDER_ID && (() => {
+                    const preset = findProviderPreset(configForm.llmProvider.presetId);
+                    return preset ? (
+                      <div className="grid gap-1.5">
+                        <Label className="text-xs">模型</Label>
+                        <Select
+                          value={configForm.llmProvider.model}
+                          onValueChange={(val) =>
+                            setConfigForm((prev) => ({
+                              ...prev,
+                              llmProvider: { ...prev.llmProvider, model: val },
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {preset.models.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {configForm.llmProvider.presetId === CUSTOM_PROVIDER_ID && (
+                    <>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="llm-baseurl" className="text-xs">Base URL</Label>
+                        <Input
+                          id="llm-baseurl"
+                          value={configForm.llmProvider.baseURL}
+                          onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, baseURL: e.target.value } }))}
+                          placeholder="https://api.example.com/v1"
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="llm-model" className="text-xs">Model Name</Label>
+                        <Input
+                          id="llm-model"
+                          value={configForm.llmProvider.model}
+                          onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, model: e.target.value } }))}
+                          placeholder="model-name"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {configForm.llmProvider.presetId && (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="llm-apikey" className="text-xs">API Key</Label>
+                      <Input
+                        id="llm-apikey"
+                        type="password"
+                        value={configForm.llmProvider.apiKey}
+                        onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, apiKey: e.target.value } }))}
+                        placeholder={findProviderPreset(configForm.llmProvider.presetId)?.apiKeyPlaceholder ?? "sk-..."}
+                      />
+                      {(() => {
+                        const helpUrl = findProviderPreset(configForm.llmProvider.presetId)?.apiKeyHelpUrl;
+                        return helpUrl ? (
+                          <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
+                            获取 API Key
+                          </a>
+                        ) : null;
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -1,4 +1,5 @@
 import { createOpenAI, openai } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { streamText, generateText, embed } from "ai";
 import type { ChatMessageContent, LlmModelSelection, LlmPort, LlmProviderConfig } from "@daemon/domain";
 
@@ -13,6 +14,8 @@ export interface VercelLlmConfig {
   embeddingMode?: "remote" | "local";
   embeddingDimensions?: number;
   allowLocalEmbeddingFallback?: boolean;
+  sdkProvider?: "openai" | "anthropic";
+  temperature?: number;
 }
 
 interface VercelLlmRuntimeDeps {
@@ -110,14 +113,19 @@ export function createVercelLlmAdapter(
   const generateTextImpl = deps.generateTextImpl ?? generateText;
   const embedImpl = deps.embedImpl ?? embed;
   const provider =
-    config.baseURL || config.apiKey || config.providerName || config.compatibility
-      ? createOpenAI({
-          baseURL: config.baseURL,
+    config.sdkProvider === "anthropic"
+      ? createAnthropic({
           apiKey: config.apiKey,
-          name: config.providerName,
-          compatibility: config.compatibility ?? "compatible",
+          ...(config.baseURL ? { baseURL: config.baseURL } : {}),
         })
-      : openai;
+      : config.baseURL || config.apiKey || config.providerName || config.compatibility
+        ? createOpenAI({
+            baseURL: config.baseURL,
+            apiKey: config.apiKey,
+            name: config.providerName,
+            compatibility: config.compatibility ?? "compatible",
+          })
+        : openai;
 
   const chatModel: any = (provider as any)(config.model);
   const fallbackChatModel: any = config.fallbackModel
@@ -153,6 +161,7 @@ export function createVercelLlmAdapter(
           model: primary.model,
           messages: sdkMessages,
           abortSignal,
+          ...(config.temperature != null ? { temperature: config.temperature } : {}),
         });
         let primaryChunked = false;
         for await (const chunk of primaryResult.textStream) {
@@ -184,6 +193,7 @@ export function createVercelLlmAdapter(
         model: fallbackChatModel,
         messages: sdkMessages,
         abortSignal,
+        ...(config.temperature != null ? { temperature: config.temperature } : {}),
       });
       let fallbackChunked = false;
       for await (const chunk of fallbackResult.textStream) {
@@ -211,6 +221,7 @@ export function createVercelLlmAdapter(
         const result: any = await generateTextImpl({
           model: primary.model,
           messages: sdkMessages,
+          ...(config.temperature != null ? { temperature: config.temperature } : {}),
         });
         onModelResolved?.({ model: primary.name, route: "primary" });
         return result.text ?? "";
@@ -223,6 +234,7 @@ export function createVercelLlmAdapter(
       const fallbackResult: any = await generateTextImpl({
         model: fallbackChatModel,
         messages: sdkMessages,
+        ...(config.temperature != null ? { temperature: config.temperature } : {}),
       });
       onModelResolved?.({ model: config.fallbackModel ?? "", route: "fallback" });
       return fallbackResult.text ?? "";
@@ -260,7 +272,7 @@ export function createVercelLlmAdapter(
  */
 export function createLlmFromAgentConfig(
   provider: LlmProviderConfig | undefined,
-  opts?: { embeddingMode?: "remote" | "local"; allowLocalEmbeddingFallback?: boolean; embeddingDimensions?: number }
+  opts?: { embeddingMode?: "remote" | "local"; allowLocalEmbeddingFallback?: boolean; embeddingDimensions?: number; temperature?: number }
 ): LlmPort {
   if (!provider || !provider.apiKey || !provider.baseURL || !provider.model) {
     throw new Error("Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型");
@@ -272,6 +284,8 @@ export function createLlmFromAgentConfig(
     baseURL: provider.baseURL,
     providerName: provider.providerName,
     compatibility: provider.compatibility ?? "compatible",
+    sdkProvider: provider.sdkProvider ?? "openai",
+    temperature: opts?.temperature,
     embeddingMode: opts?.embeddingMode ?? "local",
     allowLocalEmbeddingFallback: opts?.allowLocalEmbeddingFallback ?? true,
     embeddingDimensions: opts?.embeddingDimensions ?? 1536,

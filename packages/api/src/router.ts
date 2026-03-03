@@ -211,6 +211,9 @@ export const appRouter = t.router({
             model: z.string(),
             baseURL: z.string(),
             apiKey: z.string(),
+            presetId: z.string().optional(),
+            sdkProvider: z.enum(["openai", "anthropic"]).optional(),
+            compatibility: z.enum(["strict", "compatible"]).optional(),
           }).optional(),
         }).optional(),
       }))

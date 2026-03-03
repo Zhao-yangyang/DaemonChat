@@ -109,7 +109,6 @@ export default function ChatPage() {
   const router = useRouter();
 
   const [input, setInput] = useState("");
-  const [localModelOverride, setLocalModelOverride] = useState("");
   const [sessionKey, setSessionKey] = useState("");
   const [localSessionKeys, setLocalSessionKeys] = useState<string[]>([]);
   const [localSessionNames, setLocalSessionNames] = useState<Record<string, string>>({});
@@ -330,7 +329,6 @@ export default function ChatPage() {
     userMessage: string;
     imageUrls?: Array<{ url: string; mimeType?: string }>;
   }) => {
-    const modelOverride = localModelOverride.trim();
     setIsStreaming(true);
     const controller = new AbortController();
     activeStreamControllerRef.current = controller;
@@ -355,7 +353,6 @@ export default function ChatPage() {
           sessionKey: input.targetSessionKey,
           userInput: input.userMessage,
           system: "",
-          model: modelOverride || undefined,
           idempotencyKey,
           imageUrls: input.imageUrls?.length ? input.imageUrls : undefined,
         }),
@@ -916,18 +913,9 @@ export default function ChatPage() {
         <div className="border-t bg-card px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-3xl">
             <div className="mb-2 flex items-center gap-2">
-              <Select value={localModelOverride} onValueChange={(val) => setLocalModelOverride(val === "_default" ? "" : val)}>
-                <SelectTrigger className="h-8 w-[180px] text-xs">
-                  <SelectValue placeholder={`默认 (${currentAgent?.config.llmProvider?.model || "未配置"})`} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_default">默认配置</SelectItem>
-                  <SelectItem value="deepseek-chat">deepseek-chat</SelectItem>
-                  <SelectItem value="deepseek-reasoner">deepseek-reasoner</SelectItem>
-                  <SelectItem value="gpt-4o">gpt-4o</SelectItem>
-                  <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
-                </SelectContent>
-              </Select>
+              <Badge variant="secondary" className="text-xs">
+                {currentAgent?.config.llmProvider?.model || "未配置模型"}
+              </Badge>
             </div>
             {pendingImages.length > 0 ? (
               <div className="flex flex-wrap gap-2 px-1">

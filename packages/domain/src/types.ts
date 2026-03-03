@@ -8,6 +8,8 @@ export interface LlmProviderConfig {
   embeddingModel?: string;
   providerName?: string;
   compatibility?: "strict" | "compatible";
+  presetId?: string;
+  sdkProvider?: "openai" | "anthropic";
 }
 
 export interface AgentConfig {

@@ -12,8 +12,9 @@
     "lint": "echo \"lint not configured\""
   },
   "dependencies": {
-    "@daemon/domain": "workspace:*",
+    "@ai-sdk/anthropic": "^3.0.53",
     "@ai-sdk/openai": "^1.0.0",
+    "@daemon/domain": "workspace:*",
     "ai": "^3.1.0"
   }
 }
