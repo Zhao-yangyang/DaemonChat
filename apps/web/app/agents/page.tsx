@@ -47,6 +47,11 @@ type AgentConfigForm = {
   memoryTopK: string;
   recentMessages: string;
   temperature: string;
+  llmProvider: {
+    model: string;
+    baseURL: string;
+    apiKey: string;
+  };
 };
 
 const EMPTY_CONFIG_FORM: AgentConfigForm = {
@@ -55,6 +60,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
   memoryTopK: "8",
   recentMessages: "20",
   temperature: "0.7",
+  llmProvider: { model: "", baseURL: "", apiKey: "" },
 };
 
 export default function AgentsPage() {
@@ -160,6 +166,11 @@ export default function AgentsPage() {
       memoryTopK: number;
       recentMessages: number;
       temperature: number;
+      llmProvider?: {
+        model?: string;
+        baseURL?: string;
+        apiKey?: string;
+      } | null;
     };
   }) => {
     setEditingAgentId(agent.id);
@@ -169,6 +180,11 @@ export default function AgentsPage() {
       memoryTopK: String(agent.config.memoryTopK ?? 8),
       recentMessages: String(agent.config.recentMessages ?? 20),
       temperature: String(agent.config.temperature ?? 0.7),
+      llmProvider: {
+        model: agent.config.llmProvider?.model ?? "",
+        baseURL: agent.config.llmProvider?.baseURL ?? "",
+        apiKey: agent.config.llmProvider?.apiKey ?? "",
+      },
     });
     setConfigFormError(null);
     updateAgent.reset();
@@ -203,6 +219,9 @@ export default function AgentsPage() {
         memoryTopK,
         recentMessages,
         temperature,
+        ...(configForm.llmProvider.baseURL && configForm.llmProvider.model && configForm.llmProvider.apiKey
+          ? { llmProvider: configForm.llmProvider }
+          : {}),
       },
     });
   };
@@ -399,6 +418,41 @@ export default function AgentsPage() {
                   onChange={(e) => setConfigForm((prev) => ({ ...prev, model: e.target.value }))}
                   placeholder="留空则使用系统默认模型"
                 />
+              </div>
+
+              <div className="grid gap-1.5 rounded-md border p-4 bg-muted/20">
+                <Label className="text-base font-semibold">自配置大模型 (LLM Provider)</Label>
+                <p className="text-xs text-muted-foreground mb-2">如果您想让该 Agent 独立使用指定的大模型接口，请在此配置。若需要使配置生效，三项必须全部填写。</p>
+                <div className="grid gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="llm-baseurl" className="text-xs">Base URL</Label>
+                    <Input
+                      id="llm-baseurl"
+                      value={configForm.llmProvider.baseURL}
+                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, baseURL: e.target.value } }))}
+                      placeholder="https://api.deepseek.com"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="llm-model" className="text-xs">Model Name</Label>
+                    <Input
+                      id="llm-model"
+                      value={configForm.llmProvider.model}
+                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, model: e.target.value } }))}
+                      placeholder="deepseek-chat"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="llm-apikey" className="text-xs">API Key</Label>
+                    <Input
+                      id="llm-apikey"
+                      type="password"
+                      value={configForm.llmProvider.apiKey}
+                      onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, apiKey: e.target.value } }))}
+                      placeholder="sk-..."
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

@@ -21,12 +21,28 @@ export interface RunOnceDeps {
       insert: (row: Record<string, unknown>) => PromiseLike<{ error: unknown | null }>;
     };
   };
-  memoryExtraction: {
-    extractMemoryFromSession: (
-      agentId: string,
-      sessionId: string,
-      scope: { scopeType: "user" | "team" | "org"; scopeId: string }
-    ) => Promise<unknown[]>;
+  memoryStore: any;
+  transcriptStore: any;
+  clock: { now: () => string };
+  factories: {
+    createLlmFromAgentConfig: (config: any) => any;
+    createMemoryExtractionService: (deps: any) => {
+      extractMemoryFromSession: (
+        agentId: string,
+        sessionId: string,
+        scope: { scopeType: "user" | "team" | "org"; scopeId: string }
+      ) => Promise<unknown[]>;
+    };
+    createCompactionService: (deps: any) => {
+      compactIfNeeded: (
+        agentId: string,
+        sessionId: string,
+        params: {
+          shouldCompact: boolean;
+          messages: Array<{ role: "user" | "assistant"; content: string }>;
+        }
+      ) => Promise<unknown>;
+    };
   };
   logger: RunOnceLogger;
   serializeError: (error: unknown) => { message: string; name?: string };
@@ -166,8 +182,103 @@ async function processJob(
         ? (payloadValue as Record<string, unknown>)
         : {};
 
-    if (job.type === "MEMORY_FLUSH") {
-      const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
+    const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
+    if (!agentId) {
+      throw new Error(`Job ${job.type} missing agentId in payload`);
+    }
+
+    const { data: agentData, error: agentError } = await (deps.client as any)
+      .from("agents")
+      .select("config")
+      .eq("id", agentId)
+      .single();
+
+    if (agentError || !agentData) {
+      throw new Error(`Agent ${agentId} not found`);
+    }
+
+    const agentConfig = agentData.config ?? {};
+    const llmProvider = agentConfig.llmProvider;
+    if (!llmProvider || !llmProvider.apiKey || !llmProvider.baseURL || !llmProvider.model) {
+      throw new Error(`Agent ${agentId} 未配置 LLM Provider`);
+    }
+
+    const llm = deps.factories.createLlmFromAgentConfig(llmProvider);
+    const clock = deps.clock;
+
+    if (job.type === "COMPACTION") {
+      const sessionId = typeof payload.sessionId === "string" ? payload.sessionId : "";
+      if (!sessionId) {
+        throw new Error("COMPACTION payload missing sessionId");
+      }
+
+      const maxMessages = typeof payload.maxMessages === "number" ? payload.maxMessages : 100;
+      const { data: events, error: eventsError } = await (deps.client as any)
+        .from("transcript_events")
+        .select("type, content")
+        .eq("agent_id", agentId)
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true })
+        .limit(maxMessages);
+
+      if (eventsError) {
+        throw new Error(`Failed to fetch transcript events`);
+      }
+
+      const messages = (events ?? [])
+        .filter((e: any) => e.type === "user_message" || e.type === "assistant_message")
+        .map((e: any) => ({
+          role: e.type === "user_message" ? "user" : "assistant",
+          content: typeof e.content?.text === "string" ? e.content.text : "",
+        }))
+        .filter((m: { content: string }) => m.content.length > 0);
+
+      const compaction = deps.factories.createCompactionService({
+        transcripts: deps.transcriptStore,
+        llm,
+        clock,
+      });
+
+      await compaction.compactIfNeeded(agentId, sessionId, {
+        shouldCompact: true,
+        messages,
+      });
+
+      deps.logger.info("worker.job.compacted", {
+        request_id: requestId,
+        route: "worker.processJob",
+        job_id: job.id,
+        agent_id: agentId,
+        session_id: sessionId,
+      });
+    } else if (job.type === "EMBEDDING_BACKFILL") {
+      const { data: items, error: fetchError } = await (deps.client as any)
+        .from("memory_items")
+        .select("id, content")
+        .eq("agent_id", agentId)
+        .is("embedding", null)
+        .limit(10);
+
+      if (fetchError) {
+        throw new Error(`Failed to fetch memory items`);
+      }
+
+      if (items && items.length > 0) {
+        for (const item of items) {
+           const vector = await llm.embed(String(item.content));
+           await (deps.client as any).from("memory_items").update({ embedding: vector }).eq("id", item.id);
+        }
+      }
+
+      deps.logger.info("worker.job.embedding_backfilled", {
+        request_id: requestId,
+        route: "worker.processJob",
+        job_id: job.id,
+        agent_id: agentId,
+        count: items ? items.length : 0,
+      });
+
+    } else if (job.type === "MEMORY_FLUSH") {
       const sessionId = typeof payload.sessionId === "string" ? payload.sessionId : "";
       const scopeType =
         payload.scopeType === "user" || payload.scopeType === "team" || payload.scopeType === "org"
@@ -175,11 +286,17 @@ async function processJob(
           : "user";
       const scopeId = typeof payload.scopeId === "string" ? payload.scopeId : "";
 
-      if (!agentId || !sessionId || !scopeId) {
-        throw new Error("MEMORY_FLUSH payload missing agentId/sessionId/scopeId");
+      if (!sessionId || !scopeId) {
+        throw new Error("MEMORY_FLUSH payload missing sessionId/scopeId");
       }
 
-      const extracted = await deps.memoryExtraction.extractMemoryFromSession(
+      const memoryExtraction = deps.factories.createMemoryExtractionService({
+         memories: deps.memoryStore,
+         llm,
+         clock,
+      });
+
+      const extracted = await memoryExtraction.extractMemoryFromSession(
         agentId,
         sessionId,
         { scopeType, scopeId }

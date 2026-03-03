@@ -110,7 +110,7 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
-    <div className="flex h-100dvh overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-[240px] shrink-0 border-r bg-sidebar md:block">
         <SidebarNav pathname={pathname} />

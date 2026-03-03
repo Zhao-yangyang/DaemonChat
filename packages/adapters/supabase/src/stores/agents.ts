@@ -13,10 +13,18 @@ const mapAgent = (row: any): Agent => ({
 
 export function createAgentStore(client: SupabaseClient): AgentStore {
   return {
-    async createAgent({ ownerUserId, name, config, now }) {
+    async createAgent({ ownerUserId, name, config, workspaceId, now }) {
+      const row: Record<string, unknown> = {
+        owner_user_id: ownerUserId,
+        name,
+        config,
+        created_at: now,
+        updated_at: now,
+      };
+      if (workspaceId) row.workspace_id = workspaceId;
       const { data, error } = await client
         .from("agents")
-        .insert({ owner_user_id: ownerUserId, name, config, created_at: now, updated_at: now })
+        .insert(row)
         .select("*")
         .single();
 
@@ -35,12 +43,17 @@ export function createAgentStore(client: SupabaseClient): AgentStore {
       return data ? mapAgent(data) : null;
     },
 
-    async listAgentsByOwner(ownerUserId) {
-      const { data, error } = await client
+    async listAgentsByOwner(ownerUserId, opts) {
+      let query = client
         .from("agents")
         .select("*")
-        .eq("owner_user_id", ownerUserId)
-        .order("created_at", { ascending: true });
+        .eq("owner_user_id", ownerUserId);
+
+      if (opts?.workspaceId) {
+        query = query.eq("workspace_id", opts.workspaceId);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: true });
 
       if (error) throw error;
       return (data ?? []).map(mapAgent);

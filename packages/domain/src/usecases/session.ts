@@ -32,7 +32,7 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       return { ...session, lastActiveAt: now };
     },
 
-    async listRecentSessions(agentId: string, limit = 20): Promise<Session[]> {
+    async listRecentSessions(agentId: string, limit = 20, includeArchived?: boolean): Promise<Session[]> {
       const normalizedLimit = Number.isFinite(limit) ? Math.floor(limit) : 20;
       if (normalizedLimit <= 0) {
         throw new ValidationError("Limit must be greater than 0");
@@ -40,6 +40,7 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       return ports.sessions.listRecentSessions({
         agentId,
         limit: Math.min(normalizedLimit, 100),
+        includeArchived,
       });
     },
 
@@ -90,6 +91,42 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
         sessionId: trimmedSessionId,
         displayName: trimmedDisplayName,
       });
+    },
+
+    async archiveSession(agentId: string, sessionId: string, ownerUserId: string): Promise<void> {
+      if (!ports.agents) {
+        throw new ValidationError("Session archive requires agent store");
+      }
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent) {
+        throw new NotFoundError("Agent not found");
+      }
+      if (agent.ownerUserId !== ownerUserId) {
+        throw new ForbiddenError("Agent access denied");
+      }
+      const trimmedSessionId = sessionId.trim();
+      if (!trimmedSessionId) {
+        throw new ValidationError("Session id is required");
+      }
+      await ports.sessions.archiveSession({ agentId, sessionId: trimmedSessionId });
+    },
+
+    async unarchiveSession(agentId: string, sessionId: string, ownerUserId: string): Promise<void> {
+      if (!ports.agents) {
+        throw new ValidationError("Session unarchive requires agent store");
+      }
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent) {
+        throw new NotFoundError("Agent not found");
+      }
+      if (agent.ownerUserId !== ownerUserId) {
+        throw new ForbiddenError("Agent access denied");
+      }
+      const trimmedSessionId = sessionId.trim();
+      if (!trimmedSessionId) {
+        throw new ValidationError("Session id is required");
+      }
+      await ports.sessions.unarchiveSession({ agentId, sessionId: trimmedSessionId });
     },
   };
 }

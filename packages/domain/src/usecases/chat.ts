@@ -105,6 +105,26 @@ export function createChatService(ports: {
   const countTokens = (text: string, model?: string): number =>
     ports.tokenizer?.countTokens({ text, model }) ?? defaultApproxTokens(text);
 
+  const MEMORY_FLUSH_EVERY_N_TURNS = 20;
+
+  const shouldTriggerMemoryFlush = async (
+    agentId: string,
+    sessionId: string
+  ): Promise<boolean> => {
+    try {
+      // Fetch enough events to cover N turns (each has user + assistant message)
+      const events = await ports.transcripts.listRecentEvents({
+        agentId,
+        sessionId,
+        limit: MEMORY_FLUSH_EVERY_N_TURNS * 2 + 10,
+      });
+      const userMessageCount = events.filter((e) => e.type === "user_message").length;
+      return userMessageCount > 0 && userMessageCount % MEMORY_FLUSH_EVERY_N_TURNS === 0;
+    } catch {
+      return false;
+    }
+  };
+
   const buildContextForSession = async (
     agentId: string,
     sessionId: string,
@@ -275,19 +295,26 @@ export function createChatService(ports: {
       messages: input.context.messages,
     });
 
+    // Enqueue MEMORY_FLUSH based on turn count or compaction
     if (ports.jobs && input.memoryScope) {
-      try {
-        await ports.jobs.enqueue({
-          type: "MEMORY_FLUSH",
-          payload: {
-            agentId: input.agentId,
-            sessionId: input.sessionId,
-            scopeType: input.memoryScope.scopeType,
-            scopeId: input.memoryScope.scopeId,
-          },
-        });
-      } catch {
-        // best effort: memory flush enqueue should not block chat completion
+      const shouldFlush = input.context.shouldCompact || await shouldTriggerMemoryFlush(
+        input.agentId,
+        input.sessionId
+      );
+      if (shouldFlush) {
+        try {
+          await ports.jobs.enqueue({
+            type: "MEMORY_FLUSH",
+            payload: {
+              agentId: input.agentId,
+              sessionId: input.sessionId,
+              scopeType: input.memoryScope.scopeType,
+              scopeId: input.memoryScope.scopeId,
+            },
+          });
+        } catch {
+          // best effort: memory flush enqueue should not block chat completion
+        }
       }
     }
   };

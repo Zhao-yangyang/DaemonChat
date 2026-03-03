@@ -15,9 +15,11 @@
 ## 2. 配置 Web 环境变量
 
 1. 复制模板：
+
 ```bash
 cp apps/web/.env.local.example apps/web/.env.local
 ```
+
 2. 填写这些必填项：
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -47,6 +49,7 @@ LOCAL_EMBED_DIMENSIONS=1536
 ```
 
 说明：
+
 - 聊天走 DeepSeek 的 OpenAI 兼容接口。
 - 可选 `OPENAI_FALLBACK_MODEL`：主模型失败时自动回退（同提供商内）。
 - embedding 使用本地确定性向量（不依赖远端 embedding API），这样 Memory/Chat 流程都能完整跑起来。
@@ -63,6 +66,7 @@ CHAT_DEGRADE_RECENT_MESSAGES=10
 ```
 
 效果：
+
 - 优先降低预留输出 token。
 - 同时下调 memory topK 与 recent messages。
 - 降级决策会写入 usage/audit，便于复盘。
@@ -74,6 +78,7 @@ CHAT_MAX_INPUT_TOKENS=4096
 ```
 
 效果：
+
 - 超过阈值的单轮输入会在模型调用前被拒绝。
 - `chat.turn` 返回 `BAD_REQUEST`，`/api/chat/stream` 返回 `413`。
 - 审计会记录 `chat_input_too_large` 事件。
@@ -81,12 +86,14 @@ CHAT_MAX_INPUT_TOKENS=4096
 ## 3. 启动并体验 Web
 
 在仓库根目录：
+
 ```bash
 bun install
 bun run dev --filter @daemon/web
 ```
 
 打开 `http://localhost:3333` 后按这个顺序体验：
+
 1. 首页注册/登录。
 2. 进入 `Agents` 页面创建一个 Agent。
 3. 点击“聊天”进入 `/chat/{agentId}` 发消息（走 SSE）。
@@ -99,13 +106,16 @@ bun run dev --filter @daemon/web
 如果要体验队列消费与重试逻辑：
 
 1. 复制模板并填值：
+
 ```bash
 cp apps/worker/.env.example apps/worker/.env
 ```
+
 2. 填写：
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
 3. 启动：
+
 ```bash
 bun run dev --filter @daemon/worker
 ```
@@ -137,12 +147,14 @@ bun run dev --filter @daemon/worker
 
 ### 6.2 Staging 环境变量（Web）
 
-最少需要配置：
+在 Vercel Dashboard 设置环境变量时，请**针对 Preview 环境**单独设置一组对应 Staging 数据库配置（推荐使用独立的 Supabase 项目或 schema）：
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
+最少需要配置（注意勾选 Environment 为 `Preview`）：
+
+- `NEXT_PUBLIC_SUPABASE_URL` （指向 Staging）
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` （指向 Staging）
+- `SUPABASE_URL` （指向 Staging）
+- `SUPABASE_ANON_KEY` （指向 Staging）
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_EMBED_MODEL`
@@ -178,6 +190,7 @@ Vercel 项目需要额外配置以下环境变量：
 ```
 
 Cron 路由特性：
+
 - 每次最多处理 20 个 job，时间预算 50 秒
 - 自动回收卡死超过 5 分钟的 `processing` 状态 job
 - 队列深度超过阈值（默认 50）时触发 warn 级别告警
@@ -221,19 +234,20 @@ RESET request.jwt.claim.sub;
 ```
 
 如果 policy 缺失或不完整：
+
 1. 先 `DROP POLICY IF EXISTS <policy_name> ON <table>` 清理残留
 2. 重新执行 `packages/adapters/supabase/sql/rls.sql`
 
 ### 7.2 常见生产错误
 
-| 错误 | 可能原因 | 快速修复 |
-|------|----------|----------|
-| `500` on `/api/trpc/*` | SUPABASE_URL/ANON_KEY 未配置 | 检查 Vercel 环境变量 |
-| `42P01` relation not found | schema 未执行 | 执行 `schema.sql` |
-| `42501` permission denied | RLS policy 缺失 | 执行 `rls.sql` |
-| `429` Too Many Requests | 触发限流/hard cap | 检查 `CHAT_QPS_LIMIT`/`CHAT_DAILY_TOKEN_HARD_CAP` |
-| Cron 返回 `401` | `CRON_SECRET` 不匹配 | 检查 Vercel env 与 cron 请求头 |
-| Job 一直 `processing` | 函数超时后卡死 | drain 路由自动回收（5 分钟阈值）|
+| 错误                       | 可能原因                     | 快速修复                                          |
+| -------------------------- | ---------------------------- | ------------------------------------------------- |
+| `500` on `/api/trpc/*`     | SUPABASE_URL/ANON_KEY 未配置 | 检查 Vercel 环境变量                              |
+| `42P01` relation not found | schema 未执行                | 执行 `schema.sql`                                 |
+| `42501` permission denied  | RLS policy 缺失              | 执行 `rls.sql`                                    |
+| `429` Too Many Requests    | 触发限流/hard cap            | 检查 `CHAT_QPS_LIMIT`/`CHAT_DAILY_TOKEN_HARD_CAP` |
+| Cron 返回 `401`            | `CRON_SECRET` 不匹配         | 检查 Vercel env 与 cron 请求头                    |
+| Job 一直 `processing`      | 函数超时后卡死               | drain 路由自动回收（5 分钟阈值）                  |
 
 ### 7.3 回滚流程
 

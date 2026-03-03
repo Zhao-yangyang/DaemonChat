@@ -1,6 +1,6 @@
 import { createOpenAI, openai } from "@ai-sdk/openai";
 import { streamText, generateText, embed } from "ai";
-import type { ChatMessageContent, LlmModelSelection, LlmPort } from "@daemon/domain";
+import type { ChatMessageContent, LlmModelSelection, LlmPort, LlmProviderConfig } from "@daemon/domain";
 
 export interface VercelLlmConfig {
   model: string;
@@ -252,4 +252,28 @@ export function createVercelLlmAdapter(
       return [];
     },
   };
+}
+
+/**
+ * Create LlmPort dynamically from an Agent's llmProvider config.
+ * Throws if the agent has no llmProvider configured.
+ */
+export function createLlmFromAgentConfig(
+  provider: LlmProviderConfig | undefined,
+  opts?: { embeddingMode?: "remote" | "local"; allowLocalEmbeddingFallback?: boolean; embeddingDimensions?: number }
+): LlmPort {
+  if (!provider || !provider.apiKey || !provider.baseURL || !provider.model) {
+    throw new Error("Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型");
+  }
+  return createVercelLlmAdapter({
+    model: provider.model,
+    embeddingModel: provider.embeddingModel ?? "text-embedding-3-small",
+    apiKey: provider.apiKey,
+    baseURL: provider.baseURL,
+    providerName: provider.providerName,
+    compatibility: provider.compatibility ?? "compatible",
+    embeddingMode: opts?.embeddingMode ?? "local",
+    allowLocalEmbeddingFallback: opts?.allowLocalEmbeddingFallback ?? true,
+    embeddingDimensions: opts?.embeddingDimensions ?? 1536,
+  });
 }

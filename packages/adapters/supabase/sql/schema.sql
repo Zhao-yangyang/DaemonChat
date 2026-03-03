@@ -28,6 +28,7 @@ create table if not exists public.sessions (
 );
 
 alter table public.sessions add column if not exists display_name text;
+alter table public.sessions add column if not exists is_archived boolean not null default false;
 
 create unique index if not exists sessions_agent_key_current_idx
   on public.sessions (agent_id, session_key)

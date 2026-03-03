@@ -119,7 +119,7 @@ describe("chat usecases", () => {
     expect(memoryMessage?.content).toContain("likes sushi");
   });
 
-  test("chatTurn enqueues MEMORY_FLUSH when memoryScope is provided", async () => {
+  test("chatTurn does NOT enqueue MEMORY_FLUSH on first turn (requires N-turns)", async () => {
     const { ports, stores } = createTestPorts({
       llm: {
         streamChat: () => streamFromText("ok"),
@@ -151,11 +151,54 @@ describe("chat usecases", () => {
       },
     });
 
-    expect(stores.jobs.items.at(-1)).toEqual({
+    // With turn-count-based flushing, a single turn should NOT enqueue a MEMORY_FLUSH
+    const flushJobs = stores.jobs.items.filter((j) => j.type === "MEMORY_FLUSH");
+    expect(flushJobs).toHaveLength(0);
+  });
+
+  test("chatTurn enqueues MEMORY_FLUSH after 20 turns (turn-count threshold)", async () => {
+    const { ports, stores } = createTestPorts({
+      llm: {
+        streamChat: () => streamFromText("ok"),
+      },
+    });
+    const service = createChatService({
+      jobs: ports.jobs,
+      sessions: ports.sessions,
+      transcripts: ports.transcripts,
+      memory: ports.memory,
+      usage: ports.usage,
+      llm: ports.llm,
+      clock: ports.clock,
+    });
+
+    const opts = {
+      system: "system",
+      constraints: [] as string[],
+      taskState: null,
+      memoryTopK: 2,
+      recentMessages: 100,
+      memoryScope: { scopeType: "user" as const, scopeId: "user-1" },
+      budget: {
+        modelWindow: 10000,
+        reserveOutputTokens: 0,
+        reserveToolTokens: 0,
+        memoryTopK: 2,
+        recentMessages: 100,
+      },
+    };
+
+    for (let i = 0; i < 20; i++) {
+      await service.chatTurn("agent-1", "main", `msg-${i}`, opts);
+    }
+
+    // After 20 turns, a MEMORY_FLUSH should have been enqueued
+    const flushJobs = stores.jobs.items.filter((j) => j.type === "MEMORY_FLUSH");
+    expect(flushJobs.length).toBeGreaterThanOrEqual(1);
+    expect(flushJobs[0]).toMatchObject({
       type: "MEMORY_FLUSH",
       payload: {
         agentId: "agent-1",
-        sessionId: "session-1",
         scopeType: "user",
         scopeId: "user-1",
       },

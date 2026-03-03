@@ -4,7 +4,7 @@ import type { AgentStore, Clock } from "../container/types";
 
 export function createAgentService(ports: { agents: AgentStore; clock: Clock }) {
   return {
-    async createAgent(ownerUserId: string, name: string, config?: Partial<AgentConfig>): Promise<Agent> {
+    async createAgent(ownerUserId: string, name: string, config?: Partial<AgentConfig>, workspaceId?: string): Promise<Agent> {
       const trimmed = name.trim();
       if (!trimmed) {
         throw new ValidationError("Agent name is required");
@@ -14,6 +14,7 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
         ownerUserId,
         name: trimmed,
         config: { ...DEFAULT_AGENT_CONFIG, ...config },
+        workspaceId,
         now: ports.clock.now(),
       });
     },
@@ -29,8 +30,8 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
       return agent;
     },
 
-    async listAgents(ownerUserId: string): Promise<Agent[]> {
-      return ports.agents.listAgentsByOwner(ownerUserId);
+    async listAgents(ownerUserId: string, opts?: { workspaceId?: string }): Promise<Agent[]> {
+      return ports.agents.listAgentsByOwner(ownerUserId, opts);
     },
 
     async updateAgent(agentId: string, ownerUserId: string, updates: { name?: string; config?: Partial<AgentConfig> }): Promise<Agent> {

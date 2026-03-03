@@ -3,6 +3,7 @@
 ## Project Structure & Module Organization
 
 This is a Bun + Turborepo monorepo. Key locations:
+
 - `apps/`: product surfaces (e.g., `apps/web`, `apps/desktop`, `apps/mobile`, `apps/worker`, `apps/extension`).
 - `packages/`: shared libraries and platform adapters (e.g., `packages/domain`, `packages/api`, `packages/ui`, `packages/sdk`, `packages/adapters/*`, `packages/platform/*`).
 - `docs/plans/`: design notes and technical plans referenced by the repo README.
@@ -13,6 +14,7 @@ When adding new code, prefer colocating platform-specific logic under `apps/` an
 ## Build, Test, and Development Commands
 
 Run from repo root:
+
 - `bun run dev`: starts Turbo dev tasks for all apps that define `dev`.
 - `bun run build`: builds all workspaces via Turbo.
 - `bun run typecheck`: runs TypeScript checks across workspaces.
@@ -20,6 +22,7 @@ Run from repo root:
 - `bun run lint`: runs Turbo lint tasks (many packages currently stub this).
 
 Example scoped command:
+
 - `bun run dev --filter @daemon/web`: run only the web app.
 
 ## Coding Style & Naming Conventions
@@ -51,9 +54,10 @@ Example scoped command:
 - Avoid committing secrets. If environment variables are required, document them in the relevant app README.
 - Keep adapter-specific credentials isolated to their respective packages (e.g., `packages/adapters/*`).
 
-## Current Project Status (2026-02-26)
+## Current Project Status (2026-03-03)
 
 - Plan baseline is now `docs/plans/2026-02-03-ai-longterm-assistant-design.md` (V2), including gateway-aligned architecture constraints.
+- Next development plan is `docs/plans/2026-03-03-post-mvp-phase5.md`.
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
   - Turbo workspace `typecheck` and `test` commands are expected to run from repo root.
@@ -318,3 +322,58 @@ Example scoped command:
   - when a table's RLS `USING` clause queries itself, PostgreSQL triggers infinite recursion.
   - fix: wrap the sub-query in a `SECURITY DEFINER` + `STABLE` function (e.g., `is_workspace_member()`).
   - this pattern is used for `workspace_members` read policy.
+- Post-MVP Phase 1 体验升级已完成（2026-02-28）：
+  - Markdown 渲染：`react-markdown` + `remark-gfm` + `rehype-highlight` + `@tailwindcss/typography`。AI 消息使用 `MarkdownMessage` 组件（`apps/web/src/components/markdown-message.tsx`）。
+  - highlight.js 最小主题 + dark variant 覆盖在 `apps/web/app/globals.css`。
+  - 暗色模式：`.dark` CSS tokens + `useTheme` hook + `ThemeToggle` 组件，支持 light/dark/system 三模式。
+  - Agent 个性化配置全栈贯通：`AgentConfig` + `DEFAULT_AGENT_CONFIG` → `AgentStore.updateAgent` → `agent.update` tRPC → 配置 Dialog UI → chat stream 读取 agent.config。
+- Post-MVP Phase 3 — Chat 交互能力增强已完成：
+  - Agent/Session 删除（`agent.delete`/`session.delete`）全栈闭环。
+  - Chat stream cancel propagation (`AbortSignalLike`)。
+  - Chat UX：停止生成、重新生成、编辑重发、会话重命名。
+  - Memory 生命周期完整：`memory.update` / `memory.delete` 全栈。
+- Chat 多模态（图片）E2E 已打通：
+  - 前端 `ImagePlus` 按钮 → `uploadImages()` → Supabase Storage → `imageUrls` 传入 stream body。
+  - `/api/chat/upload` 写 `chat_attachments` 表返回公开 URL。
+  - Domain `buildContextPack` 将 `imageUrls` 组装为 `ContextContentPart[]` 注入模型上下文。
+  - 当前仅支持图片类型（jpeg/png/gif/webp），10MB 上限。
+- Memory 自动提取已实现：
+  - `packages/domain/src/usecases/memoryExtraction.ts`：LLM 从对话提取结构化记忆（fact/rule/preference/task + sensitivity + tags）。
+  - Worker `MEMORY_FLUSH` job 调用 `extractMemoryFromSession` 执行提取 + embedding + 写入。
+  - `chatTurnStream` 在 compaction 后自动投递 `MEMORY_FLUSH` job。
+  - 已有测试：`packages/domain/src/__tests__/memoryExtraction.test.ts`。
+- Post-MVP Phase 5 — Agent 级别 LLM 自配置 + 会话归档已完成（2026-03-03）：
+  - **Agent 级别 LLM Provider 自配置**：
+    - `AgentConfig.llmProvider`（`provider/apiKey/baseURL/model`）允许每个 Agent 独立配置 LLM 接入信息。
+    - 新增 `createLlmFromAgentConfig()` 工厂函数（`packages/adapters/llm-vercel/src/index.ts`），根据 Agent 配置动态创建 LLM 实例。
+    - `apps/web/src/server/container.ts` 不再依赖 `OPENAI_*` 静态环境变量创建 LLM 端口，改为按请求动态注入。
+    - `apps/web/app/api/chat/stream/route.ts` 在每次请求时从 agent config 读取 `llmProvider` 并动态创建 LLM 实例。
+    - `apps/web/app/api/internal/jobs/drain/route.ts` 同步改造为动态 LLM。
+    - `apps/worker/src/container.ts` 和 `apps/worker/src/runOnce.ts` 同步改造为动态 LLM。
+    - tRPC `agent.update` 已支持 `llmProvider` 字段更新。
+    - `apps/web/app/agents/page.tsx` Agent 设置 Dialog 新增 LLM 配置表单（Provider/API Key/Base URL/Model）。
+    - `apps/web/app/chat/[agentId]/page.tsx` 消息输入区上方新增模型选择器（下拉切换模型）。
+    - 已废弃静态 `OPENAI_MODEL`、`OPENAI_BASE_URL`、`OPENAI_API_KEY` 环境变量依赖（不再需要向后兼容）。
+  - **会话归档**：
+    - `sessions.is_archived` 列（`ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT false`）。
+    - `SessionStore.listRecentSessions` 支持 `includeArchived` 参数过滤。
+    - `SessionService.archiveSession` / `unarchiveSession` 全栈闭环。
+    - tRPC `session.archive` / `session.unarchive` mutations。
+    - `apps/web/app/chat/[agentId]` 顶部新增归档/取档按钮和显示归档切换。
+  - **Worker Job 处理修复**：
+    - `apps/worker/src/runOnce.ts` 中 `COMPACTION` 和 `EMBEDDING_BACKFILL` job 的处理逻辑已修复恢复（之前因代码回滚而丢失）。
+    - `processJob` 现在会按 `agentId` 动态查询 Agent 的 LLM 配置并创建 LLM 实例。
+    - Worker 和 Web 的全部测试已修复通过（`bun run test` 0 fail）。
+  - **UI / 布局修复**：
+    - `apps/web/src/components/dashboard-shell.tsx` 顶层容器高度类名从无效的 `h-100dvh` 修正为 `h-dvh`。
+  - **数据库迁移提醒**：
+    - 如果之前未执行，需要在 Supabase SQL Editor 执行 `ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT false;`。
+- LLM Provider 配置说明（更新）：
+  - Agent LLM 配置优先于环境变量。每个 Agent 可独立配置 `provider/apiKey/baseURL/model`。
+  - 如果 Agent 未配置 `llmProvider`，chat stream 会返回 400 错误（需在 Agent 设置中配置）。
+  - `@daemon/adapters-llm-vercel` 的 `createLlmFromAgentConfig()` 接受 `{ apiKey, baseURL, model }` 动态创建 OpenAI-compatible 实例。
+- 代码核实中发现的已知缺口（2026-03-03 更新）：
+  - ~~Worker `COMPACTION` job 在 `SUPPORTED_JOB_TYPES` 中但 `processJob` 无对应处理分支~~ → 已修复。
+  - ~~Worker `EMBEDDING_BACKFILL` job 同上~~ → 已修复。
+  - Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤。
+  - 模板市场缺少搜索/分类/评分功能。

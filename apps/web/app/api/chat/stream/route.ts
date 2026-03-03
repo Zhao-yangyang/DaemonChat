@@ -21,21 +21,12 @@ import {
   wouldExceedTokenHardCap,
 } from "@daemon/api";
 import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 
 const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   SUPABASE_ANON_KEY:
     process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-  OPENAI_MODEL: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-  OPENAI_FALLBACK_MODEL: process.env.OPENAI_FALLBACK_MODEL,
-  OPENAI_EMBED_MODEL: process.env.OPENAI_EMBED_MODEL ?? "text-embedding-3-small",
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
-  LLM_PROVIDER_NAME: process.env.LLM_PROVIDER_NAME as "openai" | "deepseek" | undefined,
-  LLM_COMPATIBILITY: process.env.LLM_COMPATIBILITY as "strict" | "compatible" | undefined,
-  EMBEDDING_MODE: process.env.EMBEDDING_MODE as "remote" | "local" | undefined,
-  ALLOW_LOCAL_EMBEDDING_FALLBACK: process.env.ALLOW_LOCAL_EMBEDDING_FALLBACK,
-  LOCAL_EMBED_DIMENSIONS: process.env.LOCAL_EMBED_DIMENSIONS,
 };
 
 const DEFAULT_BUDGET = {
@@ -45,7 +36,6 @@ const DEFAULT_BUDGET = {
   memoryTopK: Number(process.env.MEMORY_TOPK ?? 8),
   recentMessages: Number(process.env.RECENT_MESSAGES ?? 20),
 };
-const DEFAULT_MODEL_PRICING = resolveModelPricingFromEnv(env.OPENAI_MODEL, process.env);
 const ROUTE_PATH = "/api/chat/stream";
 const CHAT_LATENCY_ALERT_MS = Number(process.env.CHAT_LATENCY_ALERT_MS ?? 2500);
 
@@ -62,22 +52,11 @@ type ChatStreamInput = {
 type ChatStreamRouteEnv = Record<string, string | undefined> & {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
-  OPENAI_MODEL: string;
-  OPENAI_FALLBACK_MODEL?: string;
-  OPENAI_EMBED_MODEL: string;
-  OPENAI_API_KEY?: string;
-  OPENAI_BASE_URL?: string;
-  LLM_PROVIDER_NAME?: "openai" | "deepseek";
-  LLM_COMPATIBILITY?: "strict" | "compatible";
-  EMBEDDING_MODE?: "remote" | "local";
-  ALLOW_LOCAL_EMBEDDING_FALLBACK?: string;
-  LOCAL_EMBED_DIMENSIONS?: string;
 };
 
 type ChatStreamRouteDeps = {
   env: ChatStreamRouteEnv;
   defaultBudget: typeof DEFAULT_BUDGET;
-  defaultModelPricing: ReturnType<typeof resolveModelPricingFromEnv>;
   routePath: string;
   chatLatencyAlertMs: number;
   createContainer: typeof createContainer;
@@ -92,7 +71,6 @@ type ChatStreamRouteDeps = {
 const defaultRouteDeps: ChatStreamRouteDeps = {
   env,
   defaultBudget: DEFAULT_BUDGET,
-  defaultModelPricing: DEFAULT_MODEL_PRICING,
   routePath: ROUTE_PATH,
   chatLatencyAlertMs: CHAT_LATENCY_ALERT_MS,
   createContainer,
@@ -119,7 +97,6 @@ export const createPostHandler = (
   const {
     env,
     defaultBudget,
-    defaultModelPricing,
     routePath,
     chatLatencyAlertMs,
     createContainer,
@@ -268,7 +245,7 @@ export const createPostHandler = (
           user_id: user.id,
           agent_id: body.agentId,
           session_key: body.sessionKey,
-          model: env.OPENAI_MODEL,
+          model: "(unknown)",
           qps_limit: rateLimits.qps ?? null,
           qpm_limit: rateLimits.qpm ?? null,
           retry_after_ms: rateCheck.retryAfterMs,
@@ -311,7 +288,7 @@ export const createPostHandler = (
         agent_id: body.agentId,
         session_key: body.sessionKey,
         idempotency_key: idempotencyKey ?? null,
-        model: env.OPENAI_MODEL,
+        model: body.model || "(unknown)",
         input_tokens: userTokens,
         max_input_tokens: maxInputTokens,
         error_code: "INPUT_TOO_LARGE",
@@ -328,14 +305,47 @@ export const createPostHandler = (
       });
       return new Response("chat input exceeds max token limit", { status: 413 });
     }
-    const fallbackModel = env.OPENAI_FALLBACK_MODEL?.trim() || undefined;
-    const routeStrategy = fallbackModel ? "primary_then_fallback" : "primary_only";
     const agentConfig = { ...DEFAULT_AGENT_CONFIG, ...(agentRecord.config ?? {}) };
+    const llmProvider = agentConfig.llmProvider;
+    if (!llmProvider || !llmProvider.apiKey || !llmProvider.baseURL || !llmProvider.model) {
+      logWarn("chat_stream.llm_not_configured", {
+        request_id: requestId,
+        route: routePath,
+        user_id: user.id,
+        agent_id: body.agentId,
+        error_code: "LLM_NOT_CONFIGURED",
+        latency_ms: Date.now() - startedAt,
+      });
+      return new Response("Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型", { status: 400 });
+    }
+
+    // Dynamically create LLM from Agent config
+    let agentLlm;
+    try {
+      const finalModelName = typeof body.model === "string" && body.model.trim() ? body.model.trim() : llmProvider.model;
+      agentLlm = createLlmFromAgentConfig({ ...llmProvider, model: finalModelName });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "LLM 创建失败";
+      logError("chat_stream.llm_create_failed", {
+        request_id: requestId,
+        route: routePath,
+        user_id: user.id,
+        agent_id: body.agentId,
+        error_code: "LLM_CREATE_FAILED",
+        error_message: message,
+        latency_ms: Date.now() - startedAt,
+      });
+      return new Response(message, { status: 400 });
+    }
+
+    // Inject dynamic LLM into container ports
+    (container.ports as any).llm = agentLlm;
+
     const selectedModel =
       body.model?.trim() ||
       agentConfig.model?.trim() ||
-      env.OPENAI_MODEL;
-    const selectedModelPricing = resolveModelPricingFromEnv(selectedModel, env) ?? defaultModelPricing;
+      llmProvider.model;
+    const selectedModelPricing = resolveModelPricingFromEnv(selectedModel, env) ?? undefined;
     const configuredBudget = {
       ...defaultBudget,
       ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
@@ -512,9 +522,9 @@ export const createPostHandler = (
           pricing: selectedModelPricing,
           usageMeta: budgetDegraded
             ? {
-                model_route_strategy: routeStrategy,
+                model_route_strategy: "primary_only",
                 model_route_primary: selectedModel,
-                model_route_fallback: fallbackModel ?? null,
+                model_route_fallback: null,
                 budget_degraded: true,
                 budget_degrade_period: budgetDegraded.period,
                 reserve_output_tokens_before: configuredBudget.reserveOutputTokens,
@@ -527,9 +537,9 @@ export const createPostHandler = (
                 projected_tokens_after: budgetDegraded.projectedTokensAfter,
               }
             : {
-                model_route_strategy: routeStrategy,
+                model_route_strategy: "primary_only",
                 model_route_primary: selectedModel,
-                model_route_fallback: fallbackModel ?? null,
+                model_route_fallback: null,
               },
           imageUrls: body.imageUrls,
           budget: effectiveBudget,

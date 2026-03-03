@@ -20,7 +20,7 @@ import {
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
-import { Send, Search, X, Loader2, ImagePlus } from "lucide-react";
+import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore } from "lucide-react";
 
 const formatMsgTime = (iso?: string): string => {
   if (!iso) return "";
@@ -119,6 +119,7 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ file: File; preview: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -134,7 +135,7 @@ export default function ChatPage() {
   );
 
   const sessionList = trpc.session.list.useQuery(
-    { agentId, limit: 20 },
+    { agentId, limit: 20, includeArchived: showArchived },
     { enabled: Boolean(agentId), refetchOnWindowFocus: false }
   );
 
@@ -160,6 +161,16 @@ export default function ChatPage() {
     },
   });
   const renameSessionMutation = trpc.session.rename.useMutation({
+    onSuccess: async () => {
+      await sessionList.refetch();
+    },
+  });
+  const archiveSessionMutation = trpc.session.archive.useMutation({
+    onSuccess: async () => {
+      await sessionList.refetch();
+    },
+  });
+  const unarchiveSessionMutation = trpc.session.unarchive.useMutation({
     onSuccess: async () => {
       await sessionList.refetch();
     },
@@ -273,6 +284,29 @@ export default function ChatPage() {
     setLocalSessionKeys((prev) => prev.filter((key) => key !== targetKey));
     const fallback = sessionKeys.find((key) => key !== targetKey) ?? "";
     setSessionKey(fallback);
+  };
+
+  const archiveCurrentSession = async () => {
+    const key = currentSessionKey;
+    if (!key) return;
+    const confirmed = window.confirm(`确认归档会话「${getSessionLabel(key)}」吗？`);
+    if (!confirmed) return;
+    if (!currentSessionId) {
+      removeSessionLocally(key);
+      return;
+    }
+    await archiveSessionMutation.mutateAsync({ agentId, sessionId: currentSessionId });
+    removeSessionLocally(key);
+  };
+
+  const unarchiveCurrentSession = async () => {
+    const key = currentSessionKey;
+    if (!key) return;
+    const confirmed = window.confirm(`确认恢复会话「${getSessionLabel(key)}」吗？`);
+    if (!confirmed) return;
+    if (!currentSessionId) return;
+    await unarchiveSessionMutation.mutateAsync({ agentId, sessionId: currentSessionId });
+    setShowArchived(false);
   };
 
   const deleteCurrentSession = async () => {
@@ -595,18 +629,29 @@ export default function ChatPage() {
 
           {/* Session 切换 */}
           {sessionKeys.length > 0 ? (
-            <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
-              <SelectTrigger className="h-8 w-[130px] text-xs">
-                <SelectValue placeholder="会话" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessionKeys.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {getSessionLabel(key)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1 bg-muted/40 rounded-md p-1 border">
+              <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
+                <SelectTrigger className="h-6 w-[120px] text-xs border-0 bg-transparent shadow-none focus:ring-0">
+                  <SelectValue placeholder="会话" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessionKeys.map((key) => (
+                    <SelectItem key={key} value={key}>
+                      {getSessionLabel(key)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="icon-xs"
+                variant={showArchived ? "secondary" : "ghost"}
+                className="size-6 text-muted-foreground"
+                onClick={() => setShowArchived((prev) => !prev)}
+                title={showArchived ? "隐藏归档" : "显示归档"}
+              >
+                <Archive className="size-3" />
+              </Button>
+            </div>
           ) : null}
 
           <Button size="xs" variant="outline" onClick={createSession} disabled={isStreaming}>
@@ -620,6 +665,25 @@ export default function ChatPage() {
               disabled={renameSessionMutation.isPending || isStreaming}
             >
               {renameSessionMutation.isPending ? "重命名中" : "重命名"}
+            </Button>
+          ) : null}
+          {currentSessionKey && currentSessionId && selectedSession?.isArchived ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void unarchiveCurrentSession()}
+              disabled={unarchiveSessionMutation.isPending || isStreaming}
+            >
+              取档
+            </Button>
+          ) : currentSessionKey ? (
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void archiveCurrentSession()}
+              disabled={archiveSessionMutation.isPending || isStreaming}
+            >
+              归档
             </Button>
           ) : null}
           {currentSessionKey ? (
@@ -820,6 +884,16 @@ export default function ChatPage() {
                               编辑
                             </button>
                           ) : null}
+                          {!isUser && hasVisibleContent && !isStreaming ? (
+                            <button
+                              className="hover:text-foreground transition-colors"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(msg.content);
+                              }}
+                            >
+                              复制
+                            </button>
+                          ) : null}
                           {!isUser && isLastAssistant && !isStreaming ? (
                             <button
                               className="hover:text-foreground transition-colors"
@@ -841,13 +915,19 @@ export default function ChatPage() {
         {/* Input area — fixed at bottom, centered */}
         <div className="border-t bg-card px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-3xl">
-            <div className="mb-2">
-              <Input
-                value={localModelOverride}
-                onChange={(e) => setLocalModelOverride(e.target.value)}
-                placeholder={`模型覆盖（留空使用默认${currentAgent?.config.model ? `: ${currentAgent.config.model}` : ""}）`}
-                className="h-8 text-xs"
-              />
+            <div className="mb-2 flex items-center gap-2">
+              <Select value={localModelOverride} onValueChange={(val) => setLocalModelOverride(val === "_default" ? "" : val)}>
+                <SelectTrigger className="h-8 w-[180px] text-xs">
+                  <SelectValue placeholder={`默认 (${currentAgent?.config.llmProvider?.model || "未配置"})`} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_default">默认配置</SelectItem>
+                  <SelectItem value="deepseek-chat">deepseek-chat</SelectItem>
+                  <SelectItem value="deepseek-reasoner">deepseek-reasoner</SelectItem>
+                  <SelectItem value="gpt-4o">gpt-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {pendingImages.length > 0 ? (
               <div className="flex flex-wrap gap-2 px-1">

@@ -1,12 +1,22 @@
 export type UUID = string;
 export type Timestamp = string; // ISO-8601 string
 
+export interface LlmProviderConfig {
+  apiKey: string;
+  baseURL: string;
+  model: string;
+  embeddingModel?: string;
+  providerName?: string;
+  compatibility?: "strict" | "compatible";
+}
+
 export interface AgentConfig {
   systemPrompt: string;
   model: string;
   memoryTopK: number;
   recentMessages: number;
   temperature: number;
+  llmProvider?: LlmProviderConfig;
 }
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
@@ -52,6 +62,7 @@ export interface Session {
   agentId: UUID;
   sessionKey: string;
   displayName: string | null;
+  isArchived: boolean;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
 }

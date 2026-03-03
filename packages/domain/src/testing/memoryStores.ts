@@ -130,10 +130,13 @@ export function createInMemoryStores(): {
       return sessions.find((session) => session.id === sessionId) ?? null;
     },
 
-    async listRecentSessions({ agentId, limit }) {
+    async listRecentSessions({ agentId, limit, includeArchived }) {
       if (limit <= 0) return [];
-      return sessions
-        .filter((session) => session.agentId === agentId)
+      let filtered = sessions.filter((session) => session.agentId === agentId);
+      if (!includeArchived) {
+        filtered = filtered.filter((s) => !s.isArchived);
+      }
+      return filtered
         .sort((a, b) => toMillis(b.lastActiveAt) - toMillis(a.lastActiveAt))
         .slice(0, limit);
     },
@@ -144,6 +147,7 @@ export function createInMemoryStores(): {
         agentId,
         sessionKey,
         displayName: null,
+        isArchived: false,
         createdAt: now,
         lastActiveAt: now,
       };
@@ -179,6 +183,20 @@ export function createInMemoryStores(): {
       const current = currentSessions.get(key);
       if (current === removed.id) {
         currentSessions.delete(key);
+      }
+    },
+
+    async archiveSession({ agentId, sessionId }) {
+      const session = sessions.find((entry) => entry.id === sessionId && entry.agentId === agentId);
+      if (session) {
+        session.isArchived = true;
+      }
+    },
+
+    async unarchiveSession({ agentId, sessionId }) {
+      const session = sessions.find((entry) => entry.id === sessionId && entry.agentId === agentId);
+      if (session) {
+        session.isArchived = false;
       }
     },
   };

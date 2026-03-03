@@ -401,6 +401,7 @@ describe("api router", () => {
                 agentId,
                 sessionKey: "main",
                 displayName: null,
+                isArchived: false,
                 createdAt: "2026-02-03T00:00:00.000Z",
                 lastActiveAt: "2026-02-03T10:00:00.000Z",
               },

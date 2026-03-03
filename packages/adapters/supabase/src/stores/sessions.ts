@@ -7,6 +7,7 @@ const mapSession = (row: any): Session => ({
   agentId: row.agent_id,
   sessionKey: row.session_key,
   displayName: row.display_name ?? null,
+  isArchived: Boolean(row.is_archived),
   createdAt: row.created_at,
   lastActiveAt: row.last_active_at,
 });
@@ -28,13 +29,19 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
       return data ? mapSession(data) : null;
     },
 
-    async listRecentSessions({ agentId, limit }) {
-      const { data, error } = await client
+    async listRecentSessions({ agentId, limit, includeArchived }) {
+      let query = client
         .from("sessions")
         .select("*")
         .eq("agent_id", agentId)
         .order("last_active_at", { ascending: false })
         .limit(limit);
+
+      if (!includeArchived) {
+        query = query.eq("is_archived", false);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return (data ?? []).map(mapSession);
@@ -79,6 +86,24 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
       const { error } = await client
         .from("sessions")
         .delete()
+        .eq("id", sessionId)
+        .eq("agent_id", agentId);
+      if (error) throw error;
+    },
+
+    async archiveSession({ agentId, sessionId }) {
+      const { error } = await client
+        .from("sessions")
+        .update({ is_archived: true })
+        .eq("id", sessionId)
+        .eq("agent_id", agentId);
+      if (error) throw error;
+    },
+
+    async unarchiveSession({ agentId, sessionId }) {
+      const { error } = await client
+        .from("sessions")
+        .update({ is_archived: false })
         .eq("id", sessionId)
         .eq("agent_id", agentId);
       if (error) throw error;

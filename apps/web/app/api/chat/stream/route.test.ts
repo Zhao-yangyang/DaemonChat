@@ -1,3 +1,4 @@
+/// <reference types="bun-types" />
 import { beforeEach, describe, expect, test } from "bun:test";
 import { chatRateLimiter } from "@daemon/api";
 import { ForbiddenError, IdempotencyConflictError } from "@daemon/domain";
@@ -22,6 +23,14 @@ const ALLOWED_AGENT = {
   name: "Agent",
   createdAt: "2026-02-03T00:00:00.000Z",
   updatedAt: "2026-02-03T00:00:00.000Z",
+  config: {
+    llmProvider: {
+      provider: "openai",
+      apiKey: "test-valid-key",
+      baseURL: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+    },
+  },
 };
 
 const createRequest = (input: {
@@ -138,6 +147,7 @@ describe("chat stream route", () => {
           agent: {
             getAgent: async () => ALLOWED_AGENT,
           },
+          ports: {},
           chat: {
             chatTurnStream: async () => {
               throw new IdempotencyConflictError("duplicate request");
@@ -172,6 +182,7 @@ describe("chat stream route", () => {
           agent: {
             getAgent: async () => ALLOWED_AGENT,
           },
+          ports: {},
           chat: {
             chatTurnStream: async () => ({
               sessionId: "session-1",
@@ -220,6 +231,7 @@ describe("chat stream route", () => {
           agent: {
             getAgent: async () => ALLOWED_AGENT,
           },
+          ports: {},
           chat: {
             chatTurnStream: async () => {
               throw new Error("llm unavailable");
@@ -257,6 +269,7 @@ describe("chat stream route", () => {
           agent: {
             getAgent: async () => ALLOWED_AGENT,
           },
+          ports: {},
           chat: {
             chatTurnStream: async () => {
               chatCalled = true;
@@ -422,9 +435,9 @@ describe("chat stream route", () => {
       recentMessages: 4,
     });
     expect(capturedOptions["usageMeta"]).toMatchObject({
-      model_route_strategy: "primary_then_fallback",
+      model_route_strategy: "primary_only",
       model_route_primary: "gpt-4o-mini",
-      model_route_fallback: "fallback-model",
+      model_route_fallback: null,
       budget_degraded: true,
       reserve_output_tokens_after: 64,
       memory_top_k_after: 2,
@@ -445,6 +458,7 @@ describe("chat stream route", () => {
           agent: {
             getAgent: async () => ALLOWED_AGENT,
           },
+          ports: {},
           chat: {
             chatTurnStream: async () => ({
               sessionId: "session-1",

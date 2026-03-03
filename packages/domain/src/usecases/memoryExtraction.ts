@@ -68,6 +68,20 @@ export function createMemoryExtractionService(ports: {
   llm: LlmPort;
   clock: Clock;
 }) {
+  const DEDUP_THRESHOLD = 0.92;
+
+  const cosineSimilarity = (a: number[], b: number[]): number => {
+    if (a.length !== b.length || a.length === 0) return 0;
+    let dot = 0, normA = 0, normB = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+    const denom = Math.sqrt(normA) * Math.sqrt(normB);
+    return denom === 0 ? 0 : dot / denom;
+  };
+
   return {
     async extractMemoryFromSession(
       agentId: string,
@@ -95,11 +109,34 @@ export function createMemoryExtractionService(ports: {
         return [];
       }
 
+      // Fetch existing memories for dedup (prompt hint + embedding comparison)
+      let existingMemories: MemoryItem[] = [];
+      try {
+        existingMemories = await ports.memory.listMemoryItems({
+          agentId,
+          limit: 100,
+        });
+      } catch {
+        // best effort: proceed without existing memories
+      }
+
+      const existingSummary = existingMemories
+        .slice(0, 30)
+        .map((m) => `- [${m.type}] ${m.content}`)
+        .join("\n");
+
       const extractionPrompt = [
         "从以下对话中提取可长期复用的记忆，返回 JSON 数组。",
         "每一项格式：",
         '{ "type": "fact|rule|preference|task", "content": "string", "tags": ["string"], "sensitivity": "public|private|secret", "contextEligible": true|false }',
         "仅输出 JSON，不要输出解释文字。",
+        ...(existingSummary
+          ? [
+              "",
+              "以下是已有记忆，请勿重复提取相同或高度相似的内容：",
+              existingSummary,
+            ]
+          : []),
         "",
         "对话：",
         transcriptLines.join("\n"),
@@ -137,9 +174,23 @@ export function createMemoryExtractionService(ports: {
         })
         .filter((item): item is ExtractedMemoryDraft => Boolean(item));
 
+      // Collect existing embeddings for cosine similarity dedup
+      const existingEmbeddings = existingMemories
+        .filter((m) => m.embedding && m.embedding.length > 0)
+        .map((m) => m.embedding!);
+
       const created: MemoryItem[] = [];
       for (const draft of drafts) {
         const embedding = await ports.llm.embed({ text: draft.content });
+
+        // Semantic dedup: skip if too similar to any existing memory
+        const isDuplicate = existingEmbeddings.some(
+          (existing) => cosineSimilarity(embedding, existing) > DEDUP_THRESHOLD
+        );
+        if (isDuplicate) {
+          continue;
+        }
+
         const item = await ports.memory.insertMemoryItem({
           agentId,
           scopeType: options.scopeType,
@@ -153,6 +204,8 @@ export function createMemoryExtractionService(ports: {
           now: ports.clock.now(),
         });
         created.push(item);
+        // Also add the new embedding so subsequent drafts dedup against it
+        existingEmbeddings.push(embedding);
       }
 
       return created;

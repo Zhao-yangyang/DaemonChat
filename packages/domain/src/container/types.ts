@@ -17,16 +17,16 @@ export interface Clock {
 }
 
 export interface AgentStore {
-  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; now: Timestamp }): Promise<Agent>;
+  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; workspaceId?: UUID; now: Timestamp }): Promise<Agent>;
   getAgentById(agentId: UUID): Promise<Agent | null>;
-  listAgentsByOwner(ownerUserId: UUID): Promise<Agent[]>;
+  listAgentsByOwner(ownerUserId: UUID, opts?: { workspaceId?: UUID }): Promise<Agent[]>;
   updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; now: Timestamp }): Promise<Agent>;
   deleteAgent(agentId: UUID): Promise<void>;
 }
 
 export interface SessionStore {
   getCurrentSession(input: { agentId: UUID; sessionKey: string }): Promise<Session | null>;
-  listRecentSessions(input: { agentId: UUID; limit: number }): Promise<Session[]>;
+  listRecentSessions(input: { agentId: UUID; limit: number; includeArchived?: boolean }): Promise<Session[]>;
   createSession(input: {
     agentId: UUID;
     sessionKey: string;
@@ -34,6 +34,8 @@ export interface SessionStore {
   }): Promise<Session>;
   touchSession(input: { sessionId: UUID; lastActiveAt: Timestamp }): Promise<void>;
   renameSession(input: { agentId: UUID; sessionId: UUID; displayName: string }): Promise<void>;
+  archiveSession(input: { agentId: UUID; sessionId: UUID }): Promise<void>;
+  unarchiveSession(input: { agentId: UUID; sessionId: UUID }): Promise<void>;
   deleteSession(input: { agentId: UUID; sessionId: UUID }): Promise<void>;
 }
 

@@ -170,20 +170,32 @@ const appendAuditEvent = async (
 export const appRouter = t.router({
   agent: t.router({
     create: t.procedure
-      .input(z.object({ name: z.string().min(1) }))
+      .input(z.object({ name: z.string().min(1), workspaceId: z.string().min(1).optional() }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
-        return withInfrastructureErrorMapping(() => ctx.container.agent.createAgent(user.id, input.name));
+        return withInfrastructureErrorMapping(() => ctx.container.agent.createAgent(user.id, input.name, undefined, input.workspaceId));
       }),
-    list: t.procedure.query(async ({ ctx }) => {
-      const user = requireUser(ctx);
-      return withInfrastructureErrorMapping(() => ctx.container.agent.listAgents(user.id));
-    }),
+    list: t.procedure
+      .input(z.object({ workspaceId: z.string().min(1).optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        const agents = await withInfrastructureErrorMapping(() => ctx.container.agent.listAgents(user.id, input ? { workspaceId: input.workspaceId } : undefined));
+        return agents.map(agent => {
+          if (agent.config?.llmProvider?.apiKey) {
+            agent.config.llmProvider.apiKey = "sk-****";
+          }
+          return agent;
+        });
+      }),
     get: t.procedure
       .input(z.object({ agentId: z.string().min(1) }))
       .query(async ({ ctx, input }) => {
         const user = requireUser(ctx);
-        return withInfrastructureErrorMapping(() => ctx.container.agent.getAgent(input.agentId, user.id));
+        const agent = await withInfrastructureErrorMapping(() => ctx.container.agent.getAgent(input.agentId, user.id));
+        if (agent.config?.llmProvider?.apiKey) {
+          agent.config.llmProvider.apiKey = "sk-****";
+        }
+        return agent;
       }),
     update: t.procedure
       .input(z.object({
@@ -195,10 +207,21 @@ export const appRouter = t.router({
           memoryTopK: z.number().int().min(1).max(50).optional(),
           recentMessages: z.number().int().min(1).max(100).optional(),
           temperature: z.number().min(0).max(2).optional(),
+          llmProvider: z.object({
+            model: z.string(),
+            baseURL: z.string(),
+            apiKey: z.string(),
+          }).optional(),
         }).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
+        
+        if (input.config?.llmProvider?.apiKey === "sk-****") {
+          const existing = await ctx.container.agent.getAgent(input.agentId, user.id);
+          input.config.llmProvider.apiKey = existing.config?.llmProvider?.apiKey ?? "";
+        }
+
         return withInfrastructureErrorMapping(() =>
           ctx.container.agent.updateAgent(input.agentId, user.id, {
             name: input.name,
@@ -222,11 +245,12 @@ export const appRouter = t.router({
         z.object({
           agentId: z.string().min(1),
           limit: z.number().int().min(1).max(100).default(20),
+          includeArchived: z.boolean().default(false),
         })
       )
       .query(async ({ ctx, input }) => {
         await ensureAgentAccess(ctx, input.agentId);
-        return ctx.container.session.listRecentSessions(input.agentId, input.limit);
+        return ctx.container.session.listRecentSessions(input.agentId, input.limit, input.includeArchived);
       }),
     delete: t.procedure
       .input(
@@ -239,6 +263,32 @@ export const appRouter = t.router({
         const user = await ensureAgentAccess(ctx, input.agentId);
         return withInfrastructureErrorMapping(() =>
           ctx.container.session.deleteSession(input.agentId, input.sessionId, user.id)
+        );
+      }),
+    archive: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.session.archiveSession(input.agentId, input.sessionId, user.id)
+        );
+      }),
+    unarchive: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.session.unarchiveSession(input.agentId, input.sessionId, user.id)
         );
       }),
     rename: t.procedure
