@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@daemon/hooks";
 import {
@@ -40,6 +40,8 @@ import {
   detectPresetFromConfig,
 } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
+import { ModelCombobox } from "@/src/components/model-combobox";
+import { ProviderIcon } from "@/src/components/provider-icon";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
 
@@ -63,7 +65,7 @@ type AgentConfigForm = {
     model: string;
     baseURL: string;
     apiKey: string;
-    sdkProvider: "openai" | "anthropic";
+    sdkProvider: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
   };
 };
 
@@ -81,7 +83,64 @@ export default function AgentsPage() {
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
+  const [dynamicModels, setDynamicModels] = useState<Array<{id: string; name: string}>>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
   const { session, isResolved } = useSession();
+
+  // Fetch models dynamically when provider or API key changes
+  useEffect(() => {
+    const { presetId, apiKey, baseURL, sdkProvider } = configForm.llmProvider;
+
+    // 如果没有选择任何 Provider 或选了自定义
+    if (!presetId || presetId === CUSTOM_PROVIDER_ID) {
+      setDynamicModels([]);
+      return;
+    }
+
+    // 默认情况：先立刻加载当前 Provider 的精选预设静态模型！
+    // 保证即便获取失败，模型下拉依旧有内置可选项。
+    const preset = findProviderPreset(presetId);
+    if (!preset) return;
+    const fallbackStaticModels = preset.models.map(m => ({ id: m.id, name: m.label }));
+    setDynamicModels(fallbackStaticModels);
+
+    // 发起网络请求获取动态模型
+    setModelsLoading(true);
+    fetch("/api/providers/models", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sdkProvider, apiKey, baseURL }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        // 如果获取到了最新的动态模型全集，就全量替换掉静态预设
+        if (data.models && data.models.length > 0) {
+          setDynamicModels(data.models);
+          
+          // 如果用户还没选择 model，或是当前选择的 model 不在新列表里，默认给他选最新的第一个
+          setConfigForm(prev => {
+            const currentSelected = prev.llmProvider.model;
+            const exists = data.models.some((m: { id: string }) => m.id === currentSelected);
+            if (!currentSelected || !exists) {
+              return {
+                ...prev,
+                llmProvider: { ...prev.llmProvider, model: data.models[0].id }
+              };
+            }
+            return prev;
+          });
+        }
+      })
+      .catch(() => {
+        // 请求出错，保持原有的静态 fallbackStaticModels 不变即可
+      })
+      .finally(() => setModelsLoading(false));
+  }, [
+    configForm.llmProvider.presetId,
+    configForm.llmProvider.apiKey,
+    configForm.llmProvider.baseURL,
+    configForm.llmProvider.sdkProvider,
+  ]);
 
   const agents = trpc.agent.list.useQuery(undefined, {
     enabled: Boolean(session),
@@ -183,7 +242,7 @@ export default function AgentsPage() {
         baseURL?: string;
         apiKey?: string;
         presetId?: string;
-        sdkProvider?: "openai" | "anthropic";
+        sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
       } | null;
     };
   }) => {
@@ -368,7 +427,7 @@ export default function AgentsPage() {
                 <Card key={agent.id} className="transition-shadow hover:shadow-md">
                   <CardContent className="flex items-center justify-between gap-4 py-4">
                     <div className="min-w-0">
-                      <p className="font-medium">{agent.name}</p>
+                      <p className="font-medium flex items-center gap-2">{agent.name} <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50"><ProviderIcon providerId={agent.config.llmProvider?.presetId ?? "unknown"} size={14} /> {agent.config.llmProvider?.model || "未配置"}</span></p>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <p className="cursor-default text-xs text-muted-foreground">
@@ -426,7 +485,7 @@ export default function AgentsPage() {
         </div>
 
         <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Agent 配置</DialogTitle>
               <DialogDescription>
@@ -487,7 +546,12 @@ export default function AgentsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {LLM_PROVIDER_PRESETS.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                          <SelectItem key={p.id} value={p.id}>
+                            <div className="flex items-center gap-2">
+                              <ProviderIcon providerId={p.id} size={16} />
+                              {p.label}
+                            </div>
+                          </SelectItem>
                         ))}
                         <SelectItem value={CUSTOM_PROVIDER_ID}>自定义 (Advanced)</SelectItem>
                       </SelectContent>
@@ -499,24 +563,17 @@ export default function AgentsPage() {
                     return preset ? (
                       <div className="grid gap-1.5">
                         <Label className="text-xs">模型</Label>
-                        <Select
+                        <ModelCombobox
                           value={configForm.llmProvider.model}
-                          onValueChange={(val) =>
+                          onChange={(val) =>
                             setConfigForm((prev) => ({
                               ...prev,
                               llmProvider: { ...prev.llmProvider, model: val },
                             }))
                           }
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {preset.models.map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          models={dynamicModels}
+                          loading={modelsLoading}
+                        />
                       </div>
                     ) : null;
                   })()}

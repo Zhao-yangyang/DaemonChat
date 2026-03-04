@@ -398,6 +398,7 @@ Example scoped command:
     - `createPostHandler(overrides)` 现在完全支持替换核心业务依赖，使 chat stream 路由完全可单元测试。
     - `route.test.ts` 已更新为注入 mock `createChatService` 和 `createLlmFromAgentConfig`。
 - LLM Provider 配置说明（更新 2026-03-04）：
+  - **OpenRouter 动态模型列表兜底架构**：Agent 设置中的模型下拉变更为完全动态获取。前端切换 Provider 时，即使 `apiKey` 为空或无效，后端也会通过 OpenRouter 的免鉴权公开接口 (`https://openrouter.ai/api/v1/models`) 拉取全量最新模型，再按所选 `sdkProvider` 匹配前缀进行精算过滤，实现“选大厂立刻看该厂全系最新模型”的光速体验体验。若用户填写了 Key 则首先尝试大厂直连鉴权接口，如果遇到 401 等报错则无缝降级回公开接口兜底，杜绝白板现象。
   - Agent LLM 配置优先于环境变量。每个 Agent 可独立配置 `provider/apiKey/baseURL/model/sdkProvider/temperature`。
   - 如果 Agent 未配置 `llmProvider`，chat stream 会返回 400 错误（需在 Agent 设置中配置）。
   - Agent 设置 UI 优先展示预设 Provider 选择器（DeepSeek/OpenAI/Anthropic/Google/Moonshot/OpenRouter），也支持自定义 Provider。
