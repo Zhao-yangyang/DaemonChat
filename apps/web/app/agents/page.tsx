@@ -429,7 +429,14 @@ export default function AgentsPage() {
                       <p className="font-medium flex items-center gap-2">
                         {agent.name}
                         <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50">
-                          <ProviderIcon providerId={agent.config.llmProvider?.sdkProvider ?? "openai"} size={14} />
+                          <ProviderIcon 
+                            providerId={
+                              agent.config.llmProvider?.presetId && agent.config.llmProvider.presetId !== "__custom__"
+                                ? agent.config.llmProvider.presetId
+                                : agent.config.llmProvider?.sdkProvider ?? "openai"
+                            } 
+                            size={14} 
+                          />
                           {agent.config.llmProvider?.model || "未配置"}
                         </span>
                       </p>
@@ -553,7 +560,7 @@ export default function AgentsPage() {
                         {LLM_PROVIDER_PRESETS.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
-                              <ProviderIcon providerId={p.sdkProvider ?? "openai"} size={16} />
+                              <ProviderIcon providerId={p.id} size={16} />
                               {p.label}
                             </div>
                           </SelectItem>

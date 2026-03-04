@@ -110,7 +110,9 @@ export function ModelCombobox({
                         )}
                       />
                       <div className="flex items-center gap-2 min-w-0">
-                        <ModelIcon model={m.id} size={20} />
+                        <div className="flex size-6 shrink-0 items-center justify-center">
+                          <ModelIcon model={m.id} size={24} type="avatar" />
+                        </div>
                         <div className="flex flex-col truncate">
                           <span className="text-sm truncate">{m.id}</span>
                           {m.name !== m.id && (
