@@ -2,7 +2,23 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { chatRateLimiter } from "@daemon/api";
 import { ForbiddenError, IdempotencyConflictError } from "@daemon/domain";
-import { createPostHandler } from "./route";
+import { createPostHandler as originalCreatePostHandler } from "./route";
+
+const createPostHandler = (opts: any) => {
+  let createdContainer: any = null;
+  const originalCreateContainer = opts.createContainer;
+  const wrappedCreateContainer = (...args: any[]) => {
+    createdContainer = originalCreateContainer ? originalCreateContainer(...args) : null;
+    return createdContainer;
+  };
+  
+  return originalCreatePostHandler({
+    ...opts,
+    createContainer: originalCreateContainer ? wrappedCreateContainer : undefined,
+    createChatService: () => (createdContainer ? createdContainer.chat : {}) as any,
+    createLlmFromAgentConfig: () => ({}) as any,
+  });
+};
 
 const TEST_ENV = {
   SUPABASE_URL: "https://example.supabase.co",

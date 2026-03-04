@@ -66,6 +66,8 @@ type ChatStreamRouteDeps = {
   logInfo: typeof logInfo;
   logWarn: typeof logWarn;
   logError: typeof logError;
+  createChatService: typeof createChatService;
+  createLlmFromAgentConfig: typeof createLlmFromAgentConfig;
 };
 
 const defaultRouteDeps: ChatStreamRouteDeps = {
@@ -80,6 +82,8 @@ const defaultRouteDeps: ChatStreamRouteDeps = {
   logInfo,
   logWarn,
   logError,
+  createChatService,
+  createLlmFromAgentConfig,
 };
 
 const sendEvent = (controller: ReadableStreamDefaultController, data: unknown) => {
@@ -106,6 +110,8 @@ export const createPostHandler = (
     logInfo,
     logWarn,
     logError,
+    createChatService,
+    createLlmFromAgentConfig,
   } = deps;
 
   return async (req: Request) => {
