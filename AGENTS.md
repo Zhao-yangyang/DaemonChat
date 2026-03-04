@@ -368,11 +368,42 @@ Example scoped command:
     - `apps/web/src/components/dashboard-shell.tsx` 顶层容器高度类名从无效的 `h-100dvh` 修正为 `h-dvh`。
   - **数据库迁移提醒**：
     - 如果之前未执行，需要在 Supabase SQL Editor 执行 `ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS is_archived boolean NOT NULL DEFAULT false;`。
-- LLM Provider 配置说明（更新）：
-  - Agent LLM 配置优先于环境变量。每个 Agent 可独立配置 `provider/apiKey/baseURL/model`。
+- Post-MVP Phase 5 续 — LLM 预设注册表 + Anthropic 原生 SDK + 品牌资产 + DI 深化（2026-03-04）：
+  - **LLM Provider/Model 预设注册表**：
+    - 新增 `packages/domain/src/llm-presets.ts`：声明式 Provider 预设注册中心。
+    - 内置预设：DeepSeek、OpenAI、Anthropic、Google AI Studio、Moonshot AI (Kimi)、OpenRouter。
+    - 每个预设包含 `id/label/baseURL/models[]/compatibility/sdkProvider/apiKeyPlaceholder/apiKeyHelpUrl`。
+    - 辅助函数：`findProviderPreset`、`findModelInPreset`、`getDefaultModelForPreset`、`detectPresetFromConfig`。
+    - `CUSTOM_PROVIDER_ID = "__custom__"` 支持自定义 Provider 手动输入。
+    - Agent 设置 Dialog 从手动输入改为预设选择器 + 模型下拉（支持回退到自定义模式）。
+  - **Anthropic 原生 SDK 支持**：
+    - `@daemon/adapters-llm-vercel` 新增 `@ai-sdk/anthropic` 依赖。
+    - `VercelLlmConfig` 新增 `sdkProvider: "openai" | "anthropic"` 字段。
+    - 当 `sdkProvider === "anthropic"` 时使用 `createAnthropic()` 替代 OpenAI 兼容层，实现原生 Anthropic API 调用。
+    - `LlmProviderConfig`（domain types）新增 `sdkProvider` 字段全栈贯通。
+  - **温度参数支持**：
+    - `AgentConfig` 新增 `temperature?: number` 可选字段。
+    - `VercelLlmConfig.temperature` 传递到 `streamText/generateText` 调用。
+    - `createLlmFromAgentConfig()` 接受 `opts.temperature` 并注入 LLM 实例。
+    - chat stream route 从 `agentConfig.temperature` 读取温度值。
+    - Agent 设置 Dialog 新增温度滑块/输入。
+    - tRPC `agent.update` 已支持 `temperature` 字段更新。
+  - **品牌资产与 UI 优化**：
+    - 新增 `apps/web/app/favicon.ico`、`apps/web/app/icon.png`、`apps/web/public/logo.png` 品牌图标。
+    - `dashboard-shell.tsx` 侧边栏顶部新增品牌 Logo 展示。
+    - `apps/web/app/page.tsx` 登录/首页新增品牌视觉元素。
+    - 聊天消息布局和代码格式优化。
+  - **Chat Stream 依赖注入深化**：
+    - `ChatStreamRouteDeps` 新增 `createChatService` 和 `createLlmFromAgentConfig` 可注入依赖。
+    - `createPostHandler(overrides)` 现在完全支持替换核心业务依赖，使 chat stream 路由完全可单元测试。
+    - `route.test.ts` 已更新为注入 mock `createChatService` 和 `createLlmFromAgentConfig`。
+- LLM Provider 配置说明（更新 2026-03-04）：
+  - Agent LLM 配置优先于环境变量。每个 Agent 可独立配置 `provider/apiKey/baseURL/model/sdkProvider/temperature`。
   - 如果 Agent 未配置 `llmProvider`，chat stream 会返回 400 错误（需在 Agent 设置中配置）。
-  - `@daemon/adapters-llm-vercel` 的 `createLlmFromAgentConfig()` 接受 `{ apiKey, baseURL, model }` 动态创建 OpenAI-compatible 实例。
-- 代码核实中发现的已知缺口（2026-03-03 更新）：
+  - Agent 设置 UI 优先展示预设 Provider 选择器（DeepSeek/OpenAI/Anthropic/Google/Moonshot/OpenRouter），也支持自定义 Provider。
+  - `@daemon/adapters-llm-vercel` 的 `createLlmFromAgentConfig()` 根据 `sdkProvider` 字段选择对应 SDK（`@ai-sdk/openai` 或 `@ai-sdk/anthropic`）。
+  - Anthropic 模型（Claude Sonnet 4/Opus 4/Haiku 3.5）使用原生 Anthropic SDK，无需 OpenAI 兼容层。
+- 代码核实中发现的已知缺口（2026-03-04 更新）：
   - ~~Worker `COMPACTION` job 在 `SUPPORTED_JOB_TYPES` 中但 `processJob` 无对应处理分支~~ → 已修复。
   - ~~Worker `EMBEDDING_BACKFILL` job 同上~~ → 已修复。
   - Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤。
