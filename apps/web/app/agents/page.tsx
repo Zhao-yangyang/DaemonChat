@@ -40,8 +40,6 @@ import {
   detectPresetFromConfig,
 } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
-import { ModelCombobox } from "@/src/components/model-combobox";
-import { ProviderIcon } from "@/src/components/provider-icon";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
 
@@ -313,7 +311,6 @@ export default function AgentsPage() {
                 apiKey: lp.apiKey,
                 presetId: lp.presetId || undefined,
                 sdkProvider: lp.sdkProvider,
-                compatibility: preset?.compatibility ?? "compatible",
               },
             }
           : {}),
@@ -427,7 +424,7 @@ export default function AgentsPage() {
                 <Card key={agent.id} className="transition-shadow hover:shadow-md">
                   <CardContent className="flex items-center justify-between gap-4 py-4">
                     <div className="min-w-0">
-                      <p className="font-medium flex items-center gap-2">{agent.name} <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50"><ProviderIcon providerId={agent.config.llmProvider?.presetId ?? "unknown"} size={14} /> {agent.config.llmProvider?.model || "未配置"}</span></p>
+                      <p className="font-medium flex items-center gap-2">{agent.name} <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50">🗂️ {agent.config.llmProvider?.model || "未配置"}</span></p>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <p className="cursor-default text-xs text-muted-foreground">
@@ -548,7 +545,7 @@ export default function AgentsPage() {
                         {LLM_PROVIDER_PRESETS.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
-                              <ProviderIcon providerId={p.id} size={16} />
+                              ⚙️
                               {p.label}
                             </div>
                           </SelectItem>
@@ -563,17 +560,24 @@ export default function AgentsPage() {
                     return preset ? (
                       <div className="grid gap-1.5">
                         <Label className="text-xs">模型</Label>
-                        <ModelCombobox
+                        <Select
                           value={configForm.llmProvider.model}
-                          onChange={(val) =>
+                          onValueChange={(val: string) =>
                             setConfigForm((prev) => ({
                               ...prev,
                               llmProvider: { ...prev.llmProvider, model: val },
                             }))
                           }
-                          models={dynamicModels}
-                          loading={modelsLoading}
-                        />
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={modelsLoading ? "加载模型中..." : "选择模型"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dynamicModels.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     ) : null;
                   })()}
