@@ -31,31 +31,42 @@ async function fetchWithTimeout(
 }
 
 // 无需鉴权的 OpenRouter 兜底接口，获取最新模型数据
-async function fetchFromOpenRouterPublic(sdkProvider: string): Promise<ModelItem[]> {
+async function fetchFromOpenRouterPublic(sdkProvider: string, providerId?: string): Promise<ModelItem[]> {
   const res = await fetchWithTimeout("https://openrouter.ai/api/v1/models", {});
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   const data: Array<{ id: string; name: string }> = json.data ?? [];
   
-  // 建立常用厂商的前缀过滤
-  // OpenRouter 会以 sdkProvider/model-name 的形式返回大厂模型
-  let filterPrefix = sdkProvider === "openai" ? "openai/" 
-    : sdkProvider === "anthropic" ? "anthropic/" 
-    : sdkProvider === "google" ? "google/" 
-    : sdkProvider === "deepseek" ? "deepseek/" 
-    : sdkProvider === "mistral" ? "mistral/" 
-    : sdkProvider === "xai" ? "x-ai/" // xAI 在 OpenRouter 上叫 x-ai
-    : "";
+  let filterPrefix = "";
+  if (providerId && providerId !== "openrouter" && providerId !== "__custom__") {
+    // Some reverse mapping for the raw OpenRouter IDs
+    const rawId = providerId === "mistral" ? "mistralai" : providerId === "xai" ? "x-ai" : providerId === "moonshot" ? "moonshotai" : providerId;
+    filterPrefix = `${rawId}/`;
+  } else if (sdkProvider === "openai") {
+    filterPrefix = "openai/";
+  } else if (sdkProvider === "anthropic") {
+    filterPrefix = "anthropic/";
+  } else if (sdkProvider === "google") {
+    filterPrefix = "google/";
+  } else if (sdkProvider === "deepseek") {
+    filterPrefix = "deepseek/";
+  } else if (sdkProvider === "mistral") {
+    filterPrefix = "mistral/";
+  } else if (sdkProvider === "xai") {
+    filterPrefix = "x-ai/";
+  }
 
   let models = data;
   if (filterPrefix && sdkProvider !== "openrouter") {
-    // 过滤出该厂商下的所有最新模型，并去除前缀展示给用户
     models = models.filter(m => m.id.startsWith(filterPrefix)).map(m => ({
-      id: m.id.replace(filterPrefix, ""),
+      // Only visually replace for well-known native SDK providers,
+      // but if the user uses a dynamic provider through OpenRouter, we shouldn't strip it 
+      // otherwise OpenRouter will reject the model call `llama-3` instead of `meta-llama/llama-3`.
+      // Actually, OpenRouter handles naked models occasionally, but it's safer to keep the ID format intact unless it's a native proxy.
+      id: providerId ? m.id : m.id.replace(filterPrefix, ""),
       name: m.name
     }));
-  } else if (sdkProvider === "openrouter") {
-    // 如果本身就是提供给 OpenRouter 的使用场景，就不去前缀
+  } else if (sdkProvider === "openrouter" || providerId === "openrouter") {
     models = data;
   }
 
@@ -142,10 +153,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ models: [], error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { sdkProvider, apiKey, baseURL } = body as {
+  const { sdkProvider, apiKey, baseURL, providerId } = body as {
     sdkProvider?: string;
     apiKey?: string;
     baseURL?: string;
+    providerId?: string;
   };
 
   if (!sdkProvider) {
@@ -156,9 +168,9 @@ export async function POST(req: NextRequest) {
   }
 
   // 1. 无 API Key 获取，走 OpenRouter 公开获取模型列表兜底机制
-  if (!apiKey) {
+  if (!apiKey || (baseURL && baseURL.includes('openrouter'))) {
     try {
-      const models = await fetchFromOpenRouterPublic(sdkProvider);
+      const models = await fetchFromOpenRouterPublic(sdkProvider, providerId);
       return NextResponse.json({ models });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Fetch public models failed";
@@ -201,7 +213,7 @@ export async function POST(req: NextRequest) {
     //    我们也可以降级用 OpenRouter 接口获取显示列表，
     //    这样即便刚才手滑填错，弹出的下拉框里仍能刷新出新模型体验极佳。
     try {
-      const fallbackModels = await fetchFromOpenRouterPublic(sdkProvider);
+      const fallbackModels = await fetchFromOpenRouterPublic(sdkProvider, providerId);
       return NextResponse.json({ models: fallbackModels });
     } catch {}
 

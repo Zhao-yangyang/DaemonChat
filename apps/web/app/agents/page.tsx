@@ -39,6 +39,7 @@ import {
   getDefaultModelForPreset,
   detectPresetFromConfig,
 } from "@daemon/domain";
+import type { LlmProviderPreset } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
@@ -83,9 +84,21 @@ export default function AgentsPage() {
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
+  const [dynamicProviders, setDynamicProviders] = useState<LlmProviderPreset[]>(LLM_PROVIDER_PRESETS);
   const [dynamicModels, setDynamicModels] = useState<Array<{id: string; name: string}>>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const { session, isResolved } = useSession();
+
+  useEffect(() => {
+    fetch("/api/providers")
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.providers)) {
+          setDynamicProviders(data.providers);
+        }
+      })
+      .catch(err => console.error("Failed to fetch dynamic providers", err));
+  }, []);
 
   // Fetch models dynamically when provider or API key changes
   useEffect(() => {
@@ -99,7 +112,7 @@ export default function AgentsPage() {
 
     // 默认情况：先立刻加载当前 Provider 的精选预设静态模型！
     // 保证即便获取失败，模型下拉依旧有内置可选项。
-    const preset = findProviderPreset(presetId);
+    const preset = dynamicProviders.find(p => p.id === presetId);
     if (!preset) return;
     const fallbackStaticModels = preset.models.map(m => ({ id: m.id, name: m.label }));
     setDynamicModels(fallbackStaticModels);
@@ -109,7 +122,7 @@ export default function AgentsPage() {
     fetch("/api/providers/models", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sdkProvider, apiKey, baseURL }),
+      body: JSON.stringify({ sdkProvider, apiKey, baseURL, providerId: presetId }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -295,7 +308,7 @@ export default function AgentsPage() {
 
     const lp = configForm.llmProvider;
     const hasProvider = lp.baseURL && lp.model && lp.apiKey;
-    const preset = findProviderPreset(lp.presetId);
+    const preset = dynamicProviders.find(p => p.id === lp.presetId);
 
     updateAgent.mutate({
       agentId: editingAgentId,
@@ -538,7 +551,7 @@ export default function AgentsPage() {
                             },
                           }));
                         } else {
-                          const preset = findProviderPreset(val);
+                          const preset = dynamicProviders.find((p) => p.id === val);
                           if (!preset) return;
                           setConfigForm((prev) => ({
                             ...prev,
@@ -557,7 +570,7 @@ export default function AgentsPage() {
                         <SelectValue placeholder="选择提供商..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {LLM_PROVIDER_PRESETS.map((p) => (
+                        {dynamicProviders.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
                               <ProviderIcon providerId={p.id} size={16} />
@@ -571,7 +584,7 @@ export default function AgentsPage() {
                   </div>
 
                   {configForm.llmProvider.presetId && configForm.llmProvider.presetId !== CUSTOM_PROVIDER_ID && (() => {
-                    const preset = findProviderPreset(configForm.llmProvider.presetId);
+                    const preset = dynamicProviders.find((p) => p.id === configForm.llmProvider.presetId);
                     return preset ? (
                       <div className="grid gap-1.5">
                         <Label className="text-xs">模型</Label>
