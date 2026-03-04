@@ -15,6 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@daemon/ui";
+import { ModelIcon } from "@lobehub/icons";
 
 interface ModelComboboxProps {
   value: string;
@@ -108,13 +109,16 @@ export function ModelCombobox({
                           value === m.id ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      <div className="flex flex-col">
-                        <span className="text-sm">{m.id}</span>
-                        {m.name !== m.id && (
-                          <span className="text-xs text-muted-foreground">
-                            {m.name}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ModelIcon model={m.id} size={20} />
+                        <div className="flex flex-col truncate">
+                          <span className="text-sm truncate">{m.id}</span>
+                          {m.name !== m.id && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {m.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </CommandItem>
                   ))}

@@ -1,27 +1,6 @@
 "use client";
 
-import {
-  OpenAI,
-  Anthropic,
-  Google,
-  DeepSeek,
-  Grok,
-  Mistral,
-  Moonshot,
-  OpenRouter,
-} from "@lobehub/icons";
-import { Bot } from "lucide-react";
-
-const PROVIDER_ICONS: Record<string, React.FC<{ size?: number }>> = {
-  openai: OpenAI,
-  anthropic: Anthropic,
-  google: Google,
-  deepseek: DeepSeek,
-  xai: Grok,
-  mistral: Mistral,
-  moonshot: Moonshot,
-  openrouter: OpenRouter,
-};
+import { ProviderIcon as LobeProviderIcon } from "@lobehub/icons";
 
 export function ProviderIcon({
   providerId,
@@ -30,7 +9,5 @@ export function ProviderIcon({
   providerId: string;
   size?: number;
 }) {
-  const Icon = PROVIDER_ICONS[providerId];
-  if (!Icon) return <Bot size={size} />;
-  return <Icon size={size} />;
+  return <LobeProviderIcon provider={providerId as any} size={size} type="color" />;
 }
