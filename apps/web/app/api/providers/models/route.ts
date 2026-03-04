@@ -40,7 +40,17 @@ async function fetchFromOpenRouterPublic(sdkProvider: string, providerId?: strin
   let filterPrefix = "";
   if (providerId && providerId !== "openrouter" && providerId !== "__custom__") {
     // Some reverse mapping for the raw OpenRouter IDs
-    const rawId = providerId === "mistral" ? "mistralai" : providerId === "xai" ? "x-ai" : providerId === "moonshot" ? "moonshotai" : providerId;
+    const reverseMapping: Record<string, string> = {
+      "mistral": "mistralai",
+      "xai": "x-ai",
+      "moonshot": "moonshotai",
+      "meta": "meta-llama",
+      "ibm": "ibm-granite",
+      "aws": "amazon",
+      "bytedance": "bytedance-seed",
+      "zeroone": "01-ai",
+    };
+    const rawId = reverseMapping[providerId] || providerId;
     filterPrefix = `${rawId}/`;
   } else if (sdkProvider === "openai") {
     filterPrefix = "openai/";

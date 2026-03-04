@@ -571,6 +571,7 @@ export default function AgentsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {dynamicProviders.map((p) => (
+                          console.log(p.label, p.id, p),
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
                               <ProviderIcon providerId={p.id} size={16} />

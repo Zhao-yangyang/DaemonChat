@@ -25,8 +25,19 @@ export async function GET() {
       }
     });
 
+    const providerMapping: Record<string, string> = {
+      "mistralai": "mistral",
+      "x-ai": "xai",
+      "moonshotai": "moonshot",
+      "meta-llama": "meta",
+      "ibm-granite": "ibm",
+      "amazon": "aws",
+      "bytedance-seed": "bytedance",
+      "01-ai": "zeroone",
+    };
+
     orProviders.forEach((label, rawId) => {
-      const mappedId = rawId === "mistralai" ? "mistral" : rawId === "x-ai" ? "xai" : rawId === "moonshotai" ? "moonshot" : rawId;
+      const mappedId = providerMapping[rawId] || rawId;
       
       if (!existingIds.has(mappedId)) {
         basePresets.push({
