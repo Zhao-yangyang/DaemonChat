@@ -74,7 +74,7 @@ describe("adapter fallback routing", () => {
         embeddingModel: "embed-model",
       },
       {
-        streamTextImpl: async () => {
+        streamTextImpl: () => {
           calls += 1;
           if (calls === 1) {
             throw new Error("primary stream failed");
@@ -118,7 +118,7 @@ describe("adapter fallback routing", () => {
         embeddingModel: "embed-model",
       },
       {
-        streamTextImpl: async () => ({
+        streamTextImpl: () => ({
           textStream: (async function* () {
             yield "ok";
           })(),
@@ -154,7 +154,7 @@ describe("adapter fallback routing", () => {
         embeddingModel: "embed-model",
       },
       {
-        streamTextImpl: async () => ({
+        streamTextImpl: () => ({
           textStream: (async function* () {})(),
           text: Promise.resolve("final text"),
         }),

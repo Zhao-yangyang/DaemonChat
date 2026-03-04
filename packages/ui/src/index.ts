@@ -83,4 +83,14 @@ export {
   TabsTrigger,
   TabsContent,
 } from "./components/ui/tabs";
+export { Popover, PopoverTrigger, PopoverContent } from "./components/ui/popover";
+export {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+} from "./components/ui/command";
 export { cn } from "./lib/utils";

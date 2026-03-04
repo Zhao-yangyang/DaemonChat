@@ -13,26 +13,12 @@ export interface LlmProviderPreset {
   label: string;
   baseURL: string;
   models: LlmModelPreset[];
-  compatibility: "strict" | "compatible";
   apiKeyPlaceholder?: string;
   apiKeyHelpUrl?: string;
-  sdkProvider?: "openai" | "anthropic";
+  sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
 }
 
 export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
-  {
-    id: "deepseek",
-    label: "DeepSeek",
-    baseURL: "https://api.deepseek.com",
-    models: [
-      { id: "deepseek-chat", label: "DeepSeek Chat (V3)", isDefault: true },
-      { id: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" },
-    ],
-    compatibility: "compatible",
-    apiKeyPlaceholder: "sk-...",
-    apiKeyHelpUrl: "https://platform.deepseek.com/api_keys",
-    sdkProvider: "openai",
-  },
   {
     id: "openai",
     label: "OpenAI",
@@ -42,9 +28,11 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
       { id: "gpt-4o-mini", label: "GPT-4o Mini" },
       { id: "gpt-4.1", label: "GPT-4.1" },
       { id: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
-      { id: "o3-mini", label: "o3-mini" },
+      { id: "gpt-4.1-nano", label: "GPT-4.1 Nano" },
+      { id: "o3", label: "o3" },
+      { id: "o3-mini", label: "o3 Mini" },
+      { id: "o4-mini", label: "o4 Mini" },
     ],
-    compatibility: "strict",
     apiKeyPlaceholder: "sk-...",
     apiKeyHelpUrl: "https://platform.openai.com/api-keys",
     sdkProvider: "openai",
@@ -58,7 +46,6 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
       { id: "claude-opus-4-20250514", label: "Claude Opus 4" },
       { id: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" },
     ],
-    compatibility: "strict",
     apiKeyPlaceholder: "sk-ant-...",
     apiKeyHelpUrl: "https://console.anthropic.com/settings/keys",
     sdkProvider: "anthropic",
@@ -66,15 +53,52 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
   {
     id: "google",
     label: "Google AI Studio",
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta",
     models: [
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", isDefault: true },
-      { id: "gemini-2.5-pro-preview-06-05", label: "Gemini 2.5 Pro" },
+      { id: "gemini-2.5-flash-preview-04-17", label: "Gemini 2.5 Flash", isDefault: true },
+      { id: "gemini-2.5-pro-preview-05-06", label: "Gemini 2.5 Pro" },
+      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
     ],
-    compatibility: "compatible",
     apiKeyPlaceholder: "AIza...",
     apiKeyHelpUrl: "https://aistudio.google.com/apikey",
-    sdkProvider: "openai",
+    sdkProvider: "google",
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseURL: "https://api.deepseek.com",
+    models: [
+      { id: "deepseek-chat", label: "DeepSeek Chat (V3)", isDefault: true },
+      { id: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" },
+    ],
+    apiKeyPlaceholder: "sk-...",
+    apiKeyHelpUrl: "https://platform.deepseek.com/api_keys",
+    sdkProvider: "deepseek",
+  },
+  {
+    id: "xai",
+    label: "xAI (Grok)",
+    baseURL: "https://api.x.ai",
+    models: [
+      { id: "grok-3", label: "Grok 3", isDefault: true },
+      { id: "grok-3-mini", label: "Grok 3 Mini" },
+    ],
+    apiKeyPlaceholder: "xai-...",
+    apiKeyHelpUrl: "https://console.x.ai",
+    sdkProvider: "xai",
+  },
+  {
+    id: "mistral",
+    label: "Mistral AI",
+    baseURL: "https://api.mistral.ai",
+    models: [
+      { id: "mistral-large-latest", label: "Mistral Large", isDefault: true },
+      { id: "mistral-small-latest", label: "Mistral Small" },
+      { id: "codestral-latest", label: "Codestral" },
+    ],
+    apiKeyPlaceholder: "...",
+    apiKeyHelpUrl: "https://console.mistral.ai/api-keys",
+    sdkProvider: "mistral",
   },
   {
     id: "moonshot",
@@ -86,7 +110,6 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
       { id: "moonshot-v1-32k", label: "Moonshot v1 32K" },
       { id: "moonshot-v1-128k", label: "Moonshot v1 128K" },
     ],
-    compatibility: "compatible",
     apiKeyPlaceholder: "sk-...",
     sdkProvider: "openai",
   },
@@ -100,7 +123,6 @@ export const LLM_PROVIDER_PRESETS: LlmProviderPreset[] = [
       { id: "google/gemini-2.0-flash-001", label: "Gemini 2.0 Flash (via OpenRouter)" },
       { id: "deepseek/deepseek-chat", label: "DeepSeek Chat (via OpenRouter)" },
     ],
-    compatibility: "compatible",
     apiKeyPlaceholder: "sk-or-...",
     apiKeyHelpUrl: "https://openrouter.ai/keys",
     sdkProvider: "openai",

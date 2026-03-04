@@ -7,9 +7,8 @@ export interface LlmProviderConfig {
   model: string;
   embeddingModel?: string;
   providerName?: string;
-  compatibility?: "strict" | "compatible";
   presetId?: string;
-  sdkProvider?: "openai" | "anthropic";
+  sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
 }
 
 export interface AgentConfig {

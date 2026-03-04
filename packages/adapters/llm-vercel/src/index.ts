@@ -1,5 +1,9 @@
-import { createOpenAI, openai } from "@ai-sdk/openai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createXai } from "@ai-sdk/xai";
+import { createMistral } from "@ai-sdk/mistral";
 import { streamText, generateText, embed } from "ai";
 import type { ChatMessageContent, LlmModelSelection, LlmPort, LlmProviderConfig } from "@daemon/domain";
 
@@ -10,16 +14,15 @@ export interface VercelLlmConfig {
   apiKey?: string;
   baseURL?: string;
   providerName?: string;
-  compatibility?: "strict" | "compatible";
   embeddingMode?: "remote" | "local";
   embeddingDimensions?: number;
   allowLocalEmbeddingFallback?: boolean;
-  sdkProvider?: "openai" | "anthropic";
+  sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
   temperature?: number;
 }
 
 interface VercelLlmRuntimeDeps {
-  streamTextImpl?: (input: any) => Promise<any>;
+  streamTextImpl?: (input: any) => any;
   generateTextImpl?: (input: any) => Promise<any>;
   embedImpl?: (input: any) => Promise<any>;
 }
@@ -105,6 +108,40 @@ const toSdkMessages = (
   messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>
 ): any[] => messages.map((m) => ({ role: m.role, content: toSdkContent(m.content) }));
 
+function createProviderFromConfig(config: VercelLlmConfig) {
+  const opts = {
+    apiKey: config.apiKey,
+    ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+  };
+  switch (config.sdkProvider) {
+    case "anthropic":
+      return createAnthropic(opts);
+    case "google":
+      return createGoogleGenerativeAI(opts);
+    case "deepseek":
+      return createDeepSeek(opts);
+    case "xai":
+      return createXai(opts);
+    case "mistral":
+      return createMistral(opts);
+    case "openai":
+    default:
+      return createOpenAI({
+        ...opts,
+        ...(config.providerName ? { name: config.providerName } : {}),
+      });
+  }
+}
+
+function createChatModel(provider: any, modelId: string, sdkProvider?: string): any {
+  // For OpenAI and OpenAI-compatible providers, explicitly use .chat()
+  // to avoid the v5+ default Responses API behavior
+  if (!sdkProvider || sdkProvider === "openai") {
+    return provider.chat(modelId);
+  }
+  return provider(modelId);
+}
+
 export function createVercelLlmAdapter(
   config: VercelLlmConfig,
   deps: VercelLlmRuntimeDeps = {}
@@ -112,35 +149,23 @@ export function createVercelLlmAdapter(
   const streamTextImpl = deps.streamTextImpl ?? streamText;
   const generateTextImpl = deps.generateTextImpl ?? generateText;
   const embedImpl = deps.embedImpl ?? embed;
-  const provider =
-    config.sdkProvider === "anthropic"
-      ? createAnthropic({
-          apiKey: config.apiKey,
-          ...(config.baseURL ? { baseURL: config.baseURL } : {}),
-        })
-      : config.baseURL || config.apiKey || config.providerName || config.compatibility
-        ? createOpenAI({
-            baseURL: config.baseURL,
-            apiKey: config.apiKey,
-            name: config.providerName,
-            compatibility: config.compatibility ?? "compatible",
-          })
-        : openai;
+  const provider = createProviderFromConfig(config);
 
-  const chatModel: any = (provider as any)(config.model);
+  const chatModel: any = createChatModel(provider, config.model, config.sdkProvider);
   const fallbackChatModel: any = config.fallbackModel
-    ? (provider as any)(config.fallbackModel)
+    ? createChatModel(provider, config.fallbackModel, config.sdkProvider)
     : null;
   const embeddingDimensions = toPositiveInt(config.embeddingDimensions, 1536);
 
   const resolveModel = (override?: string): { model: any; name: string } => {
     if (override && override !== config.model) {
-      return { model: (provider as any)(override), name: override };
+      return { model: createChatModel(provider, override, config.sdkProvider), name: override };
     }
     return { model: chatModel, name: config.model };
   };
 
   const resolveRemoteEmbedding = () =>
+    (provider as any).textEmbeddingModel?.(config.embeddingModel) ??
     (provider as any).embedding?.(config.embeddingModel) ??
     (provider as any)(config.embeddingModel);
 
@@ -157,7 +182,7 @@ export function createVercelLlmAdapter(
 
       let yielded = false;
       try {
-        const primaryResult: any = await streamTextImpl({
+        const primaryResult: any = streamTextImpl({
           model: primary.model,
           messages: sdkMessages,
           abortSignal,
@@ -189,7 +214,7 @@ export function createVercelLlmAdapter(
         }
       }
 
-      const fallbackResult: any = await streamTextImpl({
+      const fallbackResult: any = streamTextImpl({
         model: fallbackChatModel,
         messages: sdkMessages,
         abortSignal,
@@ -283,7 +308,6 @@ export function createLlmFromAgentConfig(
     apiKey: provider.apiKey,
     baseURL: provider.baseURL,
     providerName: provider.providerName,
-    compatibility: provider.compatibility ?? "compatible",
     sdkProvider: provider.sdkProvider ?? "openai",
     temperature: opts?.temperature,
     embeddingMode: opts?.embeddingMode ?? "local",

@@ -212,8 +212,7 @@ export const appRouter = t.router({
             baseURL: z.string(),
             apiKey: z.string(),
             presetId: z.string().optional(),
-            sdkProvider: z.enum(["openai", "anthropic"]).optional(),
-            compatibility: z.enum(["strict", "compatible"]).optional(),
+            sdkProvider: z.enum(["openai", "anthropic", "google", "deepseek", "xai", "mistral"]).optional(),
           }).optional(),
         }).optional(),
       }))
