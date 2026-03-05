@@ -39,9 +39,11 @@ export const EMPTY_LLM_PROVIDER_STATE: LlmProviderFormState = {
 interface LlmProviderSectionProps {
   value: LlmProviderFormState;
   onChange: (value: LlmProviderFormState) => void;
+  /** 覆盖 API Key 输入框的 placeholder，用于「已配置」等提示 */
+  apiKeyPlaceholder?: string;
 }
 
-export function LlmProviderSection({ value, onChange }: LlmProviderSectionProps) {
+export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmProviderSectionProps) {
   const [dynamicProviders, setDynamicProviders] = useState<LlmProviderPreset[]>(LLM_PROVIDER_PRESETS);
   const [dynamicModels, setDynamicModels] = useState<Array<{ id: string; name: string }>>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -127,7 +129,8 @@ export function LlmProviderSection({ value, onChange }: LlmProviderSectionProps)
     : null;
 
   const apiKeyHelpUrl = findProviderPreset(value.presetId)?.apiKeyHelpUrl;
-  const apiKeyPlaceholder = findProviderPreset(value.presetId)?.apiKeyPlaceholder ?? "sk-...";
+  const resolvedApiKeyPlaceholder =
+    apiKeyPlaceholder ?? findProviderPreset(value.presetId)?.apiKeyPlaceholder ?? "sk-...";
 
   return (
     <div className="grid gap-1.5 rounded-md border p-4 bg-muted/20">
@@ -203,7 +206,7 @@ export function LlmProviderSection({ value, onChange }: LlmProviderSectionProps)
               type="password"
               value={value.apiKey}
               onChange={(e) => onChange({ ...value, apiKey: e.target.value })}
-              placeholder={apiKeyPlaceholder}
+              placeholder={resolvedApiKeyPlaceholder}
             />
             {apiKeyHelpUrl && (
               <a href={apiKeyHelpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">

@@ -2,6 +2,9 @@
 // LLM Provider / Model Preset Registry
 // ---------------------------------------------------------------------------
 
+/** API Key 掩码占位符：后端返回此值时表示已配置但不可回显，前端应显示空输入 + 占位提示；保存时传此值表示保留原有 key */
+export const API_KEY_REDACTED = "__REDACTED__" as const;
+
 export interface LlmModelPreset {
   id: string;
   label: string;

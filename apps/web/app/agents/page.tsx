@@ -27,7 +27,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@daemon/ui";
-import { detectPresetFromConfig, CUSTOM_PROVIDER_ID } from "@daemon/domain";
+import { API_KEY_REDACTED, detectPresetFromConfig, CUSTOM_PROVIDER_ID } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
@@ -54,6 +54,8 @@ type AgentConfigForm = {
   recentMessages: string;
   temperature: string;
   llmProvider: LlmProviderFormState;
+  /** 打开对话框时 API Key 已配置（后端返回 REDACTED），保存时空字符串应发回 REDACTED 以保留 */
+  apiKeyConfigured: boolean;
 };
 
 const EMPTY_CONFIG_FORM: AgentConfigForm = {
@@ -62,6 +64,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
   recentMessages: "20",
   temperature: "0.7",
   llmProvider: EMPTY_LLM_PROVIDER_STATE,
+  apiKeyConfigured: false,
 };
 
 export default function AgentsPage() {
@@ -182,6 +185,9 @@ export default function AgentsPage() {
       model: agent.config.llmProvider?.model,
     });
 
+    const rawApiKey = agent.config.llmProvider?.apiKey ?? "";
+    const isRedacted = rawApiKey === API_KEY_REDACTED;
+
     setConfigForm({
       systemPrompt: agent.config.systemPrompt ?? "",
       memoryTopK: String(agent.config.memoryTopK ?? 8),
@@ -193,9 +199,10 @@ export default function AgentsPage() {
           ?? (agent.config.llmProvider?.baseURL ? CUSTOM_PROVIDER_ID : ""),
         model: agent.config.llmProvider?.model ?? "",
         baseURL: agent.config.llmProvider?.baseURL ?? "",
-        apiKey: agent.config.llmProvider?.apiKey ?? "",
+        apiKey: isRedacted ? "" : rawApiKey,
         sdkProvider: agent.config.llmProvider?.sdkProvider ?? "openai",
       },
+      apiKeyConfigured: isRedacted,
     });
     setConfigFormError(null);
     updateAgent.reset();
@@ -223,7 +230,9 @@ export default function AgentsPage() {
     }
 
     const lp = configForm.llmProvider;
-    const hasProvider = lp.baseURL && lp.model && lp.apiKey;
+    const apiKeyToSend =
+      lp.apiKey || (configForm.apiKeyConfigured ? API_KEY_REDACTED : "");
+    const hasProvider = lp.baseURL && lp.model && (lp.apiKey || configForm.apiKeyConfigured);
 
     updateAgent.mutate({
       agentId: editingAgentId,
@@ -237,7 +246,7 @@ export default function AgentsPage() {
               llmProvider: {
                 baseURL: lp.baseURL,
                 model: lp.model.trim(),
-                apiKey: lp.apiKey,
+                apiKey: apiKeyToSend,
                 presetId: lp.presetId || undefined,
                 sdkProvider: lp.sdkProvider,
               },
@@ -448,6 +457,9 @@ export default function AgentsPage() {
               <LlmProviderSection
                 value={configForm.llmProvider}
                 onChange={(lp) => setConfigForm((prev) => ({ ...prev, llmProvider: lp }))}
+                apiKeyPlaceholder={
+                  configForm.apiKeyConfigured ? "已配置（留空保留，输入则覆盖）" : undefined
+                }
               />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

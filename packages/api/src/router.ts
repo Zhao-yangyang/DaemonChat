@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { API_KEY_REDACTED, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 import { resolveModelPricingFromEnv } from "./pricing";
 import {
   buildDegradedBudget,
@@ -182,7 +182,7 @@ export const appRouter = t.router({
         const agents = await withInfrastructureErrorMapping(() => ctx.container.agent.listAgents(user.id, input ? { workspaceId: input.workspaceId } : undefined));
         return agents.map(agent => {
           if (agent.config?.llmProvider?.apiKey) {
-            agent.config.llmProvider.apiKey = "sk-****";
+            agent.config.llmProvider.apiKey = API_KEY_REDACTED;
           }
           return agent;
         });
@@ -193,7 +193,7 @@ export const appRouter = t.router({
         const user = requireUser(ctx);
         const agent = await withInfrastructureErrorMapping(() => ctx.container.agent.getAgent(input.agentId, user.id));
         if (agent.config?.llmProvider?.apiKey) {
-          agent.config.llmProvider.apiKey = "sk-****";
+          agent.config.llmProvider.apiKey = API_KEY_REDACTED;
         }
         return agent;
       }),
@@ -218,7 +218,7 @@ export const appRouter = t.router({
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
         
-        if (input.config?.llmProvider?.apiKey === "sk-****") {
+        if (input.config?.llmProvider?.apiKey === API_KEY_REDACTED) {
           const existing = await ctx.container.agent.getAgent(input.agentId, user.id);
           input.config.llmProvider.apiKey = existing.config?.llmProvider?.apiKey ?? "";
         }
