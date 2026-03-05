@@ -360,7 +360,7 @@ export default function AgentsPage() {
                             providerId={
                               agent.config.llmProvider?.presetId && agent.config.llmProvider.presetId !== "__custom__"
                                 ? agent.config.llmProvider.presetId
-                                : agent.config.llmProvider?.sdkProvider ?? "openai"
+                                : agent.config.llmProvider?.sdkProvider ?? ""
                             }
                             size={14}
                           />
