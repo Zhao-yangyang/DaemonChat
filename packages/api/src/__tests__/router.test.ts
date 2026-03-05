@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
-import { DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, type Services } from "@daemon/domain";
+import { API_KEY_REDACTED, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, type Services } from "@daemon/domain";
 import type { ApiContext } from "../context";
 import { appRouter } from "../router";
 import { chatRateLimiter } from "../rateLimit";
@@ -132,9 +132,11 @@ const buildContainer = (overrides?: {
 const buildContext = (input?: {
   user?: ApiContext["user"];
   container?: Services;
+  supabase?: ApiContext["supabase"];
 }): ApiContext => ({
   user: input && "user" in input ? (input.user ?? null) : { id: "user-1" },
   container: input?.container ?? buildContainer(),
+  supabase: input?.supabase,
 });
 
 const requireUsageInput = (
@@ -948,5 +950,203 @@ describe("api router", () => {
     expect(captured).toBeTruthy();
     expect(captured.agentId).toBe("agent-1");
     expect(captured.memoryId).toBe("memory-1");
+  });
+
+  describe("template", () => {
+    test("template.list redacts apiKey from config before returning", async () => {
+      const mockTemplates = [
+        {
+          id: "tpl-1",
+          author_user_id: "user-1",
+          name: "Test",
+          description: "",
+          config: {
+            llmProvider: { apiKey: "sk-secret", model: "gpt-4", baseURL: "https://api.openai.com" },
+          },
+          is_public: true,
+          clone_count: 0,
+          created_at: "2026-03-05T00:00:00.000Z",
+        },
+      ];
+      const mockFrom = (table: string) => {
+        if (table === "agent_template_tags" || table === "template_ratings") {
+          return {
+            select: () => ({
+              in: () => Promise.resolve({ data: [], error: null }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            order: () => ({
+              limit: () => ({
+                or: () => Promise.resolve({ data: mockTemplates, error: null }),
+                eq: () => Promise.resolve({ data: mockTemplates, error: null }),
+              }),
+            }),
+          }),
+        };
+      };
+      const mockSupabase = { from: mockFrom };
+      const caller = appRouter.createCaller(
+        buildContext({ user: { id: "user-1" }, supabase: mockSupabase as ApiContext["supabase"] })
+      );
+
+      const result = await caller.template.list({ onlyMine: false, limit: 20 });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].config?.llmProvider).toBeDefined();
+      expect((result[0].config?.llmProvider as Record<string, unknown>)?.apiKey).toBe(API_KEY_REDACTED);
+    });
+
+    test("template.publish strips apiKey from config before inserting", async () => {
+      let insertedConfig: Record<string, unknown> | null = null;
+      const mockSupabase = {
+        from: () => ({
+          select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
+          insert: (row: { config?: Record<string, unknown> }) => {
+            insertedConfig = row.config ?? null;
+            return { select: () => ({ single: () => Promise.resolve({ data: { id: "tpl-new" }, error: null }) }) };
+          },
+          update: () => ({ eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }) }) }),
+        }),
+      };
+      const caller = appRouter.createCaller(
+        buildContext({
+          user: { id: "user-1" },
+          container: buildContainer({
+            getAgent: async () => ({
+              id: "agent-1",
+              ownerUserId: "user-1",
+              name: "My Agent",
+              config: {
+                ...DEFAULT_AGENT_CONFIG,
+                llmProvider: { apiKey: "sk-leak", model: "gpt-4", baseURL: "https://api.openai.com" },
+              },
+              createdAt: "",
+              updatedAt: "",
+            }),
+          }),
+          supabase: mockSupabase as ApiContext["supabase"],
+        })
+      );
+
+      await caller.template.publish({ agentId: "agent-1", description: "", isPublic: true });
+
+      expect(insertedConfig).toBeTruthy();
+      const lp = (insertedConfig as unknown as Record<string, unknown>)?.llmProvider as
+        | Record<string, unknown>
+        | undefined;
+      expect(lp?.apiKey).toBeUndefined();
+    });
+
+    test("template.publish upserts when template exists for same agent", async () => {
+      let updateCalled = false;
+      let insertCalled = false;
+      const mockSupabase = {
+        from: () => ({
+          select: () => ({
+            eq: (col: string, val: string) => ({
+              eq: (_col2: string, _val2: string) => ({
+                maybeSingle: () =>
+                  Promise.resolve({
+                    data: col === "author_user_id" ? { id: "tpl-existing", clone_count: 5 } : null,
+                    error: null,
+                  }),
+              }),
+            }),
+          }),
+          insert: () => {
+            insertCalled = true;
+            return { select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }) };
+          },
+          update: () => ({
+            eq: () => ({
+              select: () => ({
+                single: () => {
+                  updateCalled = true;
+                  return Promise.resolve({ data: { id: "tpl-existing" }, error: null });
+                },
+              }),
+            }),
+          }),
+        }),
+      };
+      const caller = appRouter.createCaller(
+        buildContext({
+          user: { id: "user-1" },
+          container: buildContainer({
+            getAgent: async () => ({
+              id: "agent-1",
+              ownerUserId: "user-1",
+              name: "My Agent",
+              config: { ...DEFAULT_AGENT_CONFIG },
+              createdAt: "",
+              updatedAt: "",
+            }),
+          }),
+          supabase: mockSupabase as ApiContext["supabase"],
+        })
+      );
+
+      await caller.template.publish({ agentId: "agent-1" });
+
+      expect(updateCalled).toBe(true);
+      expect(insertCalled).toBe(false);
+    });
+
+    test("template.clone uses llmProviderOverrides when provided", async () => {
+      let createAgentConfig: Record<string, unknown> | null = null;
+      const createAgentOverride = async (
+        _ownerUserId: string,
+        name: string,
+        config?: Partial<import("@daemon/domain").AgentConfig>
+      ) => {
+        createAgentConfig = (config ?? null) as Record<string, unknown> | null;
+        return {
+          id: "agent-new",
+          ownerUserId: "user-1",
+          name,
+          config: { ...DEFAULT_AGENT_CONFIG, ...config },
+          createdAt: "",
+          updatedAt: "",
+        };
+      };
+      const cloneMockData = {
+        id: "tpl-1",
+        name: "Template",
+        config: { llmProvider: { apiKey: "old-key", model: "gpt-4", baseURL: "https://api.openai.com" } },
+        clone_count: 0,
+        is_public: true,
+        author_user_id: "user-1",
+      };
+      const mockFrom = () => ({
+        select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: cloneMockData, error: null }) }) }),
+        update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+      });
+      const mockSupabase = { from: mockFrom };
+      const ctx = buildContext({
+        user: { id: "user-1" },
+        container: buildContainer({ createAgent: createAgentOverride }),
+        supabase: mockSupabase as ApiContext["supabase"],
+      });
+      const caller = appRouter.createCaller(ctx);
+
+      await caller.template.clone({
+        templateId: "tpl-1",
+        agentName: "My Copy",
+        llmProviderOverrides: {
+          model: "gpt-4o",
+          baseURL: "https://api.openai.com",
+          apiKey: "sk-my-key",
+          sdkProvider: "openai",
+        },
+      });
+
+      expect(createAgentConfig).toBeTruthy();
+      const lp = (createAgentConfig as unknown as Record<string, unknown>)?.llmProvider as Record<string, unknown>;
+      expect(lp?.apiKey).toBe("sk-my-key");
+      expect(lp?.model).toBe("gpt-4o");
+    });
   });
 });

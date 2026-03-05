@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trpc } from "@daemon/hooks";
 import {
   Alert,
@@ -68,11 +69,17 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
 };
 
 export default function AgentsPage() {
-  const [name, setName] = useState("");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<AgentConfigForm & { name: string }>({
+    ...EMPTY_CONFIG_FORM,
+    name: "",
+  });
+  const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
+  const router = useRouter();
   const { session, isResolved } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
@@ -81,10 +88,28 @@ export default function AgentsPage() {
     refetchOnWindowFocus: false,
   });
 
+  const myTemplates = trpc.template.list.useQuery(
+    { onlyMine: true, limit: 100 },
+    { enabled: Boolean(session), retry: false, refetchOnWindowFocus: false }
+  );
+  const publishedAgentIds = useMemo(
+    () =>
+      new Set(
+        (myTemplates.data ?? [])
+          .map((t) => t.source_agent_id as string | undefined)
+          .filter((id): id is string => Boolean(id))
+      ),
+    [myTemplates.data]
+  );
+
   const createAgent = trpc.agent.create.useMutation({
-    onSuccess: () => {
-      setName("");
+    onSuccess: (agent) => {
+      setCreateDialogOpen(false);
+      setCreateForm({ ...EMPTY_CONFIG_FORM, name: "" });
+      setCreateFormError(null);
+      createAgent.reset();
       agents.refetch();
+      router.push(`/chat/${agent.id}`);
     },
   });
   const updateAgent = trpc.agent.update.useMutation({
@@ -109,6 +134,7 @@ export default function AgentsPage() {
     onSuccess: () => {
       setPublishAgentId(null);
       setPublishDesc("");
+      myTemplates.refetch();
     },
   });
 
@@ -151,6 +177,12 @@ export default function AgentsPage() {
     [agents.data, deletingAgentId]
   );
 
+  const closeCreateDialog = () => {
+    setCreateDialogOpen(false);
+    setCreateForm({ ...EMPTY_CONFIG_FORM, name: "" });
+    setCreateFormError(null);
+    createAgent.reset();
+  };
   const closeConfigDialog = () => {
     setEditingAgentId(null);
     setConfigForm(EMPTY_CONFIG_FORM);
@@ -256,6 +288,56 @@ export default function AgentsPage() {
     });
   };
 
+  const doCreateAgent = () => {
+    setCreateFormError(null);
+    const trimmedName = createForm.name.trim();
+    if (!trimmedName) {
+      setCreateFormError("请输入 Agent 名称。");
+      return;
+    }
+
+    const memoryTopK = Number(createForm.memoryTopK);
+    const recentMessages = Number(createForm.recentMessages);
+    const temperature = Number(createForm.temperature);
+
+    if (!Number.isInteger(memoryTopK) || memoryTopK < 1 || memoryTopK > 50) {
+      setCreateFormError("Memory TopK 需为 1-50 的整数。");
+      return;
+    }
+    if (!Number.isInteger(recentMessages) || recentMessages < 1 || recentMessages > 100) {
+      setCreateFormError("Recent Messages 需为 1-100 的整数。");
+      return;
+    }
+    if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
+      setCreateFormError("Temperature 需为 0-2 的数字。");
+      return;
+    }
+
+    const lp = createForm.llmProvider;
+    const hasProvider = lp.baseURL && lp.model && (lp.apiKey || createForm.apiKeyConfigured);
+
+    createAgent.mutate({
+      name: trimmedName,
+      config: {
+        ...(createForm.systemPrompt.trim() && { systemPrompt: createForm.systemPrompt.trim() }),
+        memoryTopK,
+        recentMessages,
+        temperature,
+        ...(hasProvider
+          ? {
+              llmProvider: {
+                baseURL: lp.baseURL,
+                model: lp.model.trim(),
+                apiKey: lp.apiKey || (createForm.apiKeyConfigured ? API_KEY_REDACTED : ""),
+                presetId: lp.presetId || undefined,
+                sdkProvider: lp.sdkProvider,
+              },
+            }
+          : {}),
+      },
+    });
+  };
+
   if (!isResolved) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -292,6 +374,9 @@ export default function AgentsPage() {
       description="管理你的长期助手实例。"
       actions={
         <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+            新建 Agent
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/templates">模板市场</Link>
           </Button>
@@ -302,37 +387,6 @@ export default function AgentsPage() {
       }
     >
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">新建 Agent</CardTitle>
-            <CardDescription>为不同任务创建独立助手实例。</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="agent-name">Agent 名称</Label>
-              <Input
-                id="agent-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="例如：Personal Ops Copilot"
-              />
-            </div>
-            <Button
-              onClick={() => createAgent.mutate({ name: name.trim() })}
-              disabled={!name.trim() || createAgent.isPending}
-            >
-              {createAgent.isPending ? "创建中..." : "创建"}
-            </Button>
-          </CardContent>
-          {createErrorMessage ? (
-            <CardContent className="pt-0">
-              <Alert variant="destructive">
-                <AlertDescription>创建失败：{createErrorMessage}</AlertDescription>
-              </Alert>
-            </CardContent>
-          ) : null}
-        </Card>
-
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">Agent 列表</span>
@@ -362,9 +416,12 @@ export default function AgentsPage() {
                 <Card key={agent.id} className="transition-shadow hover:shadow-md">
                   <CardContent className="flex items-center justify-between gap-4 py-4">
                     <div className="min-w-0">
-                      <p className="font-medium flex items-center gap-2">
+                      <p className="font-medium flex items-center gap-2 flex-wrap">
                         {agent.name}
-                        <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50">
+                        {publishedAgentIds.has(agent.id) ? (
+                          <Badge variant="secondary" className="text-xs">已发布</Badge>
+                        ) : null}
+                        <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50">
                           <ProviderIcon
                             providerId={
                               agent.config.llmProvider?.presetId && agent.config.llmProvider.presetId !== "__custom__"
@@ -418,7 +475,7 @@ export default function AgentsPage() {
                           publishTemplate.reset();
                         }}
                       >
-                        发布
+                        {publishedAgentIds.has(agent.id) ? "更新发布" : "发布"}
                       </Button>
                     </div>
                   </CardContent>
@@ -426,11 +483,111 @@ export default function AgentsPage() {
               ))}
 
           {!agents.isLoading && !listErrorMessage && (agents.data?.length ?? 0) === 0 ? (
-            <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              还没有 Agent，先创建第一个并进入聊天。
+            <div className="rounded-xl border border-dashed p-8 text-center">
+              <p className="text-sm text-muted-foreground mb-4">还没有 Agent，创建第一个即可开始聊天。</p>
+              <Button onClick={() => setCreateDialogOpen(true)}>新建 Agent</Button>
             </div>
           ) : null}
         </div>
+
+        {/* Create Agent Dialog */}
+        <Dialog open={createDialogOpen} onOpenChange={(open) => (!open ? closeCreateDialog() : undefined)}>
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>新建 Agent</DialogTitle>
+              <DialogDescription>
+                填写名称与 LLM 配置，一步完成创建，创建后可立即进入聊天。
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor="create-agent-name">Agent 名称</Label>
+                <Input
+                  id="create-agent-name"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="例如：Personal Ops Copilot"
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label htmlFor="create-agent-system-prompt">System Prompt</Label>
+                <Textarea
+                  id="create-agent-system-prompt"
+                  rows={4}
+                  value={createForm.systemPrompt}
+                  onChange={(e) => setCreateForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                  placeholder="定义助手的角色、原则与风格，留空则使用默认长期助手设定。"
+                />
+              </div>
+
+              <LlmProviderSection
+                value={createForm.llmProvider}
+                onChange={(lp) => setCreateForm((prev) => ({ ...prev, llmProvider: lp }))}
+              />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="create-agent-memory-topk">Memory TopK</Label>
+                  <Input
+                    id="create-agent-memory-topk"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={createForm.memoryTopK}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, memoryTopK: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="create-agent-recent-messages">Recent Messages</Label>
+                  <Input
+                    id="create-agent-recent-messages"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={createForm.recentMessages}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, recentMessages: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="create-agent-temperature">Temperature</Label>
+                  <Input
+                    id="create-agent-temperature"
+                    type="number"
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={createForm.temperature}
+                    onChange={(e) => setCreateForm((prev) => ({ ...prev, temperature: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {createFormError ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{createFormError}</AlertDescription>
+                </Alert>
+              ) : null}
+              {createErrorMessage ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{createErrorMessage}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeCreateDialog} disabled={createAgent.isPending}>
+                取消
+              </Button>
+              <Button onClick={doCreateAgent} disabled={createAgent.isPending}>
+                {createAgent.isPending ? "创建中..." : "创建并进入聊天"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Agent Config Dialog */}
         <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
@@ -450,7 +607,7 @@ export default function AgentsPage() {
                   rows={4}
                   value={configForm.systemPrompt}
                   onChange={(e) => setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
-                  placeholder="You are a helpful AI assistant."
+                  placeholder="定义助手的角色、原则与风格，留空则使用默认长期助手设定。"
                 />
               </div>
 
@@ -570,8 +727,12 @@ export default function AgentsPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>发布为模板</DialogTitle>
-              <DialogDescription>将当前 Agent 的配置发布到模板市场，其他用户可以一键克隆使用。</DialogDescription>
+              <DialogTitle>{publishAgentId && publishedAgentIds.has(publishAgentId) ? "更新模板" : "发布为模板"}</DialogTitle>
+              <DialogDescription>
+                {publishAgentId && publishedAgentIds.has(publishAgentId)
+                  ? "此 Agent 已发布过，确认将更新模板市场的配置与描述。"
+                  : "将当前 Agent 的配置发布到模板市场，其他用户可以一键克隆使用。"}
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               <div className="grid gap-1.5">
@@ -628,7 +789,11 @@ export default function AgentsPage() {
                 }}
                 disabled={publishTemplate.isPending || !publishAgentId || publishTemplate.isSuccess}
               >
-                {publishTemplate.isPending ? "发布中..." : "确认发布"}
+                {publishTemplate.isPending
+                  ? "提交中..."
+                  : publishAgentId && publishedAgentIds.has(publishAgentId)
+                    ? "确认更新"
+                    : "确认发布"}
               </Button>
             </DialogFooter>
           </DialogContent>

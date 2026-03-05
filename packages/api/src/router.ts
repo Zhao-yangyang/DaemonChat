@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { API_KEY_REDACTED, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { API_KEY_REDACTED, DEFAULT_AGENT_CONFIG, DEFAULT_SYSTEM_PROMPT, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 import { resolveModelPricingFromEnv } from "./pricing";
 import {
   buildDegradedBudget,
@@ -82,6 +82,24 @@ const requireUser = (ctx: ApiContext) => {
   }
   return ctx.user;
 };
+
+/** 剥离 config.llmProvider.apiKey，用于写入 DB 或克隆时防止泄露 */
+function stripApiKeyFromConfig(config: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const out = config && typeof config === "object" ? { ...config } : {};
+  if (out?.llmProvider && typeof out.llmProvider === "object") {
+    const lp = { ...(out.llmProvider as Record<string, unknown>) };
+    delete lp.apiKey;
+    out.llmProvider = lp;
+  }
+  return out;
+}
+
+/** 将 config.llmProvider.apiKey 置为 REDACTED，用于返回客户端前防泄露 */
+function redactApiKeyInConfig(config: Record<string, unknown> | null | undefined): void {
+  if (config?.llmProvider && typeof config.llmProvider === "object") {
+    (config.llmProvider as Record<string, unknown>).apiKey = API_KEY_REDACTED;
+  }
+}
 
 const ensureAgentAccess = async (ctx: ApiContext, agentId: string) => {
   const user = requireUser(ctx);
@@ -170,10 +188,28 @@ const appendAuditEvent = async (
 export const appRouter = t.router({
   agent: t.router({
     create: t.procedure
-      .input(z.object({ name: z.string().min(1), workspaceId: z.string().min(1).optional() }))
+      .input(z.object({
+        name: z.string().min(1),
+        workspaceId: z.string().min(1).optional(),
+        config: z.object({
+          systemPrompt: z.string().optional(),
+          memoryTopK: z.number().int().min(1).max(50).optional(),
+          recentMessages: z.number().int().min(1).max(100).optional(),
+          temperature: z.number().min(0).max(2).optional(),
+          llmProvider: z.object({
+            model: z.string(),
+            baseURL: z.string(),
+            apiKey: z.string(),
+            presetId: z.string().optional(),
+            sdkProvider: z.enum(["openai", "anthropic", "google", "deepseek", "xai", "mistral"]).optional(),
+          }).optional(),
+        }).optional(),
+      }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
-        return withInfrastructureErrorMapping(() => ctx.container.agent.createAgent(user.id, input.name, undefined, input.workspaceId));
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.agent.createAgent(user.id, input.name, input.config, input.workspaceId)
+        );
       }),
     list: t.procedure
       .input(z.object({ workspaceId: z.string().min(1).optional() }).optional())
@@ -468,7 +504,7 @@ export const appRouter = t.router({
           ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
           ...(agentConfig.recentMessages ? { recentMessages: agentConfig.recentMessages } : {}),
         };
-        const systemPrompt = agentConfig.systemPrompt || input.system || "You are a helpful AI assistant.";
+        const systemPrompt = agentConfig.systemPrompt || input.system || DEFAULT_SYSTEM_PROMPT;
         const fallbackModel = process.env.OPENAI_FALLBACK_MODEL?.trim() || undefined;
         const routeStrategy = fallbackModel ? "primary_then_fallback" : "primary_only";
         const rateLimits = resolveChatRateLimits(process.env);
@@ -824,12 +860,30 @@ export const appRouter = t.router({
   }),
 
   template: t.router({
+    listTags: t.procedure.query(async ({ ctx }) => {
+      requireUser(ctx);
+      return withInfrastructureErrorMapping(async () => {
+        const supabase = ctx.supabase;
+        if (!supabase?.from) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Template store not available",
+          });
+        }
+        const { data, error } = await supabase.from("template_tags").select("id, name").order("name");
+        if (error) throw error;
+        return (data ?? []) as Array<{ id: string; name: string }>;
+      });
+    }),
+
     list: t.procedure
       .input(
         z
           .object({
             onlyMine: z.boolean().default(false),
             limit: z.number().int().min(1).max(100).default(20),
+            keyword: z.string().optional(),
+            tagIds: z.array(z.string().uuid()).optional(),
           })
           .optional()
       )
@@ -850,14 +904,31 @@ export const appRouter = t.router({
             .order("created_at", { ascending: false })
             .limit(params.limit);
 
-          if (params.onlyMine) {
-            query = query.eq("author_user_id", user.id);
+          const kw = params.keyword?.trim();
+          if (kw) {
+            const escapedKw = kw.replace(/%/g, "\\%").replace(/_/g, "\\_");
+            const visOr = params.onlyMine ? `author_user_id.eq.${user.id}` : `is_public.eq.true,author_user_id.eq.${user.id}`;
+            const kwOr = `name.ilike.%${escapedKw}%,description.ilike.%${escapedKw}%`;
+            query = query.or(`and(or(${visOr}),or(${kwOr}))`);
           } else {
-            query = query.or(`is_public.eq.true,author_user_id.eq.${user.id}`);
+            if (params.onlyMine) {
+              query = query.eq("author_user_id", user.id);
+            } else {
+              query = query.or(`is_public.eq.true,author_user_id.eq.${user.id}`);
+            }
+          }
+          if (params.tagIds && params.tagIds.length > 0) {
+            const { data: tagMatches } = await supabase
+              .from("agent_template_tags")
+              .select("template_id")
+              .in("tag_id", params.tagIds);
+            const templateIds = [...new Set((tagMatches ?? []).map((r: { template_id: string }) => r.template_id))];
+            if (templateIds.length === 0) return [];
+            query = query.in("id", templateIds);
           }
           const { data, error } = await query;
           if (error) throw error;
-          return (data ?? []) as Array<{
+          const items = (data ?? []) as Array<{
             id: string;
             author_user_id: string;
             name: string;
@@ -866,7 +937,36 @@ export const appRouter = t.router({
             is_public: boolean;
             clone_count: number;
             created_at: string;
+            source_agent_id?: string | null;
           }>;
+          items.forEach((t) => redactApiKeyInConfig(t.config));
+          const ids = items.map((t) => t.id);
+          const [tagRows, ratingRows] = await Promise.all([
+            supabase.from("agent_template_tags").select("template_id, template_tags(id, name)").in("template_id", ids),
+            supabase.from("template_ratings").select("template_id, rating").in("template_id", ids),
+          ]);
+          const tagMap = new Map<string, Array<{ id: string; name: string }>>();
+          for (const r of (tagRows?.data ?? []) as Array<{ template_id: string; template_tags?: { id: string; name: string } | null }>) {
+            if (r.template_tags) {
+              const arr = tagMap.get(r.template_id) ?? [];
+              arr.push({ id: r.template_tags.id, name: r.template_tags.name });
+              tagMap.set(r.template_id, arr);
+            }
+          }
+          const ratingMap = new Map<string, { sum: number; count: number }>();
+          for (const r of (ratingRows?.data ?? []) as Array<{ template_id: string; rating: number }>) {
+            const cur = ratingMap.get(r.template_id) ?? { sum: 0, count: 0 };
+            cur.sum += r.rating;
+            cur.count += 1;
+            ratingMap.set(r.template_id, cur);
+          }
+          return items.map((t) => {
+            const tags = tagMap.get(t.id) ?? [];
+            const r = ratingMap.get(t.id);
+            const ratingCount = r?.count ?? 0;
+            const avgRating = ratingCount > 0 ? Math.round((r!.sum / ratingCount) * 10) / 10 : null;
+            return { ...t, tags, avgRating, ratingCount };
+          });
         });
       }),
 
@@ -889,14 +989,41 @@ export const appRouter = t.router({
               message: "Template store not available",
             });
           }
+          const config = stripApiKeyFromConfig((agent.config ?? {}) as unknown as Record<string, unknown>);
           const now = new Date().toISOString();
+
+          const { data: existing } = await supabase
+            .from("agent_templates")
+            .select("id, clone_count")
+            .eq("author_user_id", user.id)
+            .eq("source_agent_id", input.agentId)
+            .maybeSingle();
+
+          if (existing) {
+            const { data, error } = await supabase
+              .from("agent_templates")
+              .update({
+                name: agent.name,
+                description: input.description,
+                config,
+                is_public: input.isPublic,
+                updated_at: now,
+              })
+              .eq("id", existing.id)
+              .select("*")
+              .single();
+            if (error) throw error;
+            return { ...(data as object), created: false } as { id: string; name: string; description: string; config: Record<string, unknown>; is_public: boolean; created: boolean };
+          }
+
           const { data, error } = await supabase
             .from("agent_templates")
             .insert({
               author_user_id: user.id,
+              source_agent_id: input.agentId,
               name: agent.name,
               description: input.description,
-              config: agent.config ?? {},
+              config,
               is_public: input.isPublic,
               created_at: now,
               updated_at: now,
@@ -904,18 +1031,26 @@ export const appRouter = t.router({
             .select("*")
             .single();
           if (error) throw error;
-          return data as {
-            id: string;
-            name: string;
-            description: string;
-            config: Record<string, unknown>;
-            is_public: boolean;
-          };
+          return { ...(data as object), created: true } as { id: string; name: string; description: string; config: Record<string, unknown>; is_public: boolean; created: boolean };
         });
       }),
 
     clone: t.procedure
-      .input(z.object({ templateId: z.string().min(1) }))
+      .input(
+        z.object({
+          templateId: z.string().min(1),
+          agentName: z.string().optional(),
+          llmProviderOverrides: z
+            .object({
+              model: z.string(),
+              baseURL: z.string(),
+              apiKey: z.string(),
+              presetId: z.string().optional(),
+              sdkProvider: z.enum(["openai", "anthropic", "google", "deepseek", "xai", "mistral"]).optional(),
+            })
+            .optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
         return withInfrastructureErrorMapping(async () => {
@@ -938,10 +1073,19 @@ export const appRouter = t.router({
             throw new TRPCError({ code: "FORBIDDEN", message: "Template is private" });
           }
 
+          let config = stripApiKeyFromConfig(template.config ?? {});
+          if (input.llmProviderOverrides) {
+            config = {
+              ...config,
+              llmProvider: input.llmProviderOverrides,
+            };
+          }
+          const agentName = (input.agentName?.trim() || `${template.name} (copy)`).trim() || `${template.name} (copy)`;
+
           const agent = await ctx.container.agent.createAgent(
             user.id,
-            `${template.name} (copy)`,
-            template.config ?? {},
+            agentName,
+            config as Partial<import("@daemon/domain").AgentConfig>
           );
 
           await supabase
@@ -950,6 +1094,181 @@ export const appRouter = t.router({
             .eq("id", input.templateId);
 
           return { agentId: agent.id, name: agent.name };
+        });
+      }),
+
+    get: t.procedure
+      .input(z.object({ templateId: z.string().min(1) }))
+      .query(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const { data: template, error: fetchError } = await supabase
+            .from("agent_templates")
+            .select("*")
+            .eq("id", input.templateId)
+            .single();
+          if (fetchError || !template) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          }
+          if (!template.is_public && template.author_user_id !== user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Template is private" });
+          }
+          redactApiKeyInConfig(template.config);
+
+          const { data: tagRows } = await supabase
+            .from("agent_template_tags")
+            .select("template_tags(id, name)")
+            .eq("template_id", input.templateId);
+          const tags = ((tagRows ?? []) as Array<{ template_tags?: { id: string; name: string } | null }>)
+            .map((r) => (r.template_tags ? { id: r.template_tags.id, name: r.template_tags.name } : null))
+            .filter((t): t is { id: string; name: string } => t != null);
+
+          const { data: ratingRows } = await supabase
+            .from("template_ratings")
+            .select("rating, user_id")
+            .eq("template_id", input.templateId);
+          const allRatings = (ratingRows ?? []) as Array<{ rating: number; user_id: string }>;
+          const ratingCount = allRatings.length;
+          const avgRating = ratingCount > 0 ? allRatings.reduce((s, r) => s + r.rating, 0) / ratingCount : null;
+          const myRating = allRatings.find((r) => r.user_id === user.id)?.rating ?? null;
+
+          return {
+            ...template,
+            tags,
+            avgRating: avgRating != null ? Math.round(avgRating * 10) / 10 : null,
+            ratingCount,
+            myRating,
+          };
+        });
+      }),
+
+    update: t.procedure
+      .input(
+        z.object({
+          templateId: z.string().min(1),
+          name: z.string().min(1).max(200).optional(),
+          description: z.string().optional(),
+          config: z.record(z.unknown()).optional(),
+          isPublic: z.boolean().optional(),
+          tagIds: z.array(z.string().uuid()).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const { data: existing, error: fetchError } = await supabase
+            .from("agent_templates")
+            .select("id, author_user_id")
+            .eq("id", input.templateId)
+            .single();
+          if (fetchError || !existing) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          }
+          if (existing.author_user_id !== user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Only the author can update this template" });
+          }
+          const now = new Date().toISOString();
+          const updates: Record<string, unknown> = { updated_at: now };
+          if (input.name !== undefined) updates.name = input.name;
+          if (input.description !== undefined) updates.description = input.description;
+          if (input.isPublic !== undefined) updates.is_public = input.isPublic;
+          if (input.config !== undefined) updates.config = stripApiKeyFromConfig(input.config as Record<string, unknown>);
+
+          const { data: updated, error: updateError } = await supabase
+            .from("agent_templates")
+            .update(updates)
+            .eq("id", input.templateId)
+            .select("*")
+            .single();
+          if (updateError) throw updateError;
+
+          if (input.tagIds !== undefined) {
+            await supabase.from("agent_template_tags").delete().eq("template_id", input.templateId);
+            if (input.tagIds.length > 0) {
+              await supabase.from("agent_template_tags").insert(
+                input.tagIds.map((tag_id) => ({ template_id: input.templateId, tag_id }))
+              );
+            }
+          }
+          redactApiKeyInConfig(updated.config);
+          return updated;
+        });
+      }),
+
+    delete: t.procedure
+      .input(z.object({ templateId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const { data: existing, error: fetchError } = await supabase
+            .from("agent_templates")
+            .select("id, author_user_id")
+            .eq("id", input.templateId)
+            .single();
+          if (fetchError || !existing) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          }
+          if (existing.author_user_id !== user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Only the author can delete this template" });
+          }
+          const { error: deleteError } = await supabase.from("agent_templates").delete().eq("id", input.templateId);
+          if (deleteError) throw deleteError;
+          return { deleted: true };
+        });
+      }),
+
+    rate: t.procedure
+      .input(z.object({ templateId: z.string().min(1), rating: z.number().int().min(1).max(5) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Template store not available",
+            });
+          }
+          const { data: t, error: fetchError } = await supabase
+            .from("agent_templates")
+            .select("id, is_public, author_user_id")
+            .eq("id", input.templateId)
+            .single();
+          if (fetchError || !t) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Template not found" });
+          }
+          if (!t.is_public && t.author_user_id !== user.id) {
+            throw new TRPCError({ code: "FORBIDDEN", message: "Template is private" });
+          }
+          const { error: upsertError } = await supabase
+            .from("template_ratings")
+            .upsert(
+              { template_id: input.templateId, user_id: user.id, rating: input.rating },
+              { onConflict: "template_id,user_id" }
+            );
+          if (upsertError) throw upsertError;
+          return { rating: input.rating };
         });
       }),
   }),

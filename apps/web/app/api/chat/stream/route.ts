@@ -20,7 +20,7 @@ import {
   wouldExceedChatMaxInputTokens,
   wouldExceedTokenHardCap,
 } from "@daemon/api";
-import { createChatService, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import { createChatService, DEFAULT_AGENT_CONFIG, DEFAULT_SYSTEM_PROMPT, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
 import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 
 const env = {
@@ -368,7 +368,7 @@ export const createPostHandler = (
       ...(agentConfig.memoryTopK ? { memoryTopK: agentConfig.memoryTopK } : {}),
       ...(agentConfig.recentMessages ? { recentMessages: agentConfig.recentMessages } : {}),
     };
-    const systemPrompt = agentConfig.systemPrompt || body.system || "You are a helpful AI assistant.";
+    const systemPrompt = agentConfig.systemPrompt || body.system || DEFAULT_SYSTEM_PROMPT;
 
     const hardCaps = resolveTokenHardCaps(env);
     const degradePolicy = resolveChatBudgetDegradePolicy(env, configuredBudget);
@@ -611,6 +611,43 @@ export const createPostHandler = (
           }
           sendEvent(controller, { type: "done" });
           const latencyMs = Date.now() - startedAt;
+          try {
+            if (!container.ports?.sessions || !container.ports?.transcripts || !container.session) {
+              /* skip when container is mocked without these ports (e.g. in tests) */
+            } else {
+              const session = await container.ports.sessions.getCurrentSession({
+                agentId: body.agentId,
+                sessionKey: body.sessionKey,
+              });
+              if (session && !session.displayName?.trim()) {
+                const events = await container.ports.transcripts.listRecentEvents({
+                  agentId: body.agentId,
+                  sessionId: result.sessionId,
+                  limit: 200,
+                });
+                const userMsgCount = events.filter((e) => e.type === "user_message").length;
+                if (userMsgCount === 1) {
+                  const raw = (body.userInput ?? "").trim().replace(/\s+/g, " ");
+                  const displayName = raw.length > 0 ? raw.slice(0, 40) : "新会话";
+                  await container.session.renameSession(
+                    body.agentId,
+                    result.sessionId,
+                    displayName,
+                    user.id
+                  );
+                }
+              }
+            }
+          } catch (renameErr) {
+            logWarn("chat_stream.auto_rename_failed", {
+              request_id: requestId,
+              route: routePath,
+              user_id: user.id,
+              agent_id: body.agentId,
+              session_id: result.sessionId,
+              error_message: renameErr instanceof Error ? renameErr.message : String(renameErr),
+            });
+          }
           logInfo("chat_stream.completed", {
             request_id: requestId,
             route: routePath,

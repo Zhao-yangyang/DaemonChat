@@ -7,6 +7,12 @@ import { trpc } from "@daemon/hooks";
 import {
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   ScrollArea,
   Select,
@@ -20,7 +26,7 @@ import {
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
-import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore } from "lucide-react";
+import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore, MoreVertical, FileDown, RefreshCw } from "lucide-react";
 
 const formatMsgTime = (iso?: string): string => {
   if (!iso) return "";
@@ -610,25 +616,24 @@ export default function ChatPage() {
       description="直接对话即可，系统会自动记录会话和用量。"
       actions={
         <div className="flex items-center gap-2">
-          {/* Agent 切换 */}
-          <Select value={agentId} onValueChange={(id) => router.push(`/chat/${id}`)}>
-            <SelectTrigger className="h-8 w-[140px] text-xs">
-              <SelectValue placeholder="选择 Agent" />
-            </SelectTrigger>
-            <SelectContent>
-              {(agentList.data ?? []).map((agent) => (
-                <SelectItem key={agent.id} value={agent.id}>
-                  {agent.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Session 切换 */}
-          {sessionKeys.length > 0 ? (
-            <div className="flex items-center gap-1 bg-muted/40 rounded-md p-1 border">
+          {/* Agent + Session + 新会话 */}
+          <div className="flex min-w-0 shrink items-center gap-1.5 rounded-lg border bg-muted/30 px-1.5 py-0.5">
+            <Select value={agentId} onValueChange={(id) => router.push(`/chat/${id}`)}>
+              <SelectTrigger className="h-7 min-w-0 shrink border-0 bg-transparent text-xs shadow-none focus:ring-0 sm:w-[110px]">
+                <SelectValue placeholder="Agent" />
+              </SelectTrigger>
+              <SelectContent>
+                {(agentList.data ?? []).map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-muted-foreground/60">/</span>
+            {sessionKeys.length > 0 ? (
               <Select value={currentSessionKey || undefined} onValueChange={setSessionKey}>
-                <SelectTrigger className="h-6 w-[120px] text-xs border-0 bg-transparent shadow-none focus:ring-0">
+                <SelectTrigger className="h-7 min-w-0 shrink border-0 bg-transparent text-xs shadow-none focus:ring-0 sm:w-[90px]">
                   <SelectValue placeholder="会话" />
                 </SelectTrigger>
                 <SelectContent>
@@ -639,92 +644,98 @@ export default function ChatPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="icon-xs"
-                variant={showArchived ? "secondary" : "ghost"}
-                className="size-6 text-muted-foreground"
-                onClick={() => setShowArchived((prev) => !prev)}
-                title={showArchived ? "隐藏归档" : "显示归档"}
-              >
-                <Archive className="size-3" />
-              </Button>
-            </div>
-          ) : null}
+            ) : (
+              <span className="px-1 text-xs text-muted-foreground">无会话</span>
+            )}
+          </div>
 
-          <Button size="xs" variant="outline" onClick={createSession} disabled={isStreaming}>
+          <Button size="sm" onClick={createSession} disabled={isStreaming}>
             新会话
           </Button>
-          {currentSessionKey ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void renameCurrentSession()}
-              disabled={renameSessionMutation.isPending || isStreaming}
-            >
-              {renameSessionMutation.isPending ? "重命名中" : "重命名"}
-            </Button>
-          ) : null}
-          {currentSessionKey && currentSessionId && selectedSession?.isArchived ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void unarchiveCurrentSession()}
-              disabled={unarchiveSessionMutation.isPending || isStreaming}
-            >
-              取档
-            </Button>
-          ) : currentSessionKey ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void archiveCurrentSession()}
-              disabled={archiveSessionMutation.isPending || isStreaming}
-            >
-              归档
-            </Button>
-          ) : null}
-          {currentSessionKey ? (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() => void deleteCurrentSession()}
-              disabled={deleteSessionMutation.isPending || isStreaming}
-            >
-              {deleteSessionMutation.isPending ? "删除中" : "删会话"}
-            </Button>
-          ) : null}
-          {currentSessionId ? (
-            <Button
-              size="xs"
-              variant="outline"
-              disabled={transcript.isFetching}
-              onClick={async () => {
-                const refreshed = await transcript.refetch();
-                const restored = toChatMessagesFromEvents(refreshed.data ?? []);
-                setMessagesBySession((prev) => ({ ...prev, [currentSessionKey]: restored }));
-              }}
-            >
-              {transcript.isFetching ? "同步中" : "同步"}
-            </Button>
-          ) : null}
-          {messages.length > 0 ? (
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => setSearchOpen((prev) => !prev)}
-              title="搜索消息"
-            >
-              <Search className="size-4" />
-            </Button>
-          ) : null}
-          {isStreaming ? (
+
+          {isStreaming && (
             <Badge variant="secondary" className="text-xs">回复中</Badge>
-          ) : null}
-          {messages.length > 0 ? (
-            <Button size="xs" variant="outline" onClick={exportChat}>
-              导出
-            </Button>
-          ) : null}
+          )}
+
+          {/* 会话操作菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="size-8">
+                <MoreVertical className="size-4" />
+                <span className="sr-only">会话操作</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuCheckboxItem
+                checked={showArchived}
+                onCheckedChange={(v) => setShowArchived(!!v)}
+              >
+                <Archive className="size-3.5" />
+                显示归档
+              </DropdownMenuCheckboxItem>
+              {currentSessionKey ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => void renameCurrentSession()}
+                    disabled={renameSessionMutation.isPending || isStreaming}
+                  >
+                    {renameSessionMutation.isPending ? "重命名中..." : "重命名会话"}
+                  </DropdownMenuItem>
+                  {currentSessionId && selectedSession?.isArchived ? (
+                    <DropdownMenuItem
+                      onClick={() => void unarchiveCurrentSession()}
+                      disabled={unarchiveSessionMutation.isPending || isStreaming}
+                    >
+                      <ArchiveRestore className="size-3.5" />
+                      取档
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => void archiveCurrentSession()}
+                      disabled={archiveSessionMutation.isPending || isStreaming}
+                    >
+                      <Archive className="size-3.5" />
+                      归档
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => void deleteCurrentSession()}
+                    disabled={deleteSessionMutation.isPending || isStreaming}
+                  >
+                    {deleteSessionMutation.isPending ? "删除中..." : "删除会话"}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+              {currentSessionId ? (
+                <DropdownMenuItem
+                  disabled={transcript.isFetching}
+                  onClick={async () => {
+                    const refreshed = await transcript.refetch();
+                    const restored = toChatMessagesFromEvents(refreshed.data ?? []);
+                    setMessagesBySession((prev) => ({ ...prev, [currentSessionKey]: restored }));
+                  }}
+                >
+                  <RefreshCw className={cn("size-3.5", transcript.isFetching && "animate-spin")} />
+                  {transcript.isFetching ? "同步中..." : "同步历史"}
+                </DropdownMenuItem>
+              ) : null}
+              {messages.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSearchOpen((prev) => !prev)}>
+                    <Search className="size-3.5" />
+                    搜索消息
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportChat}>
+                    <FileDown className="size-3.5" />
+                    导出 Markdown
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -751,8 +762,8 @@ export default function ChatPage() {
           </div>
         ) : null}
 
-        {/* Messages */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1">
+        {/* Messages — min-h-0 lets this flex item shrink so input stays fixed at bottom */}
+        <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1">
           <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
             {transcript.isLoading && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -910,7 +921,7 @@ export default function ChatPage() {
         </ScrollArea>
 
         {/* Input area — fixed at bottom, centered */}
-        <div className="border-t bg-card px-4 py-4 sm:px-6">
+        <div className="shrink-0 border-t bg-card px-4 py-4 sm:px-6">
           <div className="mx-auto max-w-3xl">
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">
