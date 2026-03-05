@@ -20,7 +20,12 @@ const fontDisplay = Noto_Serif_SC({
 export const metadata = {
   title: "DaemonChat",
   description: "AI 长期助手",
-  viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover" as const,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
