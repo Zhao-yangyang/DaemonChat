@@ -105,6 +105,7 @@ Example scoped command:
   - form fields now have `<Label>` components and Textarea has `aria-label` for accessibility.
   - Usage page token split uses `<Progress>` component instead of hand-written div bars.
   - Chat page uses `<ScrollArea>` instead of raw `overflow-y-auto` div.
+  - Chat 页输入区固定底部：ScrollArea 使用 `min-h-0 flex-1`（flex 子项可收缩）、输入区 `shrink-0`，避免 flexbox 默认 `min-height: auto` 导致输入框随消息滚动。
   - Chat page messages now have role avatar indicators ("你" / "AI" circles).
   - Chat page input area uses a container-style design (rounded border wrapper with embedded textarea + icon send button).
   - core app pages (`/`, `/agents`, `/chat`, `/chat/[agentId]`, `/memory`, `/transcripts`, `/usage`) were visually redesigned for consistent layout hierarchy and clearer task flows.
@@ -137,6 +138,7 @@ Example scoped command:
   - chat stream now supports end-to-end cancel propagation (`AbortSignalLike` in domain ports, adapter pass-through to provider stream, route-level request abort wiring).
   - `apps/web/app/chat/[agentId]` now includes stop generation, regenerate last assistant response, user-message edit-and-resend, and session rename UX.
   - sessions now support optional `displayName` persisted in DB (`public.sessions.display_name`) and exposed via domain/adapters/tRPC (`session.rename`).
+  - 新会话自动命名：首次用户消息完成后，若 session 无 displayName 且 transcript 仅 1 条 user_message，则 `/api/chat/stream` 在 done 后 fire-and-forget 调用 `session.rename`，将 display_name 设为该消息截断 40 字；纯图片等无文本时用「新会话」。失败仅打 `chat_stream.auto_rename_failed` 日志。
   - memory lifecycle now supports update/delete end-to-end (`memory.update` / `memory.delete` in API, with adapter/domain/store support).
   - staging readiness baseline added: root `vercel.json`, monorepo-safe Next `transpilePackages`, CI workflow (`.github/workflows/ci.yml`), and runbook deployment/env guidance.
 - Chat idempotency baseline is now wired:
@@ -280,6 +282,11 @@ Example scoped command:
     - `public.agent_templates` table with public/private visibility, clone count tracking.
     - API routes: `template.list`, `template.publish`, `template.clone` in `packages/api/src/router.ts`.
     - UI page: `apps/web/app/templates/page.tsx` with browse/filter/clone UX.
+  - 模板市场增强（2026-03-05）：
+    - 新增 `template_tags`、`agent_template_tags`、`template_ratings` 表（migration `20260305120000_template_tags_ratings.sql`），预置标签：写作/编程/客服/翻译/创意/学习/效率。
+    - `agent_templates.source_agent_id` 支持一 Agent 一模板 upsert；历史 config 中 apiKey 清理（migration `20260305000000_template_source_agent_and_api_key_cleanup.sql`）。
+    - API 扩展：`template.listTags`、`template.get`、`template.update`、`template.delete`、`template.rate`；`template.list` 支持 `keyword` 搜索、`tagIds` 筛选，返回 `tags`/`avgRating`/`ratingCount`。
+    - UI：`CloneConfigDialog`、`TemplateDetailDialog`、`TemplateEditDialog`、`TemplateDeleteDialog`；模板页搜索框、标签筛选、详情弹窗、1–5 星评分、「我的模板」编辑/删除。
   - Workspace (multi-tenant) foundation:
     - `public.workspaces`, `public.workspace_members` tables with `workspace_role` enum (`owner/admin/member/viewer`).
     - `public.agents.workspace_id` optional FK for workspace-scoped agents.
@@ -304,6 +311,7 @@ Example scoped command:
 - If you change workspace/template tables, update both:
   - DB schema/migration in `supabase/migrations/` and `packages/adapters/supabase/sql/schema.sql`
   - API router in `packages/api/src/router.ts` and corresponding UI pages in `apps/web/app/`
+- Template 相关表：`agent_templates`、`template_tags`、`agent_template_tags`、`template_ratings`。RLS 已配置，迁移见 `20260305000000_*` 和 `20260305120000_*`。
 - Vercel deployment CI/CD is now wired:
   - `.github/workflows/deploy.yml` triggers on push to `main` and `workflow_dispatch`.
   - deploys directly to production (single-step, no staging/preview split).
@@ -412,7 +420,7 @@ Example scoped command:
   - ~~Worker `COMPACTION` job 在 `SUPPORTED_JOB_TYPES` 中但 `processJob` 无对应处理分支~~ → 已修复。
   - ~~Worker `EMBEDDING_BACKFILL` job 同上~~ → 已修复。
   - Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤。
-  - 模板市场缺少搜索/分类/评分功能。
+  - ~~模板市场缺少搜索/分类/评分功能~~ → 已实现（2026-03-05）。
 - Agent LLM Provider 配置重构（2026-03-04）：
   - **Domain 类型清理**：
     - `AgentConfig.model` 冗余顶层字段已移除（只保留 `llmProvider.model`）。
@@ -429,6 +437,12 @@ Example scoped command:
    - Provider ID 直接使用 OpenRouter 返回的 raw org ID，无硬编码映射。模型过滤使用 `providerId/` 前缀。
   - **Providers API 缓存**：
     - `GET /api/providers` 新增 5 分钟内存缓存，避免每次打开配置 Dialog 都全量拉取 OpenRouter 模型列表。
+  - **API Key 脱敏与写入剥离**（2026-03-05）：
+    - `stripApiKeyFromConfig`：写入 DB 或克隆时剥离 `config.llmProvider.apiKey`，避免泄露。
+    - `redactApiKeyInConfig`：返回客户端前将 apiKey 置为 `API_KEY_REDACTED`。`template.list`/`template.get`/`agent.list` 等均做脱敏。
+    - `agent.create` 支持创建时传入完整 `config`（systemPrompt/memoryTopK/recentMessages/temperature/llmProvider），新建 Agent 即可带 LLM 配置。
+    - `LlmProviderSection` 根据是否已配置 apiKey 显示不同 placeholder 提示。
+    - Agent 配置默认 Provider 回退值从 `"openai"` 改为空字符串，避免未配置时误用 OpenAI。
   - **相关文件**：
     - `packages/domain/src/types.ts` — 类型清理
     - `packages/domain/src/llm-presets.ts` — 静态预设
