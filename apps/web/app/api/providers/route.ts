@@ -1,64 +1,64 @@
 import { NextResponse } from "next/server";
 import { LLM_PROVIDER_PRESETS } from "@daemon/domain";
+import type { LlmProviderPreset } from "@daemon/domain";
+
+// Simple in-memory cache (5 min TTL)
+let cachedProviders: LlmProviderPreset[] | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export async function GET() {
-  const basePresets = [...LLM_PROVIDER_PRESETS];
+  const now = Date.now();
+  if (cachedProviders && now - cacheTimestamp < CACHE_TTL_MS) {
+    return NextResponse.json({ providers: cachedProviders });
+  }
+
+  const basePresets: LlmProviderPreset[] = [...LLM_PROVIDER_PRESETS];
   const existingIds = new Set(basePresets.map((p) => p.id));
 
   try {
     const res = await fetch("https://openrouter.ai/api/v1/models", { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to fetch openrouter models");
-    
+
     const json = await res.json();
     const models: { id: string, name: string }[] = json.data ?? [];
-    
+
     const orProviders = new Map<string, string>();
     models.forEach((m) => {
       const parts = m.id.split('/');
       if (parts.length > 1) {
         const rawId = parts[0];
         if (!orProviders.has(rawId)) {
-          // Capitalize like "Meta-Llama" or "Google"
           const label = rawId.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
           orProviders.set(rawId, label);
         }
       }
     });
 
-    const providerMapping: Record<string, string> = {
-      "mistralai": "mistral",
-      "x-ai": "xai",
-      "moonshotai": "moonshot",
-      "meta-llama": "meta",
-      "ibm-granite": "ibm",
-      "amazon": "aws",
-      "bytedance-seed": "bytedance",
-      "01-ai": "zeroone",
-    };
-
     orProviders.forEach((label, rawId) => {
-      const mappedId = providerMapping[rawId] || rawId;
-      
-      if (!existingIds.has(mappedId)) {
+      if (!existingIds.has(rawId)) {
         basePresets.push({
-          id: mappedId,
+          id: rawId,
           label: `${label} (OpenRouter)`,
           baseURL: "https://openrouter.ai/api/v1",
-          models: [], 
+          models: [],
           apiKeyPlaceholder: "sk-or-...",
           sdkProvider: "openai",
         });
-        existingIds.add(mappedId);
+        existingIds.add(rawId);
       }
     });
   } catch (err) {
     console.error("Failed to fetch dynamic providers from OpenRouter", err);
   }
 
-  // Sort base presets to top, then dynamic ones mapped alphabetically
   const originalLength = LLM_PROVIDER_PRESETS.length;
   const staticPart = basePresets.slice(0, originalLength);
   const dynamicPart = basePresets.slice(originalLength).sort((a, b) => a.label.localeCompare(b.label));
 
-  return NextResponse.json({ providers: [...staticPart, ...dynamicPart] });
+  const result = [...staticPart, ...dynamicPart];
+  cachedProviders = result;
+  cacheTimestamp = now;
+
+  return NextResponse.json({ providers: result });
 }

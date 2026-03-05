@@ -27,6 +27,7 @@ Example scoped command:
 
 ## Coding Style & Naming Conventions
 
+- **No hardcoding whenever possible**: Any value that can be obtained via configuration, APIs, enums, or dynamic resolution must not be hardcoded. Always prefer using unified registries, open interfaces, environment variables, or third-party SDK standards.
 - TypeScript is used across the repo with strict settings in `tsconfig.base.json`.
 - Use ES module syntax (`import`/`export`) and keep changes consistent with existing files.
 - Naming follows package scopes like `@daemon/<name>` and app names like `@daemon/web`.
@@ -412,3 +413,34 @@ Example scoped command:
   - ~~Worker `EMBEDDING_BACKFILL` job 同上~~ → 已修复。
   - Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤。
   - 模板市场缺少搜索/分类/评分功能。
+- Agent LLM Provider 配置重构（2026-03-04）：
+  - **Domain 类型清理**：
+    - `AgentConfig.model` 冗余顶层字段已移除（只保留 `llmProvider.model`）。
+    - `LlmProviderConfig.embeddingModel` 已移除（从未被 UI 配置，adapter 内部使用默认值 `text-embedding-3-small`）。
+    - `LlmProviderConfig.providerName` 已移除（从未被 UI 配置，adapter 不再从 domain 类型读取该字段）。
+    - `DEFAULT_AGENT_CONFIG` 不再包含 `model` 字段。
+  - **API Router 清理**：
+    - `agent.update` input schema 已移除 `config.model` 字段。
+  - **UI 组件提取**：
+    - LLM Provider 配置 UI 已从 `agents/page.tsx`（825 行）提取为独立组件 `apps/web/src/components/llm-provider-section.tsx`。
+    - 组件内部封装 `dynamicProviders`/`dynamicModels` 的 fetch 逻辑，对外只暴露 `value/onChange` props。
+    - `agents/page.tsx` 已大幅精简，移除了冗余状态、注释掉的 console.log、重复的 model 赋值。
+  - **OpenRouter 映射统一**：
+   - Provider ID 直接使用 OpenRouter 返回的 raw org ID，无硬编码映射。模型过滤使用 `providerId/` 前缀。
+  - **Providers API 缓存**：
+    - `GET /api/providers` 新增 5 分钟内存缓存，避免每次打开配置 Dialog 都全量拉取 OpenRouter 模型列表。
+  - **相关文件**：
+    - `packages/domain/src/types.ts` — 类型清理
+    - `packages/domain/src/llm-presets.ts` — 静态预设
+    - `packages/adapters/llm-vercel/src/index.ts` — adapter 适配
+    - `packages/api/src/router.ts` — schema 清理
+    - `apps/web/src/components/llm-provider-section.tsx` — 新组件
+    - `apps/web/app/agents/page.tsx` — 重构精简
+    - `apps/web/app/api/providers/route.ts` — 缓存 + 映射统一
+    - `apps/web/app/api/providers/models/route.ts` — 映射统一
+- Provider/Model 图标（2026-03-05）：
+  - `apps/web/src/components/provider-icon.tsx` 使用 `@lobehub/icons` 的 `ProviderIcon` + `ModelProvider` 枚举，**无硬编码 provider→icon 映射**。
+  - `normalize()`：带中划线/下划线/点号 → 大驼峰，无分隔符则保持小写。
+  - `resolveProvider()`：基于 `ModelProvider` 模糊匹配（精确 key、value 包含、value 被包含），以 `provider={ModelProvider[key]}` 传参。
+  - `__custom__` 和空值使用 lucide `Cpu` 图标兜底。
+  - OpenRouter 返回的 provider ID 与 ModelProvider 无一一对应，部分小众 Provider（如 aion-labs、allenai）无图标时显示兜底图标。

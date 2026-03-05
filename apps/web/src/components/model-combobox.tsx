@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@daemon/ui";
-import { ModelIcon } from "@lobehub/icons";
+import { ModelIcon } from "@/src/components/model-icon";
 
 interface ModelComboboxProps {
   value: string;
@@ -102,25 +102,26 @@ export function ModelCombobox({
                         setOpen(false);
                         setSearch("");
                       }}
+                      className="flex items-center gap-3 py-2"
                     >
                       <Check
                         className={cn(
-                          "mr-2 size-4",
+                          "size-4 shrink-0",
                           value === m.id ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="flex size-6 shrink-0 items-center justify-center">
-                          <ModelIcon model={m.id} size={24} type="avatar" />
-                        </div>
-                        <div className="flex flex-col truncate">
-                          <span className="text-sm truncate">{m.id}</span>
-                          {m.name !== m.id && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {m.name}
-                            </span>
-                          )}
-                        </div>
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-md">
+                        <ModelIcon modelId={m.id} size={28} type="avatar" />
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-sm font-medium">
+                          {m.name !== m.id ? m.name : m.id}
+                        </span>
+                        {m.name !== m.id && (
+                          <span className="truncate font-mono text-xs text-muted-foreground">
+                            {m.id}
+                          </span>
+                        )}
                       </div>
                     </CommandItem>
                   ))}
@@ -135,14 +136,18 @@ export function ModelCombobox({
                     setOpen(false);
                     setSearch("");
                   }}
+                  className="flex items-center gap-3 py-2"
                 >
                   <Check
                     className={cn(
-                      "mr-2 size-4",
+                      "size-4 shrink-0",
                       value === trimmedSearch ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <span>
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md">
+                    <ModelIcon modelId={trimmedSearch} size={28} type="avatar" />
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-sm">
                     使用自定义模型: <code className="font-mono text-xs">{trimmedSearch}</code>
                   </span>
                 </CommandItem>

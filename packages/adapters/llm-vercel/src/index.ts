@@ -304,10 +304,9 @@ export function createLlmFromAgentConfig(
   }
   return createVercelLlmAdapter({
     model: provider.model,
-    embeddingModel: provider.embeddingModel ?? "text-embedding-3-small",
+    embeddingModel: "text-embedding-3-small",
     apiKey: provider.apiKey,
     baseURL: provider.baseURL,
-    providerName: provider.providerName,
     sdkProvider: provider.sdkProvider ?? "openai",
     temperature: opts?.temperature,
     embeddingMode: opts?.embeddingMode ?? "local",

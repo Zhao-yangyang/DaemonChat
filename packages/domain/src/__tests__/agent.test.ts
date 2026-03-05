@@ -51,7 +51,6 @@ describe("agent usecases", () => {
     });
     expect(agent.config.systemPrompt).toBe("You are a pirate.");
     expect(agent.config.temperature).toBe(1.2);
-    expect(agent.config.model).toBe(DEFAULT_AGENT_CONFIG.model);
     expect(agent.config.memoryTopK).toBe(DEFAULT_AGENT_CONFIG.memoryTopK);
     expect(agent.config.recentMessages).toBe(DEFAULT_AGENT_CONFIG.recentMessages);
   });

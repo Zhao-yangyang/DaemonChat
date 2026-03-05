@@ -203,7 +203,6 @@ export const appRouter = t.router({
         name: z.string().min(1).optional(),
         config: z.object({
           systemPrompt: z.string().optional(),
-          model: z.string().optional(),
           memoryTopK: z.number().int().min(1).max(50).optional(),
           recentMessages: z.number().int().min(1).max(100).optional(),
           temperature: z.number().min(0).max(2).optional(),

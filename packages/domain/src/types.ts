@@ -5,15 +5,12 @@ export interface LlmProviderConfig {
   apiKey: string;
   baseURL: string;
   model: string;
-  embeddingModel?: string;
-  providerName?: string;
   presetId?: string;
   sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
 }
 
 export interface AgentConfig {
   systemPrompt: string;
-  model: string;
   memoryTopK: number;
   recentMessages: number;
   temperature: number;
@@ -22,7 +19,6 @@ export interface AgentConfig {
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   systemPrompt: "You are a helpful AI assistant.",
-  model: "",
   memoryTopK: 8,
   recentMessages: 20,
   temperature: 0.7,

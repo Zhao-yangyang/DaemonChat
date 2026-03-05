@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { trpc } from "@daemon/hooks";
 import {
@@ -21,30 +21,22 @@ import {
   DialogTitle,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Skeleton,
   Textarea,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@daemon/ui";
-import {
-  LLM_PROVIDER_PRESETS,
-  CUSTOM_PROVIDER_ID,
-  findProviderPreset,
-  getDefaultModelForPreset,
-  detectPresetFromConfig,
-} from "@daemon/domain";
-import type { LlmProviderPreset } from "@daemon/domain";
+import { detectPresetFromConfig, CUSTOM_PROVIDER_ID } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId } from "@/src/lib/format";
 import { ProviderIcon } from "@/src/components/provider-icon";
-import { ModelCombobox } from "@/src/components/model-combobox";
+import {
+  LlmProviderSection,
+  EMPTY_LLM_PROVIDER_STATE,
+} from "@/src/components/llm-provider-section";
+import type { LlmProviderFormState } from "@/src/components/llm-provider-section";
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === "object") {
@@ -61,13 +53,7 @@ type AgentConfigForm = {
   memoryTopK: string;
   recentMessages: string;
   temperature: string;
-  llmProvider: {
-    presetId: string;
-    model: string;
-    baseURL: string;
-    apiKey: string;
-    sdkProvider: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
-  };
+  llmProvider: LlmProviderFormState;
 };
 
 const EMPTY_CONFIG_FORM: AgentConfigForm = {
@@ -75,7 +61,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
   memoryTopK: "8",
   recentMessages: "20",
   temperature: "0.7",
-  llmProvider: { presetId: "", model: "", baseURL: "", apiKey: "", sdkProvider: "openai" },
+  llmProvider: EMPTY_LLM_PROVIDER_STATE,
 };
 
 export default function AgentsPage() {
@@ -84,76 +70,7 @@ export default function AgentsPage() {
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
-  const [dynamicProviders, setDynamicProviders] = useState<LlmProviderPreset[]>(LLM_PROVIDER_PRESETS);
-  const [dynamicModels, setDynamicModels] = useState<Array<{id: string; name: string}>>([]);
-  const [modelsLoading, setModelsLoading] = useState(false);
   const { session, isResolved } = useSession();
-
-  useEffect(() => {
-    fetch("/api/providers")
-      .then(res => res.json())
-      .then(data => {
-        if (data && Array.isArray(data.providers)) {
-          setDynamicProviders(data.providers);
-        }
-      })
-      .catch(err => console.error("Failed to fetch dynamic providers", err));
-  }, []);
-
-  // Fetch models dynamically when provider or API key changes
-  useEffect(() => {
-    const { presetId, apiKey, baseURL, sdkProvider } = configForm.llmProvider;
-
-    // 如果没有选择任何 Provider 或选了自定义
-    if (!presetId || presetId === CUSTOM_PROVIDER_ID) {
-      setDynamicModels([]);
-      return;
-    }
-
-    // 默认情况：先立刻加载当前 Provider 的精选预设静态模型！
-    // 保证即便获取失败，模型下拉依旧有内置可选项。
-    const preset = dynamicProviders.find(p => p.id === presetId);
-    if (!preset) return;
-    const fallbackStaticModels = preset.models.map(m => ({ id: m.id, name: m.label }));
-    setDynamicModels(fallbackStaticModels);
-
-    // 发起网络请求获取动态模型
-    setModelsLoading(true);
-    fetch("/api/providers/models", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sdkProvider, apiKey, baseURL, providerId: presetId }),
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        // 如果获取到了最新的动态模型全集，就全量替换掉静态预设
-        if (data.models && data.models.length > 0) {
-          setDynamicModels(data.models);
-          
-          // 如果用户还没选择 model，或是当前选择的 model 不在新列表里，默认给他选最新的第一个
-          setConfigForm(prev => {
-            const currentSelected = prev.llmProvider.model;
-            const exists = data.models.some((m: { id: string }) => m.id === currentSelected);
-            if (!currentSelected || !exists) {
-              return {
-                ...prev,
-                llmProvider: { ...prev.llmProvider, model: data.models[0].id }
-              };
-            }
-            return prev;
-          });
-        }
-      })
-      .catch(() => {
-        // 请求出错，保持原有的静态 fallbackStaticModels 不变即可
-      })
-      .finally(() => setModelsLoading(false));
-  }, [
-    configForm.llmProvider.presetId,
-    configForm.llmProvider.apiKey,
-    configForm.llmProvider.baseURL,
-    configForm.llmProvider.sdkProvider,
-  ]);
 
   const agents = trpc.agent.list.useQuery(undefined, {
     enabled: Boolean(session),
@@ -246,7 +163,6 @@ export default function AgentsPage() {
     id: string;
     config: {
       systemPrompt: string;
-      model: string;
       memoryTopK: number;
       recentMessages: number;
       temperature: number;
@@ -308,13 +224,11 @@ export default function AgentsPage() {
 
     const lp = configForm.llmProvider;
     const hasProvider = lp.baseURL && lp.model && lp.apiKey;
-    const preset = dynamicProviders.find(p => p.id === lp.presetId);
 
     updateAgent.mutate({
       agentId: editingAgentId,
       config: {
         systemPrompt: configForm.systemPrompt,
-        model: lp.model.trim(),
         memoryTopK,
         recentMessages,
         temperature,
@@ -442,13 +356,13 @@ export default function AgentsPage() {
                       <p className="font-medium flex items-center gap-2">
                         {agent.name}
                         <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground ml-2 px-2 py-0.5 rounded-full bg-muted/50">
-                          <ProviderIcon 
+                          <ProviderIcon
                             providerId={
                               agent.config.llmProvider?.presetId && agent.config.llmProvider.presetId !== "__custom__"
                                 ? agent.config.llmProvider.presetId
                                 : agent.config.llmProvider?.sdkProvider ?? "openai"
-                            } 
-                            size={14} 
+                            }
+                            size={14}
                           />
                           {agent.config.llmProvider?.model || "未配置"}
                         </span>
@@ -509,6 +423,7 @@ export default function AgentsPage() {
           ) : null}
         </div>
 
+        {/* Agent Config Dialog */}
         <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -530,126 +445,10 @@ export default function AgentsPage() {
                 />
               </div>
 
-              <div className="grid gap-1.5 rounded-md border p-4 bg-muted/20">
-                <Label className="text-base font-semibold">LLM Provider</Label>
-                <p className="text-xs text-muted-foreground mb-2">选择大模型提供商，填入 API Key 即可使用。</p>
-                <div className="grid gap-3">
-                  <div className="grid gap-1.5">
-                    <Label className="text-xs">提供商</Label>
-                    <Select
-                      value={configForm.llmProvider.presetId}
-                      onValueChange={(val) => {
-                        if (val === CUSTOM_PROVIDER_ID) {
-                          setConfigForm((prev) => ({
-                            ...prev,
-                            llmProvider: {
-                              ...prev.llmProvider,
-                              presetId: CUSTOM_PROVIDER_ID,
-                              baseURL: "",
-                              model: "",
-                              sdkProvider: "openai",
-                            },
-                          }));
-                        } else {
-                          const preset = dynamicProviders.find((p) => p.id === val);
-                          if (!preset) return;
-                          setConfigForm((prev) => ({
-                            ...prev,
-                            llmProvider: {
-                              ...prev.llmProvider,
-                              presetId: val,
-                              baseURL: preset.baseURL,
-                              model: getDefaultModelForPreset(preset),
-                              sdkProvider: preset.sdkProvider ?? "openai",
-                            },
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择提供商..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {dynamicProviders.map((p) => (
-                          console.log(p.label, p.id, p),
-                          <SelectItem key={p.id} value={p.id}>
-                            <div className="flex items-center gap-2">
-                              <ProviderIcon providerId={p.id} size={16} />
-                              {p.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                        <SelectItem value={CUSTOM_PROVIDER_ID}>自定义 (Advanced)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {configForm.llmProvider.presetId && configForm.llmProvider.presetId !== CUSTOM_PROVIDER_ID && (() => {
-                    const preset = dynamicProviders.find((p) => p.id === configForm.llmProvider.presetId);
-                    return preset ? (
-                      <div className="grid gap-1.5">
-                        <Label className="text-xs">模型</Label>
-                        <ModelCombobox
-                          value={configForm.llmProvider.model}
-                          onChange={(val: string) =>
-                            setConfigForm((prev) => ({
-                              ...prev,
-                              llmProvider: { ...prev.llmProvider, model: val },
-                            }))
-                          }
-                          models={dynamicModels}
-                          loading={modelsLoading}
-                          placeholder="选择或输入模型"
-                        />
-                      </div>
-                    ) : null;
-                  })()}
-
-                  {configForm.llmProvider.presetId === CUSTOM_PROVIDER_ID && (
-                    <>
-                      <div className="grid gap-1.5">
-                        <Label htmlFor="llm-baseurl" className="text-xs">Base URL</Label>
-                        <Input
-                          id="llm-baseurl"
-                          value={configForm.llmProvider.baseURL}
-                          onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, baseURL: e.target.value } }))}
-                          placeholder="https://api.example.com/v1"
-                        />
-                      </div>
-                      <div className="grid gap-1.5">
-                        <Label htmlFor="llm-model" className="text-xs">Model Name</Label>
-                        <Input
-                          id="llm-model"
-                          value={configForm.llmProvider.model}
-                          onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, model: e.target.value } }))}
-                          placeholder="model-name"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {configForm.llmProvider.presetId && (
-                    <div className="grid gap-1.5">
-                      <Label htmlFor="llm-apikey" className="text-xs">API Key</Label>
-                      <Input
-                        id="llm-apikey"
-                        type="password"
-                        value={configForm.llmProvider.apiKey}
-                        onChange={(e) => setConfigForm((prev) => ({ ...prev, llmProvider: { ...prev.llmProvider, apiKey: e.target.value } }))}
-                        placeholder={findProviderPreset(configForm.llmProvider.presetId)?.apiKeyPlaceholder ?? "sk-..."}
-                      />
-                      {(() => {
-                        const helpUrl = findProviderPreset(configForm.llmProvider.presetId)?.apiKeyHelpUrl;
-                        return helpUrl ? (
-                          <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
-                            获取 API Key
-                          </a>
-                        ) : null;
-                      })()}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <LlmProviderSection
+                value={configForm.llmProvider}
+                onChange={(lp) => setConfigForm((prev) => ({ ...prev, llmProvider: lp }))}
+              />
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="grid gap-1.5">
@@ -712,6 +511,8 @@ export default function AgentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
         <Dialog open={Boolean(deletingAgentId)} onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -744,6 +545,8 @@ export default function AgentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Publish Template Dialog */}
         <Dialog
           open={Boolean(publishAgentId)}
           onOpenChange={(open) => {
