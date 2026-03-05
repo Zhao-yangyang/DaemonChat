@@ -170,7 +170,7 @@ export function TemplateDetailDialog({
                 <p className="text-sm font-medium text-foreground">配置预览</p>
                 <div className="rounded-md border bg-muted/50 p-3 text-sm">
                   <p className="mb-2 text-muted-foreground">System Prompt 摘要：</p>
-                  <p className="whitespace-pre-wrap break-words">
+                  <p className="whitespace-pre-wrap warp-break-words">
                     {systemPromptSummary(template.config ?? {})}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
