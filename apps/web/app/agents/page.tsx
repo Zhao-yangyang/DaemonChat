@@ -22,6 +22,11 @@ import {
   DialogTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Textarea,
   Tooltip,
@@ -70,9 +75,10 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
 
 export default function AgentsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<AgentConfigForm & { name: string }>({
+  const [createForm, setCreateForm] = useState<AgentConfigForm & { name: string; workspaceId?: string }>({
     ...EMPTY_CONFIG_FORM,
     name: "",
+    workspaceId: undefined,
   });
   const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
@@ -83,6 +89,12 @@ export default function AgentsPage() {
   const { session, isResolved } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
+    enabled: Boolean(session),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const workspaces = trpc.workspace.list.useQuery(undefined, {
     enabled: Boolean(session),
     retry: false,
     refetchOnWindowFocus: false,
@@ -105,7 +117,7 @@ export default function AgentsPage() {
   const createAgent = trpc.agent.create.useMutation({
     onSuccess: (agent) => {
       setCreateDialogOpen(false);
-      setCreateForm({ ...EMPTY_CONFIG_FORM, name: "" });
+      setCreateForm({ ...EMPTY_CONFIG_FORM, name: "", workspaceId: undefined });
       setCreateFormError(null);
       createAgent.reset();
       agents.refetch();
@@ -179,7 +191,7 @@ export default function AgentsPage() {
 
   const closeCreateDialog = () => {
     setCreateDialogOpen(false);
-    setCreateForm({ ...EMPTY_CONFIG_FORM, name: "" });
+    setCreateForm({ ...EMPTY_CONFIG_FORM, name: "", workspaceId: undefined });
     setCreateFormError(null);
     createAgent.reset();
   };
@@ -318,6 +330,7 @@ export default function AgentsPage() {
 
     createAgent.mutate({
       name: trimmedName,
+      ...(createForm.workspaceId ? { workspaceId: createForm.workspaceId } : {}),
       config: {
         ...(createForm.systemPrompt.trim() && { systemPrompt: createForm.systemPrompt.trim() }),
         memoryTopK,
@@ -510,6 +523,30 @@ export default function AgentsPage() {
                   placeholder="例如：Personal Ops Copilot"
                 />
               </div>
+
+              {(workspaces.data ?? []).length > 0 && (
+                <div className="grid gap-1.5">
+                  <Label htmlFor="create-agent-workspace">工作空间</Label>
+                  <Select
+                    value={createForm.workspaceId ?? ""}
+                    onValueChange={(v) =>
+                      setCreateForm((prev) => ({ ...prev, workspaceId: v || undefined }))
+                    }
+                  >
+                    <SelectTrigger id="create-agent-workspace">
+                      <SelectValue placeholder="个人（不属于任何工作空间）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">个人</SelectItem>
+                      {(workspaces.data ?? []).map((ws: { id: string; name: string }) => (
+                        <SelectItem key={ws.id} value={ws.id}>
+                          {ws.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="grid gap-1.5">
                 <Label htmlFor="create-agent-system-prompt">System Prompt</Label>

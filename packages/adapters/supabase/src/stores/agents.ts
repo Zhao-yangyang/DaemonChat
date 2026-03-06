@@ -7,6 +7,7 @@ const mapAgent = (row: any): Agent => ({
   ownerUserId: row.owner_user_id,
   name: row.name,
   config: { ...DEFAULT_AGENT_CONFIG, ...(row.config ?? {}) } as AgentConfig,
+  workspaceId: row.workspace_id ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });

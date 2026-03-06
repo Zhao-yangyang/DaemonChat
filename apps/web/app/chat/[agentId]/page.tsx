@@ -126,6 +126,9 @@ export default function ChatPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [pendingImages, setPendingImages] = useState<Array<{ file: File; preview: string }>>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeStreamControllerRef = useRef<AbortController | null>(null);
@@ -240,6 +243,7 @@ export default function ChatPage() {
   useEffect(() => {
     setEditingIndex(null);
     setEditingContent("");
+    setExpandedMessages(new Set());
   }, [currentSessionKey]);
 
   const updateMessagesForSession = (
@@ -465,9 +469,11 @@ export default function ChatPage() {
   };
 
   const send = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || isStreaming) {
+    if ((!input.trim() && pendingImages.length === 0) || isStreaming || isUploading) {
       return;
     }
+
+    setUploadError(null);
 
     const activeSessionKey = currentSessionKey || newSessionKey();
     if (!currentSessionKey) {
@@ -493,6 +499,7 @@ export default function ChatPage() {
 
     let imageUrls: Array<{ url: string; mimeType?: string }> | undefined;
     if (imagesToSend.length > 0) {
+      setIsUploading(true);
       try {
         const session = await supabaseBrowserClient.auth.getSession();
         const accessToken = session.data.session?.access_token;
@@ -500,7 +507,9 @@ export default function ChatPage() {
           imageUrls = await uploadImages(imagesToSend, activeSessionKey, accessToken);
         }
       } catch {
-        // proceed without images on upload failure
+        setUploadError("图片上传失败，请重试");
+      } finally {
+        setIsUploading(false);
       }
     }
 
@@ -865,7 +874,31 @@ export default function ChatPage() {
                             )
                           ) : (
                             hasVisibleContent ? (
-                              <MarkdownMessage content={msg.content} />
+                              (() => {
+                                const isLong = !isUser && msg.content.length > 2000;
+                                const isExpanded = expandedMessages.has(idx);
+                                const shouldCollapse = isLong && !isExpanded;
+                                return (
+                                  <>
+                                    <div className={shouldCollapse ? "max-h-96 overflow-hidden" : undefined}>
+                                      <MarkdownMessage content={msg.content} />
+                                    </div>
+                                    {isLong ? (
+                                      <button
+                                        className="mt-2 text-xs text-primary hover:underline"
+                                        onClick={() => setExpandedMessages((prev) => {
+                                          const next = new Set(prev);
+                                          if (isExpanded) next.delete(idx);
+                                          else next.add(idx);
+                                          return next;
+                                        })}
+                                      >
+                                        {isExpanded ? "收起" : "展开全文"}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                );
+                              })()
                             ) : (
                               isPendingAssistant ? (
                                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -928,6 +961,9 @@ export default function ChatPage() {
                 {currentAgent?.config.llmProvider?.model || "未配置模型"}
               </Badge>
             </div>
+            {uploadError ? (
+              <div className="px-1 pb-1 text-xs text-destructive">{uploadError}</div>
+            ) : null}
             {pendingImages.length > 0 ? (
               <div className="flex flex-wrap gap-2 px-1">
                 {pendingImages.map((img, i) => (
@@ -980,10 +1016,10 @@ export default function ChatPage() {
                 variant="ghost"
                 className="shrink-0 rounded-lg"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isStreaming}
+                disabled={isStreaming || isUploading}
                 title="添加图片"
               >
-                <ImagePlus className="size-4" />
+                {isUploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
               </Button>
               <Textarea
                 value={input}
@@ -1015,7 +1051,7 @@ export default function ChatPage() {
                   size="icon-sm"
                   className="shrink-0 rounded-lg"
                   onClick={send}
-                  disabled={!input.trim() && pendingImages.length === 0}
+                  disabled={(!input.trim() && pendingImages.length === 0) || isUploading}
                 >
                   <Send className="size-4" />
                   <span className="sr-only">发送</span>

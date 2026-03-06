@@ -419,7 +419,7 @@ Example scoped command:
 - 代码核实中发现的已知缺口（2026-03-04 更新）：
   - ~~Worker `COMPACTION` job 在 `SUPPORTED_JOB_TYPES` 中但 `processJob` 无对应处理分支~~ → 已修复。
   - ~~Worker `EMBEDDING_BACKFILL` job 同上~~ → 已修复。
-  - Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤。
+  - ~~Workspace Agent 隔离未生效：`agents.workspace_id` 字段已有但查询未按 workspace 过滤~~ → 已修复（2026-03-06）。
   - ~~模板市场缺少搜索/分类/评分功能~~ → 已实现（2026-03-05）。
 - Agent LLM Provider 配置重构（2026-03-04）：
   - **Domain 类型清理**：
@@ -458,3 +458,23 @@ Example scoped command:
   - `resolveProvider()`：基于 `ModelProvider` 模糊匹配（精确 key、value 包含、value 被包含），以 `provider={ModelProvider[key]}` 传参。
   - `__custom__` 和空值使用 lucide `Cpu` 图标兜底。
   - OpenRouter 返回的 provider ID 与 ModelProvider 无一一对应，部分小众 Provider（如 aion-labs、allenai）无图标时显示兜底图标。
+- Post-MVP Phase 5 最终收尾（2026-03-06）：
+  - **Workspace Agent 隔离已修复**：
+    - `mapAgent`（`packages/adapters/supabase/src/stores/agents.ts`）现在正确映射 `row.workspace_id` → `Agent.workspaceId`。
+    - `agent.list` tRPC 已支持可选 `workspaceId` 输入过滤（API 层 + domain 层 + Supabase adapter 层均已就绪）。
+    - `agent.create` tRPC 已支持可选 `workspaceId` 参数。
+    - Agents 页面创建 Agent 对话框新增「工作空间」下拉选择器（仅当用户有 workspace 时显示，通过 `trpc.workspace.list` 获取列表）。
+  - **Memory 自动提取已确认完备**：
+    - `chatTurnStream.finalizeTurn` 已内置 `MEMORY_FLUSH_EVERY_N_TURNS = 20` 基于轮次的 MEMORY_FLUSH 触发（不依赖 compaction）。
+    - `memoryExtraction.ts` 已内置语义去重：提取前附加已有记忆摘要到 prompt，提取后做 embedding cosine similarity 比较（`DEDUP_THRESHOLD = 0.92`），跳过高度相似条目。
+  - **Chat 交互细节优化**：
+    - 图片上传加载态：上传期间 ImagePlus 按钮显示 `Loader2` 旋转动画，图片按钮和发送按钮均禁用。
+    - 图片上传失败提示：上传失败时显示红色 `text-destructive` 错误提示「图片上传失败，请重试」。
+    - 长消息折叠：助手消息超过 2000 字符时自动折叠（`max-h-96 overflow-hidden`），提供「展开全文」/「收起」切换按钮。切换会话时自动重置折叠状态。
+  - **侧边栏导航已确认完备**：
+    - `dashboard-shell.tsx` 导航项包含全部 7 项：聊天/Agents/记忆/轨迹/用量/模板/空间。
+  - **Staging 部署已确认完备**：
+    - `.github/workflows/deploy-staging.yml`：push 到 `develop` 分支或手动触发 → Vercel Preview 部署。
+    - `docs/runbooks/local-experience.md` 已包含 Staging 部署文档（Section 6）。
+  - **退出登录修复**：
+    - `dashboard-shell.tsx` 退出登录现在使用 `window.location.href = "/"` 硬跳转替代 `router.push("/")`，确保 Supabase 会话状态彻底清除。

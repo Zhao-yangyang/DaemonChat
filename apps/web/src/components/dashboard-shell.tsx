@@ -122,9 +122,10 @@ function SidebarNav({
         ) : null}
         {session ? (
           <button
-            onClick={() => {
-              supabaseBrowserClient.auth.signOut();
+            onClick={async () => {
               onNavigate?.();
+              await supabaseBrowserClient.auth.signOut();
+              window.location.href = "/";
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
           >
