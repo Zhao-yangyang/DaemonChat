@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -54,11 +55,14 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+type AgentVisibility = "private" | "workspace" | "public";
+
 type AgentConfigForm = {
   systemPrompt: string;
   memoryTopK: string;
   recentMessages: string;
   temperature: string;
+  visibility: AgentVisibility;
   llmProvider: LlmProviderFormState;
   /** 打开对话框时 API Key 已配置（后端返回 REDACTED），保存时空字符串应发回 REDACTED 以保留 */
   apiKeyConfigured: boolean;
@@ -69,6 +73,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
   memoryTopK: "8",
   recentMessages: "20",
   temperature: "0.7",
+  visibility: "private",
   llmProvider: EMPTY_LLM_PROVIDER_STATE,
   apiKeyConfigured: false,
 };
@@ -123,6 +128,9 @@ export default function AgentsPage() {
       agents.refetch();
       router.push(`/chat/${agent.id}`);
     },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "创建 Agent 失败"));
+    },
   });
   const updateAgent = trpc.agent.update.useMutation({
     onSuccess: () => {
@@ -131,11 +139,17 @@ export default function AgentsPage() {
       setConfigFormError(null);
       agents.refetch();
     },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "更新 Agent 配置失败"));
+    },
   });
   const deleteAgent = trpc.agent.delete.useMutation({
     onSuccess: () => {
       setDeletingAgentId(null);
       agents.refetch();
+    },
+    onError: () => {
+      toast.error("删除 Agent 失败");
     },
   });
 
@@ -208,6 +222,7 @@ export default function AgentsPage() {
 
   const openConfigDialog = (agent: {
     id: string;
+    visibility?: AgentVisibility;
     config: {
       systemPrompt: string;
       memoryTopK: number;
@@ -237,6 +252,7 @@ export default function AgentsPage() {
       memoryTopK: String(agent.config.memoryTopK ?? 8),
       recentMessages: String(agent.config.recentMessages ?? 20),
       temperature: String(agent.config.temperature ?? 0.7),
+      visibility: agent.visibility ?? "private",
       llmProvider: {
         presetId: agent.config.llmProvider?.presetId
           ?? detected?.providerId
@@ -280,6 +296,7 @@ export default function AgentsPage() {
 
     updateAgent.mutate({
       agentId: editingAgentId,
+      visibility: configForm.visibility,
       config: {
         systemPrompt: configForm.systemPrompt,
         memoryTopK,
@@ -655,6 +672,25 @@ export default function AgentsPage() {
                   configForm.apiKeyConfigured ? "已配置（留空保留，输入则覆盖）" : undefined
                 }
               />
+
+              <div className="grid gap-1.5">
+                <Label>可见性</Label>
+                <Select
+                  value={configForm.visibility}
+                  onValueChange={(v) =>
+                    setConfigForm((prev) => ({ ...prev, visibility: v as AgentVisibility }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">仅自己可见</SelectItem>
+                    <SelectItem value="workspace">工作空间成员可见</SelectItem>
+                    <SelectItem value="public">所有人可见</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="grid gap-1.5">

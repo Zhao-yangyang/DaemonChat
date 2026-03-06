@@ -5,11 +5,16 @@ import { createTranscriptService } from "../usecases/transcript";
 import { createMemoryService } from "../usecases/memory";
 import { createCompactionService } from "../usecases/compaction";
 import { createChatService } from "../usecases/chat";
+import { createWorkspaceService } from "../usecases/workspace";
 
 export function createServices(ports: Ports): Services {
   return {
     ports,
-    agent: createAgentService({ agents: ports.agents, clock: ports.clock }),
+    agent: createAgentService({
+      agents: ports.agents,
+      clock: ports.clock,
+      workspace: ports.workspace,
+    }),
     session: createSessionService({ sessions: ports.sessions, agents: ports.agents, clock: ports.clock }),
     transcript: createTranscriptService({ transcripts: ports.transcripts }),
     memory: createMemoryService({ memory: ports.memory, llm: ports.llm, clock: ports.clock }),
@@ -27,6 +32,9 @@ export function createServices(ports: Ports): Services {
       llm: ports.llm,
       clock: ports.clock,
       tokenizer: ports.tokenizer,
+    }),
+    ...(ports.workspace && {
+      workspace: createWorkspaceService({ workspace: ports.workspace }),
     }),
   };
 }

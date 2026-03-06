@@ -1,5 +1,6 @@
 export { createSupabaseClient } from "./client";
 export { createAgentStore } from "./stores/agents";
+export { createWorkspaceStore } from "./stores/workspace";
 export { createSessionStore } from "./stores/sessions";
 export { createTranscriptStore } from "./stores/transcripts";
 export { createMemoryStore } from "./stores/memory";

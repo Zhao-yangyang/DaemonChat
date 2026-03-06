@@ -40,6 +40,8 @@ Example scoped command:
 - API router tests live in `packages/api/src/__tests__/`.
 - Web route/server tests live in `apps/web/app/api/**` and `apps/web/src/**`.
 - Worker tests live in `apps/worker/src/*.test.ts`.
+- E2E tests (Playwright) live in `apps/web/e2e/*.spec.ts`; run with `bun run test:e2e`. Locally, use `CI= bun run test:e2e` to use system Chrome when CI is set; `reuseExistingServer: true` allows reusing an existing dev server.
+- `@daemon/web` unit/API tests use `bun test src app` (excludes `e2e/`; Playwright specs run via `test:e2e`).
 - Run all tests with `bun run test`, or package-only with `bun --cwd packages/domain test`.
 - Prefer adding tests alongside domain logic when changing core behavior.
 
@@ -55,10 +57,11 @@ Example scoped command:
 - Avoid committing secrets. If environment variables are required, document them in the relevant app README.
 - Keep adapter-specific credentials isolated to their respective packages (e.g., `packages/adapters/*`).
 
-## Current Project Status (2026-03-03)
+## Current Project Status (2026-03-06)
 
 - Plan baseline is now `docs/plans/2026-02-03-ai-longterm-assistant-design.md` (V2), including gateway-aligned architecture constraints.
-- Next development plan is `docs/plans/2026-03-03-post-mvp-phase5.md`.
+- Phase 6 计划已完成：`docs/plans/2026-03-06-phase6-production-ready.md`（生产化就绪 + 产品差异化），含 E2E、错误边界、Toast、Landing、PDF 附件、Agent 可见性、Workspace 权限矩阵。
+- 历史计划已归档至 `docs/plans/archive/`。
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
   - Turbo workspace `typecheck` and `test` commands are expected to run from repo root.
@@ -273,6 +276,7 @@ Example scoped command:
 - Keep validating with:
   - `bun run typecheck`
   - `bun run test`
+  - `bun run test:e2e`（在 `apps/web` 下，E2E 冒烟；本地建议 `CI= bun run test:e2e`）
   - focused tests where applicable (for example `apps/web/src/server/auth.test.ts`, `apps/web/app/api/chat/stream/route.test.ts`, `apps/worker/src/claimJobs.test.ts`, `apps/worker/src/retry.test.ts`, `apps/web/src/features/historyFilters.test.ts`, `packages/api/src/__tests__/router.test.ts`)
 - For manual product QA and demos, use:
   - `docs/runbooks/local-experience.md`
@@ -478,3 +482,24 @@ Example scoped command:
     - `docs/runbooks/local-experience.md` 已包含 Staging 部署文档（Section 6）。
   - **退出登录修复**：
     - `dashboard-shell.tsx` 退出登录现在使用 `window.location.href = "/"` 硬跳转替代 `router.push("/")`，确保 Supabase 会话状态彻底清除。
+- Post-MVP Phase 6 — 生产化就绪（2026-03-06，已完成）：
+  - **E2E 测试保护网**（已完成）：
+    - Playwright 基础设施：`apps/web/playwright.config.ts`，`baseURL: localhost:3333`，`reuseExistingServer: true`，本地非 CI 时使用系统 Chrome（`channel: "chrome"`）。
+    - 冒烟测试：`apps/web/e2e/smoke.spec.ts` 覆盖首页登录表单、特性卡片、agents/memory/templates/usage 页面加载。
+    - `@daemon/web` 的 `test` 脚本为 `bun test src app`，排除 e2e；E2E 单独运行 `bun run test:e2e`。本地运行建议 `CI= bun run test:e2e` 以使用系统 Chrome。
+  - **全局错误边界**（已完成）：
+    - `apps/web/src/components/error-boundary.tsx`：React class component `componentDidCatch`，友好错误提示 + 重试按钮。
+    - `apps/web/src/providers.tsx` 中 `<ErrorBoundary>` 包裹 children。
+  - **全局 Toast 通知**（已完成）：
+    - `@daemon/ui` 导出 Sonner 的 `Toaster`，`providers.tsx` 挂载。
+    - `apps/web/app/agents/page.tsx` 和 `apps/web/app/chat/[agentId]/page.tsx` 的 create/update/stream 失败已使用 `toast.error`。
+  - **公开 Landing Page**（已完成）：
+    - `apps/web/app/page.tsx` 未登录/已登录视图分离，Hero 区 + 特性卡片（长期记忆/多模型/模板市场/团队协作）+ CTA「开始使用」。
+  - **Phase 6 已完成**：
+    - PDF 附件（Task 8–10）：`apps/web/src/lib/pdf-parser.ts`、upload route 支持 `application/pdf`、`chat_attachments.text_content` 迁移、前端 `pendingAttachments` 支持图片+PDF、发送时 PDF `textContent` 拼接到 `userMessage`。
+    - Agent 可见性（Task 11）：`agents.visibility` 列（private/workspace/public）、`WorkspaceStore.isMember`、`listAgentsByOwner` 扩展 workspace/public 可见、`getAgent` 按 visibility 校验、Agent 配置 Dialog 可见性选择器。
+  - **Workspace 权限矩阵**（Task 12，已完成）：
+    - `packages/domain/src/usecases/workspace.ts`：`createWorkspaceService` 提供 `checkPermission`/`requirePermission`，权限矩阵覆盖 create_agent/edit_agent/delete_agent/chat/view_memory/invite_member/remove_member/delete_workspace。
+    - `WorkspaceStore` 扩展 `getMemberRole(workspaceId, userId)`，Supabase adapter 实现。
+    - Agent tRPC：`agent.create` 带 `workspaceId` 时校验 create_agent 权限；`agent.update`/`agent.delete` 对 workspace Agent 校验 edit_agent/delete_agent（member 仅能操作自己的）。
+    - 路由测试：`agent.create returns 403 when workspace viewer tries to create agent`。

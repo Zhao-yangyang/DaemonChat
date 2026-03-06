@@ -1,8 +1,12 @@
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { DEFAULT_AGENT_CONFIG, type Agent, type AgentConfig } from "../types";
-import type { AgentStore, Clock } from "../container/types";
+import type { AgentStore, Clock, WorkspaceStore } from "../container/types";
 
-export function createAgentService(ports: { agents: AgentStore; clock: Clock }) {
+export function createAgentService(ports: {
+  agents: AgentStore;
+  clock: Clock;
+  workspace?: WorkspaceStore;
+}) {
   return {
     async createAgent(ownerUserId: string, name: string, config?: Partial<AgentConfig>, workspaceId?: string): Promise<Agent> {
       const trimmed = name.trim();
@@ -19,23 +23,30 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
       });
     },
 
-    async getAgent(agentId: string, ownerUserId: string): Promise<Agent> {
+    async getAgent(agentId: string, userId: string): Promise<Agent> {
       const agent = await ports.agents.getAgentById(agentId);
       if (!agent) {
         throw new NotFoundError("Agent not found");
       }
-      if (agent.ownerUserId !== ownerUserId) {
-        throw new ForbiddenError("Agent access denied");
+      if (agent.ownerUserId === userId) return agent;
+      if (agent.visibility === "public") return agent;
+      if (agent.visibility === "workspace" && agent.workspaceId && ports.workspace) {
+        const isMember = await ports.workspace.isMember(agent.workspaceId, userId);
+        if (isMember) return agent;
       }
-      return agent;
+      throw new ForbiddenError("Agent access denied");
     },
 
-    async listAgents(ownerUserId: string, opts?: { workspaceId?: string }): Promise<Agent[]> {
-      return ports.agents.listAgentsByOwner(ownerUserId, opts);
+    async listAgents(userId: string, opts?: { workspaceId?: string }): Promise<Agent[]> {
+      return ports.agents.listAgentsByOwner(userId, opts);
     },
 
-    async updateAgent(agentId: string, ownerUserId: string, updates: { name?: string; config?: Partial<AgentConfig> }): Promise<Agent> {
-      await this.getAgent(agentId, ownerUserId);
+    async updateAgent(
+      agentId: string,
+      userId: string,
+      updates: { name?: string; config?: Partial<AgentConfig>; visibility?: import("../types").AgentVisibility }
+    ): Promise<Agent> {
+      await this.getAgent(agentId, userId);
       if (updates.name !== undefined) {
         const trimmed = updates.name.trim();
         if (!trimmed) throw new ValidationError("Agent name is required");
@@ -45,12 +56,13 @@ export function createAgentService(ports: { agents: AgentStore; clock: Clock }) 
         agentId,
         name: updates.name,
         config: updates.config,
+        visibility: updates.visibility,
         now: ports.clock.now(),
       });
     },
 
-    async deleteAgent(agentId: string, ownerUserId: string): Promise<void> {
-      await this.getAgent(agentId, ownerUserId);
+    async deleteAgent(agentId: string, userId: string): Promise<void> {
+      await this.getAgent(agentId, userId);
       await ports.agents.deleteAgent(agentId);
     },
   };

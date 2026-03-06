@@ -82,12 +82,14 @@ export function createInMemoryStores(): {
   };
 
   const agentStore: AgentStore = {
-    async createAgent({ ownerUserId, name, config, now }) {
+    async createAgent({ ownerUserId, name, config, workspaceId, visibility, now }) {
       const agent: Agent = {
         id: nextId("agent"),
         ownerUserId,
         name,
         config: { ...DEFAULT_AGENT_CONFIG, ...config },
+        workspaceId: workspaceId ?? null,
+        visibility: visibility ?? "private",
         createdAt: now,
         updatedAt: now,
       };
@@ -103,13 +105,14 @@ export function createInMemoryStores(): {
       return agents.filter((agent) => agent.ownerUserId === ownerUserId);
     },
 
-    async updateAgent({ agentId, name, config, now }) {
+    async updateAgent({ agentId, name, config, visibility, now }) {
       const agent = agents.find((a) => a.id === agentId);
       if (!agent) throw new Error("Agent not found");
       if (name !== undefined) agent.name = name;
       if (config !== undefined) {
         agent.config = { ...agent.config, ...config };
       }
+      if (visibility !== undefined) agent.visibility = visibility;
       agent.updatedAt = now;
       return { ...agent };
     },

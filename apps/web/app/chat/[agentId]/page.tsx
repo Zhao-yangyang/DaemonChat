@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import { trpc } from "@daemon/hooks";
 import {
@@ -26,7 +27,7 @@ import {
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
-import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore, MoreVertical, FileDown, RefreshCw } from "lucide-react";
+import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore, MoreVertical, FileDown, RefreshCw, FileText } from "lucide-react";
 
 const formatMsgTime = (iso?: string): string => {
   if (!iso) return "";
@@ -125,7 +126,8 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  const [pendingImages, setPendingImages] = useState<Array<{ file: File; preview: string }>>([]);
+  type PendingAttachment = { file: File; preview: string; type: "image" | "pdf" };
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
@@ -435,6 +437,7 @@ export default function ChatPage() {
         return;
       }
       const message = error instanceof Error ? error.message : "未知错误";
+      toast.error(message);
       appendAssistant(input.targetSessionKey, `\n错误: ${message}`);
     } finally {
       if (activeStreamControllerRef.current === controller) {
@@ -444,15 +447,16 @@ export default function ChatPage() {
     }
   };
 
-  const uploadImages = async (
-    images: Array<{ file: File }>,
+  const uploadAttachments = async (
+    attachments: PendingAttachment[],
     activeSessionKey: string,
     accessToken: string
-  ): Promise<Array<{ url: string; mimeType?: string }>> => {
-    const results: Array<{ url: string; mimeType?: string }> = [];
-    for (const img of images) {
+  ): Promise<{ imageUrls: Array<{ url: string; mimeType?: string }>; pdfTexts: string[] }> => {
+    const imageUrls: Array<{ url: string; mimeType?: string }> = [];
+    const pdfTexts: string[] = [];
+    for (const att of attachments) {
       const form = new FormData();
-      form.append("file", img.file);
+      form.append("file", att.file);
       form.append("agentId", agentId);
       form.append("sessionId", activeSessionKey);
       const resp = await fetch("/api/chat/upload", {
@@ -461,15 +465,23 @@ export default function ChatPage() {
         body: form,
       });
       if (resp.ok) {
-        const data = (await resp.json()) as { url: string; contentType?: string };
-        results.push({ url: data.url, mimeType: data.contentType });
+        const data = (await resp.json()) as {
+          url: string;
+          contentType?: string;
+          textContent?: string;
+        };
+        if (att.type === "image") {
+          imageUrls.push({ url: data.url, mimeType: data.contentType });
+        } else if (att.type === "pdf" && data.textContent?.trim()) {
+          pdfTexts.push(data.textContent.trim());
+        }
       }
     }
-    return results;
+    return { imageUrls, pdfTexts };
   };
 
   const send = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || isStreaming || isUploading) {
+    if ((!input.trim() && pendingAttachments.length === 0) || isStreaming || isUploading) {
       return;
     }
 
@@ -482,13 +494,25 @@ export default function ChatPage() {
         prev.includes(activeSessionKey) ? prev : [activeSessionKey, ...prev]
       );
     }
-    const userMessage = input.trim() || (pendingImages.length > 0 ? "请看这些图片" : "");
-    const imagesToSend = [...pendingImages];
-    setPendingImages([]);
+    const attachmentsToSend = [...pendingAttachments];
+    setPendingAttachments([]);
 
-    const displayContent = imagesToSend.length > 0
-      ? `${userMessage}\n\n${imagesToSend.map((img) => `![${img.file.name}](${img.preview})`).join("\n")}`
-      : userMessage;
+    const hasImages = attachmentsToSend.some((a) => a.type === "image");
+    const hasPdfs = attachmentsToSend.some((a) => a.type === "pdf");
+    const baseUserMessage =
+      input.trim() ||
+      (hasImages ? "请看这些图片" : hasPdfs ? "请根据文档内容回答" : "");
+
+    const displayContent =
+      attachmentsToSend.length > 0
+        ? `${baseUserMessage}\n\n${attachmentsToSend
+            .map((a) =>
+              a.type === "image"
+                ? `![${a.file.name}](${a.preview})`
+                : `[${a.file.name}]`
+            )
+            .join("\n")}`
+        : baseUserMessage;
 
     setInput("");
     updateMessagesForSession(activeSessionKey, (items) => [
@@ -498,20 +522,33 @@ export default function ChatPage() {
     ]);
 
     let imageUrls: Array<{ url: string; mimeType?: string }> | undefined;
-    if (imagesToSend.length > 0) {
+    let pdfTexts: string[] = [];
+    if (attachmentsToSend.length > 0) {
       setIsUploading(true);
       try {
         const session = await supabaseBrowserClient.auth.getSession();
         const accessToken = session.data.session?.access_token;
         if (accessToken) {
-          imageUrls = await uploadImages(imagesToSend, activeSessionKey, accessToken);
+          const result = await uploadAttachments(
+            attachmentsToSend,
+            activeSessionKey,
+            accessToken
+          );
+          imageUrls = result.imageUrls.length > 0 ? result.imageUrls : undefined;
+          pdfTexts = result.pdfTexts;
         }
       } catch {
-        setUploadError("图片上传失败，请重试");
+        setUploadError("附件上传失败，请重试");
+        toast.error("附件上传失败，请重试");
       } finally {
         setIsUploading(false);
       }
     }
+
+    const userMessage =
+      pdfTexts.length > 0
+        ? `${baseUserMessage}\n\n[文档内容]\n${pdfTexts.join("\n\n")}`
+        : baseUserMessage;
 
     await runTurn({
       targetSessionKey: activeSessionKey,
@@ -964,20 +1001,29 @@ export default function ChatPage() {
             {uploadError ? (
               <div className="px-1 pb-1 text-xs text-destructive">{uploadError}</div>
             ) : null}
-            {pendingImages.length > 0 ? (
+            {pendingAttachments.length > 0 ? (
               <div className="flex flex-wrap gap-2 px-1">
-                {pendingImages.map((img, i) => (
+                {pendingAttachments.map((att, i) => (
                   <div key={i} className="group relative">
-                    <img
-                      src={img.preview}
-                      alt={img.file.name}
-                      className="size-16 rounded-lg border object-cover"
-                    />
+                    {att.type === "image" ? (
+                      <img
+                        src={att.preview}
+                        alt={att.file.name}
+                        className="size-16 rounded-lg border object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border bg-muted/50 px-2">
+                        <FileText className="size-6 text-muted-foreground" />
+                        <span className="truncate text-xs text-muted-foreground" title={att.file.name}>
+                          {att.file.name}
+                        </span>
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
                       onClick={() =>
-                        setPendingImages((prev) => prev.filter((_, idx) => idx !== i))
+                        setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i))
                       }
                     >
                       <X className="size-3" />
@@ -990,22 +1036,22 @@ export default function ChatPage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
                 multiple
                 className="hidden"
                 onChange={(e) => {
                   const files = Array.from(e.target.files ?? []);
-                  const validFiles = files.filter(
-                    (f) => f.size <= 10 * 1024 * 1024 && /^image\/(jpeg|png|gif|webp)$/.test(f.type)
-                  );
-                  if (validFiles.length > 0) {
-                    setPendingImages((prev) => [
-                      ...prev,
-                      ...validFiles.map((file) => ({
-                        file,
-                        preview: URL.createObjectURL(file),
-                      })),
-                    ]);
+                  const MAX = 10 * 1024 * 1024;
+                  const imageRe = /^image\/(jpeg|png|gif|webp)$/;
+                  const newAttachments: PendingAttachment[] = files
+                    .filter((f) => f.size <= MAX && (imageRe.test(f.type) || f.type === "application/pdf"))
+                    .map((file) =>
+                      imageRe.test(file.type)
+                        ? { file, preview: URL.createObjectURL(file), type: "image" as const }
+                        : { file, preview: "", type: "pdf" as const }
+                    );
+                  if (newAttachments.length > 0) {
+                    setPendingAttachments((prev) => [...prev, ...newAttachments]);
                   }
                   e.target.value = "";
                 }}
@@ -1017,7 +1063,7 @@ export default function ChatPage() {
                 className="shrink-0 rounded-lg"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isStreaming || isUploading}
-                title="添加图片"
+                title="添加图片或 PDF"
               >
                 {isUploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
               </Button>
@@ -1051,7 +1097,7 @@ export default function ChatPage() {
                   size="icon-sm"
                   className="shrink-0 rounded-lg"
                   onClick={send}
-                  disabled={(!input.trim() && pendingImages.length === 0) || isUploading}
+                  disabled={(!input.trim() && pendingAttachments.length === 0) || isUploading}
                 >
                   <Send className="size-4" />
                   <span className="sr-only">发送</span>
@@ -1059,7 +1105,7 @@ export default function ChatPage() {
               )}
             </div>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              Enter 发送 · Shift + Enter 换行 · 支持粘贴或选择图片
+              Enter 发送 · Shift + Enter 换行 · 支持图片或 PDF
             </p>
           </div>
         </div>

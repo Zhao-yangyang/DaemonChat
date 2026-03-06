@@ -312,7 +312,7 @@ create index if not exists agent_templates_public_idx
 create index if not exists agent_templates_author_idx
   on public.agent_templates (author_user_id);
 
--- Chat attachments (multimodal MVP – images)
+-- Chat attachments (multimodal MVP – images + PDF)
 create table if not exists public.chat_attachments (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
@@ -322,8 +322,10 @@ create table if not exists public.chat_attachments (
   content_type text not null,
   storage_path text not null,
   byte_size integer not null default 0,
+  text_content text,
   created_at timestamptz not null default now()
 );
+alter table public.chat_attachments add column if not exists text_content text;
 
 create index if not exists chat_attachments_session_idx
   on public.chat_attachments (agent_id, session_id, created_at desc);
@@ -363,3 +365,12 @@ create index if not exists workspace_members_workspace_idx
 -- Optional workspace scope on agents (null = personal agent)
 alter table public.agents add column if not exists workspace_id uuid references public.workspaces(id) on delete set null;
 create index if not exists agents_workspace_idx on public.agents (workspace_id) where workspace_id is not null;
+
+-- Agent visibility: private | workspace | public
+alter table public.agents add column if not exists visibility text not null default 'private';
+alter table public.agents drop constraint if exists agents_visibility_check;
+alter table public.agents add constraint agents_visibility_check check (visibility in ('private', 'workspace', 'public'));
+create index if not exists agents_visibility_idx on public.agents (visibility) where visibility != 'private';
+
+-- Agent visibility: private (owner only) | workspace (members visible) | public (all visible)
+alter table public.agents add column if not exists visibility text not null default 'private';

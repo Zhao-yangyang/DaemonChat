@@ -1,5 +1,6 @@
 import { resolveApiUserFromAccessToken } from "@/src/server/auth";
 import { logError, logInfo, logWarn } from "@/src/server/logger";
+import { extractTextFromPdf } from "@/src/lib/pdf-parser";
 import { createSupabaseClient } from "@daemon/adapters-supabase";
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -7,7 +8,13 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+const ALLOWED_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "application/pdf",
+]);
 const BUCKET_NAME = "chat-attachments";
 
 export async function POST(req: Request) {
@@ -48,7 +55,9 @@ export async function POST(req: Request) {
 
   if (!ALLOWED_TYPES.has(file.type)) {
     return new Response(
-      JSON.stringify({ error: `Unsupported file type: ${file.type}. Allowed: jpeg, png, gif, webp` }),
+      JSON.stringify({
+        error: `Unsupported file type: ${file.type}. Allowed: jpeg, png, gif, webp, pdf`,
+      }),
       { status: 415, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
     );
   }
@@ -71,9 +80,16 @@ export async function POST(req: Request) {
     const storagePath = `${user.id}/${agentId}/${sessionId}/${crypto.randomUUID()}.${ext}`;
 
     const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    let textContent: string | undefined;
+    if (file.type === "application/pdf") {
+      textContent = await extractTextFromPdf(buffer);
+    }
+
     const { error: uploadError } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(storagePath, arrayBuffer, { contentType: file.type, upsert: false });
+      .upload(storagePath, buffer, { contentType: file.type, upsert: false });
 
     if (uploadError) {
       logError("chat.upload.storage_error", {
@@ -100,6 +116,7 @@ export async function POST(req: Request) {
         content_type: file.type,
         storage_path: storagePath,
         byte_size: file.size,
+        text_content: textContent ?? null,
       })
       .select("id, file_name, content_type, byte_size, created_at")
       .single();
@@ -129,6 +146,7 @@ export async function POST(req: Request) {
         fileName: file.name,
         contentType: file.type,
         byteSize: file.size,
+        textContent: textContent ?? undefined,
       }),
       { status: 200, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
     );

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_AGENT_CONFIG, type Agent, type AgentConfig } from "@daemon/domain";
+import { DEFAULT_AGENT_CONFIG, type Agent, type AgentConfig, type AgentVisibility } from "@daemon/domain";
 import type { AgentStore } from "@daemon/domain";
+
+const VISIBILITY_VALUES: AgentVisibility[] = ["private", "workspace", "public"];
 
 const mapAgent = (row: any): Agent => ({
   id: row.id,
@@ -8,13 +10,14 @@ const mapAgent = (row: any): Agent => ({
   name: row.name,
   config: { ...DEFAULT_AGENT_CONFIG, ...(row.config ?? {}) } as AgentConfig,
   workspaceId: row.workspace_id ?? null,
+  visibility: VISIBILITY_VALUES.includes(row.visibility) ? row.visibility : "private",
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
 
 export function createAgentStore(client: SupabaseClient): AgentStore {
   return {
-    async createAgent({ ownerUserId, name, config, workspaceId, now }) {
+    async createAgent({ ownerUserId, name, config, workspaceId, visibility, now }) {
       const row: Record<string, unknown> = {
         owner_user_id: ownerUserId,
         name,
@@ -23,6 +26,7 @@ export function createAgentStore(client: SupabaseClient): AgentStore {
         updated_at: now,
       };
       if (workspaceId) row.workspace_id = workspaceId;
+      if (visibility) row.visibility = visibility;
       const { data, error } = await client
         .from("agents")
         .insert(row)
@@ -45,10 +49,24 @@ export function createAgentStore(client: SupabaseClient): AgentStore {
     },
 
     async listAgentsByOwner(ownerUserId, opts) {
+      const { data: memberRows } = await client
+        .from("workspace_members")
+        .select("workspace_id")
+        .eq("user_id", ownerUserId);
+      const workspaceIds = (memberRows ?? []).map((r: { workspace_id: string }) => r.workspace_id);
+
+      const orParts: string[] = [
+        `owner_user_id.eq.${ownerUserId}`,
+        "visibility.eq.public",
+      ];
+      if (workspaceIds.length > 0) {
+        orParts.push(`and(visibility.eq.workspace,workspace_id.in.(${workspaceIds.join(",")}))`);
+      }
+
       let query = client
         .from("agents")
         .select("*")
-        .eq("owner_user_id", ownerUserId);
+        .or(orParts.join(","));
 
       if (opts?.workspaceId) {
         query = query.eq("workspace_id", opts.workspaceId);
@@ -60,9 +78,10 @@ export function createAgentStore(client: SupabaseClient): AgentStore {
       return (data ?? []).map(mapAgent);
     },
 
-    async updateAgent({ agentId, name, config, now }) {
+    async updateAgent({ agentId, name, config, visibility, now }) {
       const updates: Record<string, unknown> = { updated_at: now };
       if (name !== undefined) updates.name = name;
+      if (visibility !== undefined) updates.visibility = visibility;
       if (config !== undefined) {
         const { data: existing } = await client.from("agents").select("config").eq("id", agentId).single();
         updates.config = { ...(existing?.config ?? {}), ...config };

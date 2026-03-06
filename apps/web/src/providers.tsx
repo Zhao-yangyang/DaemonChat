@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { TrpcProvider } from "@daemon/hooks";
-import { TooltipProvider } from "@daemon/ui";
+import { Toaster, TooltipProvider } from "@daemon/ui";
+import { ErrorBoundary } from "./components/error-boundary";
 import { supabaseBrowserClient } from "./supabaseClient";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
@@ -31,7 +32,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <TrpcProvider key={accessToken ?? "anon"} headers={headers}>
-      <TooltipProvider>{children}</TooltipProvider>
+      <TooltipProvider>
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </TooltipProvider>
+      <Toaster />
     </TrpcProvider>
   );
 }

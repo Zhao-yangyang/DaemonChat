@@ -36,6 +36,7 @@ const buildContainer = (overrides?: {
   deleteSession?: Services["session"]["deleteSession"];
   renameSession?: Services["session"]["renameSession"];
   rateLimitConsume?: NonNullable<Services["ports"]["rateLimit"]>["consumeLimit"];
+  workspace?: Services["workspace"];
 }): Services =>
   ({
     ports: {
@@ -127,6 +128,7 @@ const buildContainer = (overrides?: {
       deleteSession: overrides?.deleteSession ?? (async () => {}),
       renameSession: overrides?.renameSession ?? (async () => {}),
     },
+    ...(overrides?.workspace && { workspace: overrides.workspace }),
   }) as unknown as Services;
 
 const buildContext = (input?: {
@@ -228,6 +230,29 @@ describe("api router", () => {
     await expect(caller.agent.create({ name: "Alpha" })).rejects.toMatchObject({
       code: "FORBIDDEN",
       message: "Supabase denied access to agents. Verify RLS policies in rls.sql and your login session.",
+    });
+  });
+
+  test("agent.create returns 403 when workspace viewer tries to create agent", async () => {
+    const caller = appRouter.createCaller(
+      buildContext({
+        user: { id: "viewer-user" },
+        container: buildContainer({
+          workspace: {
+            checkPermission: async () => false,
+            requirePermission: async () => {
+              throw new ForbiddenError("Workspace permission denied: create_agent requires higher role or ownership");
+            },
+          },
+        }),
+      })
+    );
+
+    await expect(
+      caller.agent.create({ name: "New Agent", workspaceId: "ws-1" })
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: expect.stringContaining("Workspace permission denied"),
     });
   });
 
@@ -1023,6 +1048,7 @@ describe("api router", () => {
                 ...DEFAULT_AGENT_CONFIG,
                 llmProvider: { apiKey: "sk-leak", model: "gpt-4", baseURL: "https://api.openai.com" },
               },
+              visibility: "private" as const,
               createdAt: "",
               updatedAt: "",
             }),
@@ -1081,6 +1107,7 @@ describe("api router", () => {
               ownerUserId: "user-1",
               name: "My Agent",
               config: { ...DEFAULT_AGENT_CONFIG },
+              visibility: "private" as const,
               createdAt: "",
               updatedAt: "",
             }),
@@ -1108,6 +1135,7 @@ describe("api router", () => {
           ownerUserId: "user-1",
           name,
           config: { ...DEFAULT_AGENT_CONFIG, ...config },
+          visibility: "private" as const,
           createdAt: "",
           updatedAt: "",
         };

@@ -56,95 +56,131 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto grid min-h-screen w-full max-w-5xl items-center gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_400px] lg:px-8">
-      <section className="space-y-6">
-        <img
-          src="/logo.png"
-          alt="DaemonChat Logo"
-          className="h-12 w-auto object-contain"
-        />
-        <Badge className="w-fit" variant="secondary">
-          DaemonChat
-        </Badge>
-
-        <div className="space-y-4">
-          <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
-            打开即聊
-            <br />
-            一个干净的 AI 工作台
-          </h1>
-          <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            登录后自动进入最近会话。Agent、记忆与用量都围绕聊天主流程，不需要手动查找入口或复制
-            ID。
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Chat First</CardTitle>
-              <CardDescription>默认直达聊天，不绕路。</CardDescription>
-            </CardHeader>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Built-in Guardrails</CardTitle>
-              <CardDescription>限流、预算和审计默认启用。</CardDescription>
-            </CardHeader>
-          </Card>
-        </div>
-      </section>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">开始使用</CardTitle>
-          <CardDescription>使用邮箱登录或注册。</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Auth
-            supabaseClient={supabaseBrowserClient}
-            theme={resolvedTheme}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: "#2563eb",
-                    brandAccent: "#1d4ed8",
-                    inputBackground: "#ffffff",
-                    inputBorder: "#e4e4e7",
-                    inputBorderHover: "#2563eb",
-                    inputBorderFocus: "#2563eb",
-                    inputText: "#0d0d0d",
-                    defaultButtonBackground: "#f0f0f1",
-                    defaultButtonBackgroundHover: "#e4e4e7",
-                    defaultButtonBorder: "#e4e4e7",
-                    defaultButtonText: "#18181b",
-                    anchorTextColor: "#2563eb",
-                  },
-                },
-                dark: {
-                  colors: {
-                    brand: "#3b82f6",
-                    brandAccent: "#2563eb",
-                    inputBackground: "#232323",
-                    inputBorder: "#333333",
-                    inputBorderHover: "#3b82f6",
-                    inputBorderFocus: "#3b82f6",
-                    inputText: "#ededed",
-                    defaultButtonBackground: "#2a2a2a",
-                    defaultButtonBackgroundHover: "#333333",
-                    defaultButtonBorder: "#333333",
-                    defaultButtonText: "#ededed",
-                    anchorTextColor: "#3b82f6",
-                  },
-                },
-              },
-            }}
-            providers={[]}
+    <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-6 px-4 py-10 sm:px-6 lg:px-8">
+      <div className="grid items-center gap-10 lg:grid-cols-[1fr_400px]">
+        <section className="space-y-6">
+          <img
+            src="/logo.png"
+            alt="DaemonChat Logo"
+            className="h-12 w-auto object-contain"
           />
-        </CardContent>
-      </Card>
+          <Badge className="w-fit" variant="secondary">
+            DaemonChat
+          </Badge>
+
+          <div className="space-y-4">
+            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+              打开即聊
+              <br />
+              你的 AI 长期助手
+            </h1>
+            <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+              DaemonChat
+              是一个拥有长期记忆的 AI
+              助手平台。跨会话记忆、多模型支持、团队协作，让 AI 真正了解你。
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">🧠 长期记忆</CardTitle>
+                <CardDescription>
+                  跨会话持久记忆，AI 记住你的偏好、习惯和上下文。
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">🤖 多模型支持</CardTitle>
+                <CardDescription>
+                  OpenAI、Anthropic、DeepSeek、Google 等主流模型自由切换。
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">📋 模板市场</CardTitle>
+                <CardDescription>
+                  一键克隆社区 Agent 模板，快速构建专属助手。
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">👥 团队协作</CardTitle>
+                <CardDescription>
+                  创建工作空间，邀请成员共享 Agent 与记忆。
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </section>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">开始使用</CardTitle>
+            <CardDescription>使用邮箱登录或注册。</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Auth
+              supabaseClient={supabaseBrowserClient}
+              theme={resolvedTheme}
+              appearance={{
+                theme: ThemeSupa,
+                variables: {
+                  default: {
+                    colors: {
+                      brand: "#2563eb",
+                      brandAccent: "#1d4ed8",
+                      inputBackground: "#ffffff",
+                      inputBorder: "#e4e4e7",
+                      inputBorderHover: "#2563eb",
+                      inputBorderFocus: "#2563eb",
+                      inputText: "#0d0d0d",
+                      defaultButtonBackground: "#f0f0f1",
+                      defaultButtonBackgroundHover: "#e4e4e7",
+                      defaultButtonBorder: "#e4e4e7",
+                      defaultButtonText: "#18181b",
+                      anchorTextColor: "#2563eb",
+                    },
+                  },
+                  dark: {
+                    colors: {
+                      brand: "#3b82f6",
+                      brandAccent: "#2563eb",
+                      inputBackground: "#232323",
+                      inputBorder: "#333333",
+                      inputBorderHover: "#3b82f6",
+                      inputBorderFocus: "#3b82f6",
+                      inputText: "#ededed",
+                      defaultButtonBackground: "#2a2a2a",
+                      defaultButtonBackgroundHover: "#333333",
+                      defaultButtonBorder: "#333333",
+                      defaultButtonText: "#ededed",
+                      anchorTextColor: "#3b82f6",
+                    },
+                  },
+                },
+              }}
+              providers={[]}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <footer className="text-center text-xs text-muted-foreground">
+        <a
+          href="https://github.com/zhao-yangyang/daemonchat"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-foreground transition-colors"
+        >
+          GitHub
+        </a>
+        {" · "}
+        <span>Built with ❤️</span>
+      </footer>
     </main>
   );
 }

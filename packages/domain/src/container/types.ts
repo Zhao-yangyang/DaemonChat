@@ -16,11 +16,16 @@ export interface Clock {
   now(): Timestamp;
 }
 
+export interface WorkspaceStore {
+  isMember(workspaceId: UUID, userId: UUID): Promise<boolean>;
+  getMemberRole(workspaceId: UUID, userId: UUID): Promise<import("../types").WorkspaceRole | null>;
+}
+
 export interface AgentStore {
-  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; workspaceId?: UUID; now: Timestamp }): Promise<Agent>;
+  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; workspaceId?: UUID; visibility?: import("../types").AgentVisibility; now: Timestamp }): Promise<Agent>;
   getAgentById(agentId: UUID): Promise<Agent | null>;
   listAgentsByOwner(ownerUserId: UUID, opts?: { workspaceId?: UUID }): Promise<Agent[]>;
-  updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; now: Timestamp }): Promise<Agent>;
+  updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; visibility?: import("../types").AgentVisibility; now: Timestamp }): Promise<Agent>;
   deleteAgent(agentId: UUID): Promise<void>;
 }
 
@@ -164,6 +169,7 @@ export interface TokenizerPort {
 export interface Ports {
   clock: Clock;
   agents: AgentStore;
+  workspace?: WorkspaceStore;
   sessions: SessionStore;
   transcripts: TranscriptStore;
   memory: MemoryStore;
@@ -178,6 +184,7 @@ export interface Ports {
 export interface Services {
   ports: Ports;
   agent: ReturnType<typeof import("../usecases/agent").createAgentService>;
+  workspace?: ReturnType<typeof import("../usecases/workspace").createWorkspaceService>;
   session: ReturnType<typeof import("../usecases/session").createSessionService>;
   transcript: ReturnType<typeof import("../usecases/transcript").createTranscriptService>;
   memory: ReturnType<typeof import("../usecases/memory").createMemoryService>;

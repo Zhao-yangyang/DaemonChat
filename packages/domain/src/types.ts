@@ -34,12 +34,15 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   temperature: 0.7,
 };
 
+export type AgentVisibility = "private" | "workspace" | "public";
+
 export interface Agent {
   id: UUID;
   ownerUserId: UUID;
   name: string;
   config: AgentConfig;
   workspaceId?: UUID | null;
+  visibility: AgentVisibility;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

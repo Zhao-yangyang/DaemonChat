@@ -123,6 +123,24 @@ const ensureAgentAccess = async (ctx: ApiContext, agentId: string) => {
   return user;
 };
 
+const requireWorkspacePermission = async (
+  ctx: ApiContext,
+  workspaceId: string,
+  userId: string,
+  action: "create_agent" | "edit_agent" | "delete_agent",
+  opts?: { agentOwnerUserId?: string }
+) => {
+  if (!ctx.container.workspace) return;
+  try {
+    await ctx.container.workspace.requirePermission(workspaceId, userId, action, opts);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+    }
+    throw error;
+  }
+};
+
 const DEFAULT_BUDGET = {
   modelWindow: Number(process.env.MODEL_CONTEXT_WINDOW ?? 128000),
   reserveOutputTokens: Number(process.env.RESERVE_OUTPUT_TOKENS ?? 2048),
@@ -207,6 +225,20 @@ export const appRouter = t.router({
       }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
+        if (input.workspaceId && ctx.container.workspace) {
+          try {
+            await ctx.container.workspace.requirePermission(
+              input.workspaceId,
+              user.id,
+              "create_agent"
+            );
+          } catch (e) {
+            if (e instanceof ForbiddenError) {
+              throw new TRPCError({ code: "FORBIDDEN", message: e.message });
+            }
+            throw e;
+          }
+        }
         return withInfrastructureErrorMapping(() =>
           ctx.container.agent.createAgent(user.id, input.name, input.config, input.workspaceId)
         );
@@ -237,6 +269,7 @@ export const appRouter = t.router({
       .input(z.object({
         agentId: z.string().min(1),
         name: z.string().min(1).optional(),
+        visibility: z.enum(["private", "workspace", "public"]).optional(),
         config: z.object({
           systemPrompt: z.string().optional(),
           memoryTopK: z.number().int().min(1).max(50).optional(),
@@ -253,15 +286,31 @@ export const appRouter = t.router({
       }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
-        
+        const existing = await withInfrastructureErrorMapping(() =>
+          ctx.container.agent.getAgent(input.agentId, user.id)
+        );
         if (input.config?.llmProvider?.apiKey === API_KEY_REDACTED) {
-          const existing = await ctx.container.agent.getAgent(input.agentId, user.id);
           input.config.llmProvider.apiKey = existing.config?.llmProvider?.apiKey ?? "";
         }
-
+        if (existing.workspaceId && ctx.container.workspace) {
+          try {
+            await ctx.container.workspace.requirePermission(
+              existing.workspaceId,
+              user.id,
+              "edit_agent",
+              { agentOwnerUserId: existing.ownerUserId }
+            );
+          } catch (e) {
+            if (e instanceof ForbiddenError) {
+              throw new TRPCError({ code: "FORBIDDEN", message: e.message });
+            }
+            throw e;
+          }
+        }
         return withInfrastructureErrorMapping(() =>
           ctx.container.agent.updateAgent(input.agentId, user.id, {
             name: input.name,
+            visibility: input.visibility,
             config: input.config,
           })
         );
@@ -270,6 +319,24 @@ export const appRouter = t.router({
       .input(z.object({ agentId: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         const user = requireUser(ctx);
+        const agent = await withInfrastructureErrorMapping(() =>
+          ctx.container.agent.getAgent(input.agentId, user.id)
+        );
+        if (agent.workspaceId && ctx.container.workspace) {
+          try {
+            await ctx.container.workspace.requirePermission(
+              agent.workspaceId,
+              user.id,
+              "delete_agent",
+              { agentOwnerUserId: agent.ownerUserId }
+            );
+          } catch (e) {
+            if (e instanceof ForbiddenError) {
+              throw new TRPCError({ code: "FORBIDDEN", message: e.message });
+            }
+            throw e;
+          }
+        }
         return withInfrastructureErrorMapping(() =>
           ctx.container.agent.deleteAgent(input.agentId, user.id)
         );

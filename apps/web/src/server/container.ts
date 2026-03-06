@@ -1,6 +1,7 @@
 import {
   createSupabaseClient,
   createAgentStore,
+  createWorkspaceStore,
   createSessionStore,
   createTranscriptStore,
   createMemoryStore,
@@ -53,6 +54,7 @@ export function createContainer(env: WebEnv, accessToken?: string) {
   const ports = {
     clock: { now: () => new Date().toISOString() },
     agents: createAgentStore(supabase),
+    workspace: createWorkspaceStore(supabase),
     sessions: createSessionStore(supabase),
     transcripts: createTranscriptStore(supabase),
     memory: createMemoryStore(supabase),

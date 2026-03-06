@@ -93,4 +93,5 @@ export {
   CommandItem,
   CommandSeparator,
 } from "./components/ui/command";
+export { Toaster } from "./components/ui/sonner";
 export { cn } from "./lib/utils";
