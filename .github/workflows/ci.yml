@@ -58,10 +58,11 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key"
 
+  # 仅当在仓库/组织 Variables 中设置 E2E_FULL_ENABLED=true 且配置好对应 Secrets/Variables 时运行
   e2e-full:
     runs-on: ubuntu-latest
     needs: quality-gate
-    if: ${{ secrets.E2E_TEST_EMAIL != '' && secrets.E2E_TEST_PASSWORD != '' && vars.NEXT_PUBLIC_SUPABASE_URL != '' && vars.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+    if: vars.E2E_FULL_ENABLED == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
