@@ -2,6 +2,7 @@
 
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
+import { useTranslations } from "next-intl";
 import {
   Badge,
   Card,
@@ -23,6 +24,8 @@ function getSystemTheme(): "light" | "dark" {
 }
 
 export default function HomePage() {
+  const t = useTranslations("home");
+  const tCommon = useTranslations("common");
   const { session } = useSession();
   const { theme } = useTheme();
   const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
@@ -37,15 +40,15 @@ export default function HomePage() {
             className="h-10 w-auto object-contain"
           />
           <Badge className="w-fit" variant="secondary">
-            DaemonChat
+            {tCommon("brand")}
           </Badge>
           <Card>
             <CardHeader>
               <CardTitle className="text-2xl tracking-tight sm:text-3xl">
-                欢迎回来
+                {t("welcomeBack")}
               </CardTitle>
               <CardDescription>
-                账号：{session.user?.email ?? session.user?.id}
+                {t("account")}：{session.user?.email ?? session.user?.id}
               </CardDescription>
             </CardHeader>
           </Card>
@@ -65,26 +68,22 @@ export default function HomePage() {
             className="h-12 w-auto object-contain"
           />
           <Badge className="w-fit" variant="secondary">
-            DaemonChat
+            {tCommon("brand")}
           </Badge>
 
           <div className="space-y-4">
-            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
-              打开即聊
-              <br />
-              你的 AI 长期助手
+            <h1 className="whitespace-pre-line text-4xl font-semibold leading-tight tracking-tight text-foreground sm:text-5xl">
+              {t("title")}
             </h1>
             <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-              DaemonChat
-              是一个拥有长期记忆的 AI
-              助手平台。跨会话记忆、多模型支持、团队协作，让 AI 真正了解你。
+              {t("description")}
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">🧠 长期记忆</CardTitle>
+                <CardTitle className="text-sm">{t("features.memory")}</CardTitle>
                 <CardDescription>
                   跨会话持久记忆，AI 记住你的偏好、习惯和上下文。
                 </CardDescription>
@@ -92,7 +91,7 @@ export default function HomePage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">🤖 多模型支持</CardTitle>
+                <CardTitle className="text-sm">{t("features.multiModel")}</CardTitle>
                 <CardDescription>
                   OpenAI、Anthropic、DeepSeek、Google 等主流模型自由切换。
                 </CardDescription>
@@ -100,7 +99,7 @@ export default function HomePage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">📋 模板市场</CardTitle>
+                <CardTitle className="text-sm">{t("features.templates")}</CardTitle>
                 <CardDescription>
                   一键克隆社区 Agent 模板，快速构建专属助手。
                 </CardDescription>
@@ -108,7 +107,7 @@ export default function HomePage() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">👥 团队协作</CardTitle>
+                <CardTitle className="text-sm">{t("features.team")}</CardTitle>
                 <CardDescription>
                   创建工作空间，邀请成员共享 Agent 与记忆。
                 </CardDescription>
@@ -119,7 +118,7 @@ export default function HomePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">开始使用</CardTitle>
+            <CardTitle className="text-xl">{tCommon("startUsing")}</CardTitle>
             <CardDescription>使用邮箱登录或注册。</CardDescription>
           </CardHeader>
           <CardContent>

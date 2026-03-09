@@ -10,6 +10,8 @@ const mapSession = (row: any): Session => ({
   isArchived: Boolean(row.is_archived),
   createdAt: row.created_at,
   lastActiveAt: row.last_active_at,
+  parentSessionId: row.parent_session_id ?? null,
+  forkFromEventId: row.fork_from_event_id ?? null,
 });
 
 export function createSessionStore(client: SupabaseClient): SessionStore {
@@ -47,12 +49,44 @@ export function createSessionStore(client: SupabaseClient): SessionStore {
       return (data ?? []).map(mapSession);
     },
 
+    async getSessionById({ agentId, sessionId }) {
+      const { data, error } = await client
+        .from("sessions")
+        .select("*")
+        .eq("id", sessionId)
+        .eq("agent_id", agentId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? mapSession(data) : null;
+    },
+
     async createSession({ agentId, sessionKey, now }) {
       const { data, error } = await client
         .from("sessions")
         .insert({
           agent_id: agentId,
           session_key: sessionKey,
+          current: true,
+          created_at: now,
+          last_active_at: now,
+        })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      return mapSession(data);
+    },
+
+    async createForkedSession({ agentId, parentSessionId, forkFromEventId, now }) {
+      const sessionKey = `fork-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const { data, error } = await client
+        .from("sessions")
+        .insert({
+          agent_id: agentId,
+          session_key: sessionKey,
+          parent_session_id: parentSessionId,
+          fork_from_event_id: forkFromEventId,
           current: true,
           created_at: now,
           last_active_at: now,

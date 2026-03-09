@@ -120,7 +120,61 @@ cp apps/worker/.env.example apps/worker/.env
 bun run dev --filter @daemon/worker
 ```
 
-## 5. 常见问题
+## 5. 运行 E2E 测试
+
+若要运行包含登录后流程的 E2E（Agent 创建 + 聊天），需配置测试用户：
+
+1. 在 Supabase Auth 中创建测试用户（或通过注册页手动注册）。
+2. 在 `apps/web/.env.local` 中添加：
+   ```
+   E2E_TEST_EMAIL=测试用户邮箱
+   E2E_TEST_PASSWORD=测试用户密码
+   ```
+3. 在 `apps/web` 目录下运行完整 E2E（含登录后聊天）：
+   ```bash
+   bun run test:e2e:full
+   ```
+4. 仅运行未登录冒烟测试（不需要 E2E 认证，默认 `test:e2e`）：
+   ```bash
+   bun run test:e2e
+   ```
+
+说明：`E2E_TEST_*` 未配置时，`test:e2e:full` 会在 setup 阶段报错并提示配置；`test:e2e` 冒烟测试不受影响。
+
+## 6. 推送数据库迁移（Supabase CLI）
+
+当 `supabase/migrations/` 中有新的 SQL 迁移文件时，可用 Supabase CLI 推送到远程数据库：
+
+```bash
+bun run db:push
+```
+
+或直接：
+
+```bash
+supabase db push
+```
+
+**前置条件**：需已执行 `supabase link` 关联远程项目（或通过 `supabase login` 登录后首次 push 时按提示关联）。
+
+**若出现 TLS EOF 连接错误**：
+
+1. 可尝试使用 direct 连接串显式指定：
+
+   ```bash
+   SUPABASE_DB_URL="postgresql://postgres:[数据库密码]@db.[项目REF].supabase.co:5432/postgres" bun run db:push:url
+   ```
+
+   其中项目 REF 可在 Supabase Dashboard → Settings → General 中查看；密码在 Settings → Database → Database password。
+
+2. 若 CLI 仍无法连接，可在 Supabase Dashboard → SQL Editor 中**手动执行**未应用的迁移文件，例如：
+
+   - `supabase/migrations/20260309000000_agents_public_read_policy.sql`
+   - `supabase/migrations/20260309010000_session_fork.sql`
+
+   执行顺序按文件名时间戳从小到大。
+
+## 7. 常见问题
 
 - 401 Unauthorized：
   - 浏览器 session 丢失，重新登录。
@@ -137,15 +191,15 @@ bun run dev --filter @daemon/worker
 - 看不到 Usage 增长：
   - 先确认聊天请求成功完成（有 assistant 输出）。
 
-## 6. Staging 部署（Vercel）
+## 8. Staging 部署（Vercel）
 
-### 6.1 Vercel 项目设置
+### 8.1 Vercel 项目设置
 
 1. 在 Vercel 新建项目并导入本仓库。
 2. Root Directory 选择 `apps/web`。
 3. Build & Output Settings 采用仓库内配置（`vercel.json` + Next.js 默认）。
 
-### 6.2 Staging 环境变量（Web）
+### 8.2 Staging 环境变量（Web）
 
 在 Vercel Dashboard 设置环境变量时，请**针对 Preview 环境**单独设置一组对应 Staging 数据库配置（推荐使用独立的 Supabase 项目或 schema）：
 
@@ -174,7 +228,7 @@ bun run dev --filter @daemon/worker
 - `CHAT_MAX_INPUT_TOKENS`
 - `MODEL_PRICING_JSON`（或 `OPENAI_INPUT_PRICE_PER_1M` + `OPENAI_OUTPUT_PRICE_PER_1M`）
 
-### 6.3 Cron Worker 配置（Vercel 内置）
+### 8.3 Cron Worker 配置（Vercel 内置）
 
 后台任务（MEMORY_FLUSH / COMPACTION / EMBEDDING_BACKFILL）通过 Vercel Cron 触发 `/api/internal/jobs/drain` 路由处理，无需独立 Worker 平台。
 
@@ -196,7 +250,7 @@ Cron 路由特性：
 - 队列深度超过阈值（默认 50）时触发 warn 级别告警
 - 失败率超过 50% 时触发 warn 级别告警
 
-### 6.4 独立 Worker 部署（可选）
+### 8.4 独立 Worker 部署（可选）
 
 如需更高频轮询（<1 分钟），可另外部署 `@daemon/worker`（Railway/fly.io/Render）。
 
@@ -213,9 +267,9 @@ Worker 必需环境变量：
 - `bun run loadtest:chat`
 - `bun run loadtest:claim`
 
-## 7. 生产排障
+## 9. 生产排障
 
-### 7.1 Supabase RLS 验证
+### 9.1 Supabase RLS 验证
 
 如果遇到 `42501 permission denied` 或数据不可见，按以下步骤检查：
 
@@ -238,7 +292,7 @@ RESET request.jwt.claim.sub;
 1. 先 `DROP POLICY IF EXISTS <policy_name> ON <table>` 清理残留
 2. 重新执行 `packages/adapters/supabase/sql/rls.sql`
 
-### 7.2 常见生产错误
+### 9.2 常见生产错误
 
 | 错误                       | 可能原因                     | 快速修复                                          |
 | -------------------------- | ---------------------------- | ------------------------------------------------- |
@@ -249,7 +303,7 @@ RESET request.jwt.claim.sub;
 | Cron 返回 `401`            | `CRON_SECRET` 不匹配         | 检查 Vercel env 与 cron 请求头                    |
 | Job 一直 `processing`      | 函数超时后卡死               | drain 路由自动回收（5 分钟阈值）                  |
 
-### 7.3 回滚流程
+### 9.3 回滚流程
 
 1. 在 Vercel Dashboard > Deployments 找到上一个正常的 production deployment
 2. 点击 "..." > "Promote to Production"

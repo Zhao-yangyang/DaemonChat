@@ -12,6 +12,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "db:push": "supabase db push",
+    "db:push:url": "supabase db push --db-url \"${SUPABASE_DB_URL}\"",
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck",

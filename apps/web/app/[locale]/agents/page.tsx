@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
+import { Link, useRouter } from "@/src/i18n/navigation";
 import { trpc } from "@daemon/hooks";
 import {
   Alert,
@@ -91,6 +91,7 @@ export default function AgentsPage() {
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
   const router = useRouter();
+  const locale = useLocale();
   const { session, isResolved } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
@@ -675,21 +676,41 @@ export default function AgentsPage() {
 
               <div className="grid gap-1.5">
                 <Label>可见性</Label>
-                <Select
-                  value={configForm.visibility}
-                  onValueChange={(v) =>
-                    setConfigForm((prev) => ({ ...prev, visibility: v as AgentVisibility }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="private">仅自己可见</SelectItem>
-                    <SelectItem value="workspace">工作空间成员可见</SelectItem>
-                    <SelectItem value="public">所有人可见</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={configForm.visibility}
+                    onValueChange={(v) =>
+                      setConfigForm((prev) => ({ ...prev, visibility: v as AgentVisibility }))
+                    }
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="private">仅自己可见</SelectItem>
+                      <SelectItem value="workspace">工作空间成员可见</SelectItem>
+                      <SelectItem value="public">所有人可见</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {configForm.visibility === "public" && editingAgentId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const url = `${typeof window !== "undefined" ? window.location.origin : ""}/${locale}/share/${editingAgentId}`;
+                        try {
+                          await navigator.clipboard.writeText(url);
+                          toast.success("分享链接已复制到剪贴板");
+                        } catch {
+                          toast.error("复制失败，请手动复制");
+                        }
+                      }}
+                    >
+                      复制分享链接
+                    </Button>
+                  ) : null}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

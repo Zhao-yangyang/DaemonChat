@@ -128,5 +128,35 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       }
       await ports.sessions.unarchiveSession({ agentId, sessionId: trimmedSessionId });
     },
+
+    async forkSession(
+      agentId: string,
+      parentSessionId: string,
+      forkFromEventId: string,
+      ownerUserId: string
+    ): Promise<Session> {
+      if (!ports.agents) {
+        throw new ValidationError("Session fork requires agent store");
+      }
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent) {
+        throw new NotFoundError("Agent not found");
+      }
+      if (agent.ownerUserId !== ownerUserId) {
+        throw new ForbiddenError("Agent access denied");
+      }
+      const trimmedParent = parentSessionId.trim();
+      const trimmedForkFrom = forkFromEventId.trim();
+      if (!trimmedParent || !trimmedForkFrom) {
+        throw new ValidationError("Parent session id and fork-from event id are required");
+      }
+      const now = ports.clock.now();
+      return ports.sessions.createForkedSession({
+        agentId,
+        parentSessionId: trimmedParent,
+        forkFromEventId: trimmedForkFrom,
+        now,
+      });
+    },
   };
 }

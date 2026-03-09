@@ -414,6 +414,25 @@ export const appRouter = t.router({
           )
         );
       }),
+    fork: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          parentSessionId: z.string().min(1),
+          forkFromEventId: z.string().min(1),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const user = await ensureAgentAccess(ctx, input.agentId);
+        return withInfrastructureErrorMapping(() =>
+          ctx.container.session.forkSession(
+            input.agentId,
+            input.parentSessionId,
+            input.forkFromEventId,
+            user.id
+          )
+        );
+      }),
   }),
 
   transcript: t.router({
@@ -423,10 +442,21 @@ export const appRouter = t.router({
           agentId: z.string().min(1),
           sessionId: z.string().min(1),
           limit: z.number().int().min(1).max(200).default(50),
+          parentSessionId: z.string().optional(),
+          forkFromEventId: z.string().optional(),
         })
       )
       .query(async ({ ctx, input }) => {
         await ensureAgentAccess(ctx, input.agentId);
+        if (input.parentSessionId && input.forkFromEventId) {
+          return ctx.container.ports.transcripts.listRecentEventsWithFork({
+            agentId: input.agentId,
+            sessionId: input.sessionId,
+            parentSessionId: input.parentSessionId,
+            forkUpToEventId: input.forkFromEventId,
+            limit: input.limit,
+          });
+        }
         return ctx.container.transcript.loadRecentContext(
           input.agentId,
           input.sessionId,

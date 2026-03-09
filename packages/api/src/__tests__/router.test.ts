@@ -35,6 +35,7 @@ const buildContainer = (overrides?: {
   listSessions?: Services["session"]["listRecentSessions"];
   deleteSession?: Services["session"]["deleteSession"];
   renameSession?: Services["session"]["renameSession"];
+  forkSession?: Services["session"]["forkSession"];
   rateLimitConsume?: NonNullable<Services["ports"]["rateLimit"]>["consumeLimit"];
   workspace?: Services["workspace"];
 }): Services =>
@@ -127,6 +128,19 @@ const buildContainer = (overrides?: {
         (async () => []),
       deleteSession: overrides?.deleteSession ?? (async () => {}),
       renameSession: overrides?.renameSession ?? (async () => {}),
+      forkSession:
+        overrides?.forkSession ??
+        (async (agentId, parentSessionId, forkFromEventId) => ({
+          id: "session-fork-1",
+          agentId,
+          sessionKey: "fork-xxx",
+          displayName: null,
+          isArchived: false,
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString(),
+          parentSessionId,
+          forkFromEventId,
+        })),
     },
     ...(overrides?.workspace && { workspace: overrides.workspace }),
   }) as unknown as Services;
@@ -514,6 +528,43 @@ describe("api router", () => {
     expect(captured.sessionId).toBe("session-1");
     expect(captured.displayName).toBe("我的会话");
     expect(captured.userId).toBe("user-1");
+  });
+
+  test("session.fork creates forked session through agent ownership", async () => {
+    let captured: { agentId: string; parentSessionId: string; forkFromEventId: string } | null = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          forkSession: async (agentId, parentSessionId, forkFromEventId) => {
+            captured = { agentId, parentSessionId, forkFromEventId };
+            return {
+              id: "session-fork-1",
+              agentId,
+              sessionKey: "fork-xxx",
+              displayName: null,
+              isArchived: false,
+              createdAt: new Date().toISOString(),
+              lastActiveAt: new Date().toISOString(),
+              parentSessionId,
+              forkFromEventId,
+            };
+          },
+        }),
+      })
+    );
+
+    const result = await caller.session.fork({
+      agentId: "agent-1",
+      parentSessionId: "session-1",
+      forkFromEventId: "event-1",
+    });
+    expect(captured).not.toBeNull();
+    expect(captured!.agentId).toBe("agent-1");
+    expect(captured!.parentSessionId).toBe("session-1");
+    expect(captured!.forkFromEventId).toBe("event-1");
+    expect(result.id).toBe("session-fork-1");
+    expect(result.parentSessionId).toBe("session-1");
+    expect(result.forkFromEventId).toBe("event-1");
   });
 
   test("chat.turn maps idempotency conflict to TRPC CONFLICT", async () => {

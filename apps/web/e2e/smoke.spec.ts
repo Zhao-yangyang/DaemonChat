@@ -2,16 +2,13 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Smoke tests — page loads", () => {
   test("homepage loads and shows login form when unauthenticated", async ({ page }) => {
-    await page.goto("/");
-    // Landing page should show the product name (Badge or heading)
+    await page.goto("/zh");
     await expect(page.getByText("DaemonChat", { exact: true }).first()).toBeVisible();
-    // Should show login/signup card
     await expect(page.getByText("开始使用")).toBeVisible();
   });
 
   test("homepage shows feature cards", async ({ page }) => {
-    await page.goto("/");
-    // 使用带 emoji 的卡片标题，避免与描述段落中的重复文本冲突
+    await page.goto("/zh");
     await expect(page.getByText("🧠 长期记忆")).toBeVisible();
     await expect(page.getByText("🤖 多模型支持")).toBeVisible();
     await expect(page.getByText("📋 模板市场")).toBeVisible();

@@ -59,6 +59,44 @@ export function createTranscriptStore(client: SupabaseClient): TranscriptStore {
       return events;
     },
 
+    async listRecentEventsWithFork({ agentId, sessionId, parentSessionId, forkUpToEventId, limit }) {
+      const { data: forkEvent } = await client
+        .from("transcript_events")
+        .select("created_at")
+        .eq("id", forkUpToEventId)
+        .eq("agent_id", agentId)
+        .eq("session_id", parentSessionId)
+        .maybeSingle();
+
+      if (!forkEvent?.created_at) {
+        return this.listRecentEvents({ agentId, sessionId, limit });
+      }
+
+      const forkCreatedAt = forkEvent.created_at;
+
+      const { data: parentData } = await client
+        .from("transcript_events")
+        .select("*")
+        .eq("agent_id", agentId)
+        .eq("session_id", parentSessionId)
+        .lte("created_at", forkCreatedAt)
+        .order("created_at", { ascending: true });
+
+      const { data: childData } = await client
+        .from("transcript_events")
+        .select("*")
+        .eq("agent_id", agentId)
+        .eq("session_id", sessionId)
+        .order("created_at", { ascending: true });
+
+      const merged = [
+        ...(parentData ?? []).map(mapEvent),
+        ...(childData ?? []).map(mapEvent),
+      ];
+      const recent = merged.slice(-limit);
+      return recent;
+    },
+
     async getLatestCompaction({ agentId, sessionId }) {
       const { data, error } = await client
         .from("transcript_events")

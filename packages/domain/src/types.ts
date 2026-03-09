@@ -75,6 +75,8 @@ export interface Session {
   isArchived: boolean;
   createdAt: Timestamp;
   lastActiveAt: Timestamp;
+  parentSessionId?: UUID | null;
+  forkFromEventId?: UUID | null;
 }
 
 export type TranscriptEventType =

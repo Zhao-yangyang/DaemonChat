@@ -1,0 +1,40 @@
+{
+  "common": {
+    "brand": "DaemonChat",
+    "startUsing": "Get Started"
+  },
+  "home": {
+    "title": "Chat anytime\nYour AI long-term assistant",
+    "description": "DaemonChat is an AI assistant platform with long-term memory. Cross-session memory, multi-model support, and team collaboration help AI truly understand you.",
+    "features": {
+      "memory": "🧠 Long-term Memory",
+      "multiModel": "🤖 Multi-model Support",
+      "templates": "📋 Template Marketplace",
+      "team": "👥 Team Collaboration"
+    },
+    "welcomeBack": "Welcome back",
+    "account": "Account"
+  },
+  "nav": {
+    "chat": "Chat",
+    "agents": "Agents",
+    "memory": "Memory",
+    "transcripts": "Transcripts",
+    "usage": "Usage",
+    "templates": "Templates",
+    "workspaces": "Workspaces"
+  },
+  "chat": {
+    "title": "Chat",
+    "description": "Just type to chat. Sessions and usage are recorded automatically.",
+    "inputPlaceholder": "Type a message...",
+    "send": "Send",
+    "newSession": "New session",
+    "streaming": "Replying",
+    "forkFromHere": "Fork from here"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English"
+  }
+}

@@ -133,6 +133,10 @@ export function createInMemoryStores(): {
       return sessions.find((session) => session.id === sessionId) ?? null;
     },
 
+    async getSessionById({ agentId, sessionId }) {
+      return sessions.find((s) => s.id === sessionId && s.agentId === agentId) ?? null;
+    },
+
     async listRecentSessions({ agentId, limit, includeArchived }) {
       if (limit <= 0) return [];
       let filtered = sessions.filter((session) => session.agentId === agentId);
@@ -153,6 +157,24 @@ export function createInMemoryStores(): {
         isArchived: false,
         createdAt: now,
         lastActiveAt: now,
+      };
+      sessions.push(session);
+      currentSessions.set(`${agentId}:${sessionKey}`, session.id);
+      return session;
+    },
+
+    async createForkedSession({ agentId, parentSessionId, forkFromEventId, now }) {
+      const sessionKey = `fork-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const session: Session = {
+        id: nextId("session"),
+        agentId,
+        sessionKey,
+        displayName: null,
+        isArchived: false,
+        createdAt: now,
+        lastActiveAt: now,
+        parentSessionId,
+        forkFromEventId,
       };
       sessions.push(session);
       currentSessions.set(`${agentId}:${sessionKey}`, session.id);
@@ -236,6 +258,39 @@ export function createInMemoryStores(): {
         .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
       if (limit <= 0) return [];
       return filtered.slice(-limit);
+    },
+
+    async listRecentEventsWithFork({
+      agentId,
+      sessionId,
+      parentSessionId,
+      forkUpToEventId,
+      limit,
+    }) {
+      const forkEvent = transcripts.find(
+        (e) =>
+          e.id === forkUpToEventId &&
+          e.agentId === agentId &&
+          e.sessionId === parentSessionId
+      );
+      if (!forkEvent) {
+        return this.listRecentEvents({ agentId, sessionId, limit });
+      }
+      const forkAt = toMillis(forkEvent.createdAt);
+      const parentEvents = transcripts
+        .filter(
+          (e) =>
+            e.agentId === agentId &&
+            e.sessionId === parentSessionId &&
+            toMillis(e.createdAt) <= forkAt
+        )
+        .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
+      const childEvents = transcripts
+        .filter((e) => e.agentId === agentId && e.sessionId === sessionId)
+        .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
+      const merged = [...parentEvents, ...childEvents];
+      if (limit <= 0) return [];
+      return merged.slice(-limit);
     },
 
     async getLatestCompaction({ agentId, sessionId }) {

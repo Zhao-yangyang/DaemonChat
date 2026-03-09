@@ -13,14 +13,26 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
+    { name: "setup", testMatch: /.*\.setup\.ts/ },
     {
       name: "chromium",
       use: {
-        // CI 使用 playwright 自带 chromium；本地优先用系统 Chrome 避免沙盒缓存路径问题
         ...(process.env.CI
           ? { browserName: "chromium" }
           : { browserName: "chromium", channel: "chrome" }),
       },
+      testIgnore: [/.*\.setup\.ts/, /chat\.spec\.ts/],
+    },
+    {
+      name: "chromium-authenticated",
+      use: {
+        ...(process.env.CI
+          ? { browserName: "chromium" }
+          : { browserName: "chromium", channel: "chrome" }),
+        storageState: "playwright/.auth/user.json",
+      },
+      testMatch: /chat\.spec\.ts/,
+      dependencies: ["setup"],
     },
   ],
   webServer: {

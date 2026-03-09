@@ -127,7 +127,7 @@ export function createChatService(ports: {
 
   const buildContextForSession = async (
     agentId: string,
-    sessionId: string,
+    session: { id: string; parentSessionId?: string | null; forkFromEventId?: string | null },
     userInput: string,
     options: ChatTurnOptions
   ) => {
@@ -138,11 +138,20 @@ export function createChatService(ports: {
       scopeId: options.memoryScope?.scopeId,
     });
 
-    const recentMessages = await ports.transcripts.listRecentEvents({
-      agentId,
-      sessionId,
-      limit: options.recentMessages,
-    });
+    const recentMessages =
+      session.parentSessionId && session.forkFromEventId
+        ? await ports.transcripts.listRecentEventsWithFork({
+            agentId,
+            sessionId: session.id,
+            parentSessionId: session.parentSessionId,
+            forkUpToEventId: session.forkFromEventId,
+            limit: options.recentMessages,
+          })
+        : await ports.transcripts.listRecentEvents({
+            agentId,
+            sessionId: session.id,
+            limit: options.recentMessages,
+          });
 
     const context = buildContextPack({
       system: options.system,
@@ -214,19 +223,19 @@ export function createChatService(ports: {
 
   const replayResponse = async (input: {
     agentId: string;
-    sessionId: string;
+    session: { id: string; parentSessionId?: string | null; forkFromEventId?: string | null };
     userInput: string;
     options: ChatTurnOptions;
     assistantText: string;
   }) => {
     const context = await buildContextForSession(
       input.agentId,
-      input.sessionId,
+      input.session,
       input.userInput,
       input.options
     );
     return {
-      sessionId: input.sessionId,
+      sessionId: input.session.id,
       assistantText: input.assistantText,
       context,
     };
@@ -340,7 +349,7 @@ export function createChatService(ports: {
       if (idempotentState && "assistantText" in idempotentState) {
         return replayResponse({
           agentId,
-          sessionId: session.id,
+          session,
           userInput,
           options,
           assistantText: idempotentState.assistantText,
@@ -350,7 +359,7 @@ export function createChatService(ports: {
         idempotentState && "inProgress" in idempotentState ? idempotentState : null
       );
 
-      const context = await buildContextForSession(agentId, session.id, userInput, options);
+      const context = await buildContextForSession(agentId, session, userInput, options);
       let userTokens = 0;
       try {
         userTokens = await appendUserEvent({
@@ -434,7 +443,7 @@ export function createChatService(ports: {
       });
 
       if (idempotentState && "assistantText" in idempotentState) {
-        const context = await buildContextForSession(agentId, session.id, userInput, options);
+        const context = await buildContextForSession(agentId, session, userInput, options);
         return {
           sessionId: session.id,
           context,
@@ -445,7 +454,7 @@ export function createChatService(ports: {
         idempotentState && "inProgress" in idempotentState ? idempotentState : null
       );
 
-      const context = await buildContextForSession(agentId, session.id, userInput, options);
+      const context = await buildContextForSession(agentId, session, userInput, options);
       let userTokens = 0;
       try {
         userTokens = await appendUserEvent({

@@ -18,6 +18,7 @@ Run from repo root:
 - `bun run dev`: starts Turbo dev tasks for all apps that define `dev`.
 - `bun run build`: builds all workspaces via Turbo.
 - `bun run typecheck`: runs TypeScript checks across workspaces.
+- `bun run db:push`: pushes Supabase migrations via CLI (requires `supabase link`; TLS 失败时可用 `SUPABASE_DB_URL=... bun run db:push:url` 或手动执行 `scripts/apply-migrations-manually.sql`)。
 - `bun run test`: runs Turbo tests across workspaces that define `test` (currently `@daemon/domain`, `@daemon/api`, `@daemon/web`, `@daemon/worker`, `@daemon/adapters-llm-vercel`).
 - `bun run lint`: runs Turbo lint tasks (many packages currently stub this).
 
@@ -40,7 +41,7 @@ Example scoped command:
 - API router tests live in `packages/api/src/__tests__/`.
 - Web route/server tests live in `apps/web/app/api/**` and `apps/web/src/**`.
 - Worker tests live in `apps/worker/src/*.test.ts`.
-- E2E tests (Playwright) live in `apps/web/e2e/*.spec.ts`; run with `bun run test:e2e`. Locally, use `CI= bun run test:e2e` to use system Chrome when CI is set; `reuseExistingServer: true` allows reusing an existing dev server.
+- E2E tests (Playwright) live in `apps/web/e2e/*.spec.ts`; run with `bun run test:e2e`（冒烟）或 `bun run test:e2e:full`（含登录后 chat 流程）。本地建议 `CI= bun run test:e2e` 使用系统 Chrome；`reuseExistingServer: true` 复用已有 dev server。完整 E2E 需配置 `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD`。
 - `@daemon/web` unit/API tests use `bun test src app` (excludes `e2e/`; Playwright specs run via `test:e2e`).
 - Run all tests with `bun run test`, or package-only with `bun --cwd packages/domain test`.
 - Prefer adding tests alongside domain logic when changing core behavior.
@@ -57,10 +58,15 @@ Example scoped command:
 - Avoid committing secrets. If environment variables are required, document them in the relevant app README.
 - Keep adapter-specific credentials isolated to their respective packages (e.g., `packages/adapters/*`).
 
-## Current Project Status (2026-03-06)
+## Current Project Status (2026-03-09)
 
 - Plan baseline is now `docs/plans/2026-02-03-ai-longterm-assistant-design.md` (V2), including gateway-aligned architecture constraints.
 - Phase 6 计划已完成：`docs/plans/2026-03-06-phase6-production-ready.md`（生产化就绪 + 产品差异化），含 E2E、错误边界、Toast、Landing、PDF 附件、Agent 可见性、Workspace 权限矩阵。
+- 后续迭代方案 Phase A–D 已完成（2026-03-09）：
+  - **Phase A**：E2E 登录后流程。`apps/web/e2e/auth.setup.ts`（Supabase signInWithPassword + storageState）、`chat.spec.ts`（Route 拦截 mock SSE）、playwright setup project、`bun run test:e2e:full` 运行完整 E2E。
+  - **Phase B**：i18n 国际化。`next-intl` + `[locale]` 动态段、`messages/zh.json`/`en.json`、`LanguageSwitcher` 侧边栏切换、默认 locale `zh`。
+  - **Phase C**：Agent 公开分享。`getPublicAgent` domain、`agents_public_read` RLS policy、`/[locale]/share/[agentId]` 公开页、「复制分享链接」入口。
+  - **Phase D**：对话分叉。`sessions.parent_session_id`/`fork_from_event_id`、`session.fork` tRPC、`listRecentEventsWithFork`、消息气泡「从此处分叉」、分叉会话历史合并展示。
 - 历史计划已归档至 `docs/plans/archive/`。
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
@@ -273,6 +279,9 @@ Example scoped command:
 - If you change memory retrieval filters, update both:
   - `match_memory_items` SQL signature/filters in `packages/adapters/supabase/sql/schema.sql`
   - adapter + domain filter wiring in `packages/adapters/supabase/src/stores/memory.ts` and `packages/domain/src/usecases/*`
+- If you change session fork behavior, update both:
+  - `supabase/migrations/` 和 `packages/adapters/supabase/sql/schema.sql` 中的 sessions/transcript_events 相关列
+  - `SessionStore.createForkedSession`、`TranscriptStore.listRecentEventsWithFork`、`buildContextForSession` 分叉逻辑
 - Keep validating with:
   - `bun run typecheck`
   - `bun run test`
@@ -329,8 +338,8 @@ Example scoped command:
 - Supabase CLI migration workflow:
   - `supabase/` directory is initialized via `supabase init`.
   - create migrations with `supabase migration new <name>`.
-  - push migrations with `supabase db push --db-url "<connection_string>"`.
-  - if CLI connection fails (TLS EOF), execute SQL directly in Supabase Dashboard → SQL Editor.
+  - push migrations: `bun run db:push`（需 `supabase link`）；或 `SUPABASE_DB_URL=postgresql://... bun run db:push:url`（TLS 超时时）。
+  - if CLI connection fails (TLS EOF / i/o timeout)，在 Supabase Dashboard → SQL Editor 执行 `scripts/apply-migrations-manually.sql` 或逐条执行 `supabase/migrations/*.sql`。
 - RLS self-referencing policy pattern:
   - when a table's RLS `USING` clause queries itself, PostgreSQL triggers infinite recursion.
   - fix: wrap the sub-query in a `SECURITY DEFINER` + `STABLE` function (e.g., `is_workspace_member()`).

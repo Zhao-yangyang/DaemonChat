@@ -31,10 +31,17 @@ export interface AgentStore {
 
 export interface SessionStore {
   getCurrentSession(input: { agentId: UUID; sessionKey: string }): Promise<Session | null>;
+  getSessionById(input: { agentId: UUID; sessionId: UUID }): Promise<Session | null>;
   listRecentSessions(input: { agentId: UUID; limit: number; includeArchived?: boolean }): Promise<Session[]>;
   createSession(input: {
     agentId: UUID;
     sessionKey: string;
+    now: Timestamp;
+  }): Promise<Session>;
+  createForkedSession(input: {
+    agentId: UUID;
+    parentSessionId: UUID;
+    forkFromEventId: UUID;
     now: Timestamp;
   }): Promise<Session>;
   touchSession(input: { sessionId: UUID; lastActiveAt: Timestamp }): Promise<void>;
@@ -58,6 +65,13 @@ export interface TranscriptStore {
   listRecentEvents(input: {
     agentId: UUID;
     sessionId: UUID;
+    limit: number;
+  }): Promise<TranscriptEvent[]>;
+  listRecentEventsWithFork(input: {
+    agentId: UUID;
+    sessionId: UUID;
+    parentSessionId: UUID;
+    forkUpToEventId: UUID;
     limit: number;
   }): Promise<TranscriptEvent[]>;
   getLatestCompaction(input: {

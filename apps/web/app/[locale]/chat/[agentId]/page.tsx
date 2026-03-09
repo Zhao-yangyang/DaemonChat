@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/src/i18n/navigation";
 import { toast } from "sonner";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
+import { useRouter } from "@/src/i18n/navigation";
 import { trpc } from "@daemon/hooks";
 import {
   Badge,
@@ -38,7 +40,7 @@ const formatMsgTime = (iso?: string): string => {
   return `${hh}:${mm}`;
 };
 
-type ChatMessage = { role: "user" | "assistant"; content: string; timestamp?: string };
+type ChatMessage = { role: "user" | "assistant"; content: string; timestamp?: string; eventId?: string };
 
 const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
 const hasVisibleText = (value: string | null | undefined): boolean =>
@@ -82,7 +84,7 @@ const toMessageText = (content: unknown): string => {
 };
 
 const toChatMessagesFromEvents = (
-  events: Array<{ type: string; content: unknown; created_at?: string }>
+  events: Array<{ id?: string; type: string; content: unknown; created_at?: string; createdAt?: string }>
 ): ChatMessage[] => {
   const items: ChatMessage[] = [];
   for (const event of events) {
@@ -96,7 +98,8 @@ const toChatMessagesFromEvents = (
     items.push({
       role: event.type === "user_message" ? "user" : "assistant",
       content: text,
-      timestamp: event.created_at ?? undefined,
+      timestamp: event.created_at ?? event.createdAt ?? undefined,
+      eventId: event.id,
     });
   }
   return items;
@@ -111,6 +114,7 @@ const safeFilePart = (value: string): string =>
   value.trim().replace(/[^\w\u4e00-\u9fa5-]+/g, "_").slice(0, 40) || "chat";
 
 export default function ChatPage() {
+  const t = useTranslations("chat");
   const params = useParams<{ agentId: string }>();
   const agentId = params.agentId;
   const router = useRouter();
@@ -131,6 +135,12 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
+  const [lastForkedSession, setLastForkedSession] = useState<{
+    sessionKey: string;
+    sessionId: string;
+    parentSessionId: string;
+    forkFromEventId: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeStreamControllerRef = useRef<AbortController | null>(null);
@@ -156,10 +166,25 @@ export default function ChatPage() {
     () => (sessionList.data ?? []).find((item) => item.sessionKey === currentSessionKey) ?? null,
     [currentSessionKey, sessionList.data]
   );
-  const currentSessionId = selectedSession?.id ?? "";
+  const currentSessionId =
+    selectedSession?.id ??
+    (currentSessionKey === lastForkedSession?.sessionKey ? lastForkedSession.sessionId : "") ??
+    "";
 
+  const forkContext =
+    (selectedSession?.parentSessionId && selectedSession?.forkFromEventId
+      ? { parentSessionId: selectedSession.parentSessionId, forkFromEventId: selectedSession.forkFromEventId }
+      : null) ??
+    (currentSessionKey === lastForkedSession?.sessionKey && lastForkedSession
+      ? { parentSessionId: lastForkedSession.parentSessionId, forkFromEventId: lastForkedSession.forkFromEventId }
+      : null);
   const transcript = trpc.transcript.list.useQuery(
-    { agentId, sessionId: currentSessionId, limit: 200 },
+    {
+      agentId,
+      sessionId: currentSessionId,
+      limit: 200,
+      ...(forkContext ? forkContext : {}),
+    },
     {
       enabled: Boolean(agentId && currentSessionId),
       refetchOnWindowFocus: false,
@@ -183,6 +208,26 @@ export default function ChatPage() {
   const unarchiveSessionMutation = trpc.session.unarchive.useMutation({
     onSuccess: async () => {
       await sessionList.refetch();
+    },
+  });
+  const forkSessionMutation = trpc.session.fork.useMutation({
+    onSuccess: async (newSession) => {
+      if (newSession.parentSessionId && newSession.forkFromEventId) {
+        setLastForkedSession({
+          sessionKey: newSession.sessionKey,
+          sessionId: newSession.id,
+          parentSessionId: newSession.parentSessionId,
+          forkFromEventId: newSession.forkFromEventId,
+        });
+      }
+      await sessionList.refetch();
+      setLocalSessionKeys((prev) => (prev.includes(newSession.sessionKey) ? prev : [...prev, newSession.sessionKey]));
+      setSessionKey(newSession.sessionKey);
+      setMessagesBySession((prev) => ({ ...prev, [newSession.sessionKey]: [] }));
+      toast.success(t("forkFromHere"));
+    },
+    onError: (err) => {
+      toast.error(err.message || "分叉失败");
     },
   });
 
@@ -246,6 +291,9 @@ export default function ChatPage() {
     setEditingIndex(null);
     setEditingContent("");
     setExpandedMessages(new Set());
+    if (currentSessionKey !== lastForkedSession?.sessionKey) {
+      setLastForkedSession(null);
+    }
   }, [currentSessionKey]);
 
   const updateMessagesForSession = (
@@ -658,8 +706,8 @@ export default function ChatPage() {
 
   return (
     <DashboardShell
-      title={currentAgent ? currentAgent.name : "Chat"}
-      description="直接对话即可，系统会自动记录会话和用量。"
+      title={currentAgent ? currentAgent.name : t("title")}
+      description={t("description")}
       actions={
         <div className="flex items-center gap-2">
           {/* Agent + Session + 新会话 */}
@@ -696,11 +744,11 @@ export default function ChatPage() {
           </div>
 
           <Button size="sm" onClick={createSession} disabled={isStreaming}>
-            新会话
+            {t("newSession")}
           </Button>
 
           {isStreaming && (
-            <Badge variant="secondary" className="text-xs">回复中</Badge>
+            <Badge variant="secondary" className="text-xs">{t("streaming")}</Badge>
           )}
 
           {/* 会话操作菜单 */}
@@ -980,6 +1028,21 @@ export default function ChatPage() {
                               重新生成
                             </button>
                           ) : null}
+                          {msg.eventId && currentSessionId && !isStreaming ? (
+                            <button
+                              className="hover:text-foreground transition-colors"
+                              onClick={() => {
+                                forkSessionMutation.mutate({
+                                  agentId,
+                                  parentSessionId: currentSessionId,
+                                  forkFromEventId: msg.eventId!,
+                                });
+                              }}
+                              disabled={forkSessionMutation.isPending}
+                            >
+                              {t("forkFromHere")}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -1070,8 +1133,8 @@ export default function ChatPage() {
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="输入消息..."
-                aria-label="输入消息"
+                placeholder={t("inputPlaceholder")}
+                aria-label={t("inputPlaceholder")}
                 className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
                 onKeyDown={(event) => {
                   if ((event.nativeEvent as KeyboardEvent).isComposing) {
@@ -1100,7 +1163,7 @@ export default function ChatPage() {
                   disabled={(!input.trim() && pendingAttachments.length === 0) || isUploading}
                 >
                   <Send className="size-4" />
-                  <span className="sr-only">发送</span>
+                  <span className="sr-only">{t("send")}</span>
                 </Button>
               )}
             </div>

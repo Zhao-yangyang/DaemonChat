@@ -12,3 +12,6 @@ coverage/
 worktrees/
 .worktrees/
 .vercel
+
+# Playwright auth state (含 session token，勿提交)
+apps/web/playwright/.auth/

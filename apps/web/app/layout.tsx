@@ -1,7 +1,6 @@
 import Script from "next/script";
 import { Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
-import { AppProviders } from "@/src/providers";
 
 const fontSans = Noto_Sans_SC({
   subsets: ["latin"],
@@ -35,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script src="/theme-init.js" strategy="beforeInteractive" />
       </head>
       <body className={`${fontSans.variable} ${fontDisplay.variable} min-h-screen`}>
-        <AppProviders>{children}</AppProviders>
+        {children}
       </body>
     </html>
   );

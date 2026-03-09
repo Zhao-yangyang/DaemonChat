@@ -37,6 +37,13 @@ export function createAgentService(ports: {
       throw new ForbiddenError("Agent access denied");
     },
 
+    /** 仅对 visibility=public 的 Agent 返回，用于未登录分享页 */
+    async getPublicAgent(agentId: string): Promise<Agent | null> {
+      const agent = await ports.agents.getAgentById(agentId);
+      if (!agent || agent.visibility !== "public") return null;
+      return agent;
+    },
+
     async listAgents(userId: string, opts?: { workspaceId?: string }): Promise<Agent[]> {
       return ports.agents.listAgentsByOwner(userId, opts);
     },

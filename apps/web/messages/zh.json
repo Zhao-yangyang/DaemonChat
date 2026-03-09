@@ -1,0 +1,40 @@
+{
+  "common": {
+    "brand": "DaemonChat",
+    "startUsing": "开始使用"
+  },
+  "home": {
+    "title": "打开即聊\n你的 AI 长期助手",
+    "description": "DaemonChat 是一个拥有长期记忆的 AI 助手平台。跨会话记忆、多模型支持、团队协作，让 AI 真正了解你。",
+    "features": {
+      "memory": "🧠 长期记忆",
+      "multiModel": "🤖 多模型支持",
+      "templates": "📋 模板市场",
+      "team": "👥 团队协作"
+    },
+    "welcomeBack": "欢迎回来",
+    "account": "账号"
+  },
+  "nav": {
+    "chat": "聊天",
+    "agents": "Agents",
+    "memory": "记忆",
+    "transcripts": "轨迹",
+    "usage": "用量",
+    "templates": "模板",
+    "workspaces": "空间"
+  },
+  "chat": {
+    "title": "Chat",
+    "description": "直接对话即可，系统会自动记录会话和用量。",
+    "inputPlaceholder": "输入消息...",
+    "send": "发送",
+    "newSession": "新会话",
+    "streaming": "回复中",
+    "forkFromHere": "从此处分叉"
+  },
+  "language": {
+    "zh": "中文",
+    "en": "English"
+  }
+}

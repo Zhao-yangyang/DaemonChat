@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import {
   Button,
@@ -24,21 +23,23 @@ import {
   Users,
 } from "lucide-react";
 import { ThemeToggle } from "@/src/components/theme-toggle";
+import { LanguageSwitcher } from "@/src/components/language-switcher";
+import { Link, usePathname } from "@/src/i18n/navigation";
 import { useSession } from "@/src/hooks/use-session";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
 const navItems: Array<{
-  label: string;
+  key: string;
   href: string;
   icon: React.ElementType;
 }> = [
-  { label: "聊天", href: "/chat", icon: MessageSquare },
-  { label: "Agents", href: "/agents", icon: Bot },
-  { label: "记忆", href: "/memory", icon: Brain },
-  { label: "轨迹", href: "/transcripts", icon: FileText },
-  { label: "用量", href: "/usage", icon: BarChart3 },
-  { label: "模板", href: "/templates", icon: LayoutGrid },
-  { label: "空间", href: "/workspaces", icon: Users },
+  { key: "chat", href: "/chat", icon: MessageSquare },
+  { key: "agents", href: "/agents", icon: Bot },
+  { key: "memory", href: "/memory", icon: Brain },
+  { key: "transcripts", href: "/transcripts", icon: FileText },
+  { key: "usage", href: "/usage", icon: BarChart3 },
+  { key: "templates", href: "/templates", icon: LayoutGrid },
+  { key: "workspaces", href: "/workspaces", icon: Users },
 ];
 
 const isActive = (pathname: string, href: string): boolean => {
@@ -62,6 +63,8 @@ function SidebarNav({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations("nav");
+  const tCommon = useTranslations("common");
   const { session, user } = useSession();
   const email = user?.email;
   const displayName = email ? email.split("@")[0] : null;
@@ -79,7 +82,7 @@ function SidebarNav({
             alt="DaemonChat Logo"
             className="size-6 object-contain"
           />
-          DaemonChat
+          {tCommon("brand")}
         </Link>
       </div>
 
@@ -99,7 +102,7 @@ function SidebarNav({
               }`}
             >
               <Icon className="size-[18px]" />
-              {item.label}
+              {t(item.key)}
             </Link>
           );
         })}
@@ -107,8 +110,9 @@ function SidebarNav({
 
       <Separator />
 
-      <div className="px-3 py-2">
+      <div className="flex items-center gap-1 px-3 py-2">
         <ThemeToggle />
+        <LanguageSwitcher />
       </div>
 
       <div className="space-y-2 px-3 py-4">
@@ -125,7 +129,7 @@ function SidebarNav({
             onClick={async () => {
               onNavigate?.();
               await supabaseBrowserClient.auth.signOut();
-              window.location.href = "/";
+              window.location.href = pathname.startsWith("/en") ? "/en" : "/zh";
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
           >
