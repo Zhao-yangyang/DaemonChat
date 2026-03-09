@@ -25,7 +25,14 @@
     "try": "Try it",
     "loginHint": "Sign in to chat with this Agent",
     "backHome": "Back to home",
-    "noSystemPrompt": "(No system prompt)"
+    "noSystemPrompt": "(No system prompt)",
+    "anonymousTrialHint": "Try without login, up to {max} turns",
+    "anonymousPlaceholder": "Type a message to start…",
+    "anonymousInputPlaceholder": "Type a message…",
+    "trialEnded": "Trial ended. Log in to continue.",
+    "loginToContinue": "Log in and continue",
+    "anonymousDisabled": "Anonymous trial is disabled",
+    "rateLimited": "Too many requests, please try again later"
   },
   "agents": {
     "title": "Agent Dashboard",

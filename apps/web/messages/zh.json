@@ -25,7 +25,14 @@
     "try": "试用",
     "loginHint": "登录后即可与此 Agent 对话",
     "backHome": "返回首页",
-    "noSystemPrompt": "（无系统提示）"
+    "noSystemPrompt": "（无系统提示）",
+    "anonymousTrialHint": "免登录试用，最多 {max} 轮对话",
+    "anonymousPlaceholder": "输入消息开始试用…",
+    "anonymousInputPlaceholder": "输入消息…",
+    "trialEnded": "试用结束，登录后可继续对话",
+    "loginToContinue": "登录并继续",
+    "anonymousDisabled": "匿名试用已关闭",
+    "rateLimited": "请求过于频繁，请稍后再试"
   },
   "agents": {
     "title": "Agent 工作台",

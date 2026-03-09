@@ -16,6 +16,24 @@ bun run build
 
 产物在 `.output/chrome-mv3/`，可在 Chrome 扩展管理页通过「加载已解压的扩展程序」安装。
 
+### 生产构建
+
+生产环境需指向已部署的 Web 地址：
+
+```bash
+VITE_CHAT_URL=https://your-daemonchat-domain.com bun run build
+```
+
+打包为 zip 便于分发：
+
+```bash
+bun run zip
+```
+
 ## 环境变量
 
-- `VITE_CHAT_URL`：聊天页地址，默认 `http://localhost:3333`。生产环境可设为部署 URL。
+- `VITE_CHAT_URL`：聊天页地址，默认 `http://localhost:3333`。生产环境设为部署 URL 后构建即可。
+
+## 图标
+
+扩展使用 `public/icon-16.png`、`public/icon-48.png`、`public/icon-128.png`，由 `apps/web/app/icon.png` 缩放生成。修改主图标后可用 `sips` 重新生成：`sips -z 16 16 ../../web/app/icon.png --out public/icon-16.png` 等。

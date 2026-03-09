@@ -4,7 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "inject-url": "bun run scripts/inject-url.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"lint not configured\""
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
   }
 }

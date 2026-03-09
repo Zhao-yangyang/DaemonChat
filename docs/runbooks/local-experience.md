@@ -139,7 +139,8 @@ bun run dev --filter @daemon/worker
    bun run test:e2e
    ```
 
-说明：`E2E_TEST_*` 未配置时，`test:e2e:full` 会在 setup 阶段报错并提示配置；`test:e2e` 冒烟测试不受影响。
+说明：`E2E_TEST_*` 未配置时，`test:e2e:full` 会在 setup 阶段报错并提示配置；`test:e2e` 冒烟测试不受影响。  
+可选：设置 `E2E_PUBLIC_AGENT_ID` 为一个 `visibility=public` 的 Agent ID，`share.spec.ts` 会验证该 Share 页的展示（名称、试用按钮等）。
 
 ## 6. 推送数据库迁移（Supabase CLI）
 

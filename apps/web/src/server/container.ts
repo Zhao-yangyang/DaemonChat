@@ -12,13 +12,31 @@ import {
 import { createJobQueue } from "@daemon/adapters-queue";
 import { createDeterministicLocalEmbedding } from "@daemon/adapters-llm-vercel";
 import { createServices } from "@daemon/domain";
-import type { LlmPort } from "@daemon/domain";
+import type { AgentStore, LlmPort } from "@daemon/domain";
 import { createOpenAiTokenizerPort } from "./tokenizer";
 
 export interface WebEnv {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
 }
+
+const isPlaceholderSupabase = (url: string) =>
+  !url || url.includes("placeholder");
+
+/** CI 占位模式下避免真实 Supabase 请求，Share 页可正确返回 404 */
+const placeholderAgentStore: AgentStore = {
+  getAgentById: () => Promise.resolve(null),
+  createAgent: async () => {
+    throw new Error("Placeholder mode: Supabase not available");
+  },
+  listAgentsByOwner: () => Promise.resolve([]),
+  updateAgent: async () => {
+    throw new Error("Placeholder mode: Supabase not available");
+  },
+  deleteAgent: async () => {
+    throw new Error("Placeholder mode: Supabase not available");
+  },
+};
 
 export function createRawSupabaseClient(env: WebEnv, accessToken?: string) {
   return createSupabaseClient({
@@ -45,6 +63,7 @@ const stubLlm: LlmPort = {
 };
 
 export function createContainer(env: WebEnv, accessToken?: string) {
+  const usePlaceholder = isPlaceholderSupabase(env.SUPABASE_URL);
   const supabase = createSupabaseClient({
     url: env.SUPABASE_URL,
     anonKey: env.SUPABASE_ANON_KEY,
@@ -53,7 +72,7 @@ export function createContainer(env: WebEnv, accessToken?: string) {
 
   const ports = {
     clock: { now: () => new Date().toISOString() },
-    agents: createAgentStore(supabase),
+    agents: usePlaceholder ? placeholderAgentStore : createAgentStore(supabase),
     workspace: createWorkspaceStore(supabase),
     sessions: createSessionStore(supabase),
     transcripts: createTranscriptStore(supabase),

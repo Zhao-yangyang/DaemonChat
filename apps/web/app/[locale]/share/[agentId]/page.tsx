@@ -5,6 +5,7 @@ import { createContainer } from "@/src/server/container";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@daemon/ui";
 import { Link } from "@/src/i18n/navigation";
 import { MessageSquare } from "lucide-react";
+import { ShareChatEmbed } from "@/src/components/share-chat-embed";
 
 const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
@@ -46,6 +47,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+const ANONYMOUS_CHAT_ENABLED =
+  process.env.ANONYMOUS_CHAT_ENABLED === "1" ||
+  process.env.ANONYMOUS_CHAT_ENABLED === "true" ||
+  process.env.ANONYMOUS_CHAT_ENABLED === "yes";
+const ANONYMOUS_CHAT_MAX_TURNS = Math.min(
+  10,
+  Math.max(1, Number(process.env.ANONYMOUS_CHAT_MAX_TURNS) || 3)
+);
+
 export default async function ShareAgentPage({ params }: Props) {
   const { agentId } = await params;
   const t = await getTranslations("share");
@@ -71,13 +81,23 @@ export default async function ShareAgentPage({ params }: Props) {
           {summary ? (
             <p className="text-sm text-muted-foreground">{summary}</p>
           ) : null}
-          <Button asChild className="w-full">
-            <Link href={`/chat/${agent.id}`} data-testid="share-try">
-              <MessageSquare className="mr-2 size-4" />
-              {t("try")}
-            </Link>
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">{t("loginHint")}</p>
+          {ANONYMOUS_CHAT_ENABLED ? (
+            <ShareChatEmbed
+              agentId={agent.id}
+              agentName={agent.name}
+              maxTurns={ANONYMOUS_CHAT_MAX_TURNS}
+            />
+          ) : (
+            <>
+              <Button asChild className="w-full">
+                <Link href={`/chat/${agent.id}`} data-testid="share-try">
+                  <MessageSquare className="mr-2 size-4" />
+                  {t("try")}
+                </Link>
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">{t("loginHint")}</p>
+            </>
+          )}
         </CardContent>
       </Card>
       <Button variant="ghost" size="sm" asChild>

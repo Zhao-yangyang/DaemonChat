@@ -41,7 +41,7 @@ Example scoped command:
 - API router tests live in `packages/api/src/__tests__/`.
 - Web route/server tests live in `apps/web/app/api/**` and `apps/web/src/**`.
 - Worker tests live in `apps/worker/src/*.test.ts`.
-- E2E tests (Playwright) live in `apps/web/e2e/*.spec.ts`; run with `bun run test:e2e`（冒烟）或 `bun run test:e2e:full`（含登录后 chat 流程）。本地建议 `CI= bun run test:e2e` 使用系统 Chrome；`reuseExistingServer: true` 复用已有 dev server。完整 E2E 需配置 `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD`。
+- E2E tests (Playwright) live in `apps/web/e2e/*.spec.ts`; run with `bun run test:e2e`（冒烟）或 `bun run test:e2e:full`（含登录后 chat 流程）。本地建议 `CI= bun run test:e2e` 使用系统 Chrome；`reuseExistingServer: true` 复用已有 dev server。完整 E2E 需配置 `E2E_TEST_EMAIL`/`E2E_TEST_PASSWORD`。CI 使用 `placeholder.supabase.co` 时，`createContainer` 自动启用 placeholder 模式（`AgentStore` 返回 null），Share 页可正确返回 404。
 - `@daemon/web` unit/API tests use `bun test src app` (excludes `e2e/`; Playwright specs run via `test:e2e`).
 - Run all tests with `bun run test`, or package-only with `bun --cwd packages/domain test`.
 - Prefer adding tests alongside domain logic when changing core behavior.
@@ -71,6 +71,10 @@ Example scoped command:
   - **Phase F**：E2E 扩展与 CI 集成。`apps/web/e2e/share.spec.ts` 覆盖 Share 页 404 与有效 agent 校验；`.github/workflows/ci.yml` 新增 `e2e` job（依赖 quality-gate、安装 Playwright Chromium、运行 `bun run test:e2e`）。
   - **Phase G**：Share 页 SEO/OG。`generateMetadata` 输出 `title`、`description`、`openGraph.title`/`openGraph.description`。
   - **Phase H**：Extension POC（WXT）。`apps/extension` 使用 WXT 构建 Chrome 侧边栏扩展，iframe 加载 `http://localhost:3333/zh/chat`（可配置 `VITE_CHAT_URL`）；`bun run dev`/`bun run build`；产物 `.output/chrome-mv3/` 可加载到 Chrome 扩展页。
+  - **Phase I**：E2E 完整流程与 CI 强化。`.github/workflows/ci.yml` 新增 `e2e-full` job（当 `E2E_TEST_EMAIL`、`E2E_TEST_PASSWORD`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` 配置时运行 `test:e2e:full`）；`E2E_PUBLIC_AGENT_ID` 用法文档化（`.env.local.example`、`docs/runbooks/local-experience.md`）。
+  - **Phase J**：Share 匿名试用（方案 B）。`/api/chat/stream/anonymous` 对 `visibility=public` Agent 提供有限轮次流式对话，无 token；限流按 IP、轮次上限可配置（`ANONYMOUS_CHAT_ENABLED`、`ANONYMOUS_CHAT_MAX_TURNS`、`ANONYMOUS_CHAT_RATE_LIMIT_PER_IP`）；Share 页嵌入 `ShareChatEmbed` 组件，达上限后展示登录 CTA。
+  - **Phase K**：Extension 增强。`apps/extension/public/icon-16.png`、`icon-48.png`、`icon-128.png`；README 生产构建示例（`VITE_CHAT_URL`、`bun run zip`）。
+  - **Phase L**：Desktop POC（Tauri）。`apps/desktop` Tauri + WebView 加载 DaemonChat 聊天页；`scripts/inject-url.js` 构建前注入 `CHAT_URL`；`bun run dev`/`bun run build`。
 - 历史计划已归档至 `docs/plans/archive/`。
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
@@ -283,6 +287,8 @@ Example scoped command:
 - If you change memory retrieval filters, update both:
   - `match_memory_items` SQL signature/filters in `packages/adapters/supabase/sql/schema.sql`
   - adapter + domain filter wiring in `packages/adapters/supabase/src/stores/memory.ts` and `packages/domain/src/usecases/*`
+- Placeholder 模式（`apps/web/src/server/container.ts`）：
+  - 当 `SUPABASE_URL` 含 `placeholder` 时，`AgentStore` 使用 mock（`getAgentById` 恒返回 null），避免 CI 占位 URL 触发真实 Supabase 请求；Share 页可正确返回 404。
 - If you change session fork behavior, update both:
   - `supabase/migrations/` 和 `packages/adapters/supabase/sql/schema.sql` 中的 sessions/transcript_events 相关列
   - `SessionStore.createForkedSession`、`TranscriptStore.listRecentEventsWithFork`、`buildContextForSession` 分叉逻辑
@@ -290,11 +296,20 @@ Example scoped command:
   - WXT 构建，`bun run dev` 开发、`bun run build` 产出 `.output/chrome-mv3/`。
   - 侧边栏 iframe 默认加载 `http://localhost:3333/zh/chat`；生产环境可设 `VITE_CHAT_URL` 指向部署 URL。
   - 需先启动 `bun run dev --filter @daemon/web`，扩展才能正常加载聊天页。
+  - 图标：`public/icon-16.png`、`icon-48.png`、`icon-128.png`，由 `apps/web/app/icon.png` 缩放生成。
+- 匿名试用（`/api/chat/stream/anonymous`）：
+  - 需显式开启 `ANONYMOUS_CHAT_ENABLED=1`；默认关闭。
+  - 仅对 `visibility=public` Agent 可用；客户端传 `messages`、`userInput`，服务端不持久化 transcript/usage/memory。
+  - Share 页 `ShareChatEmbed` 在启用时嵌入聊天 UI，轮次达 `ANONYMOUS_CHAT_MAX_TURNS` 后展示登录 CTA。
+  - 路由测试 `route.test.ts` 覆盖 403（关闭）、400（无效 body）、404（Agent 不存在）、429（轮次超限）、500（缺 SUPABASE_URL）。
+- Desktop POC（`apps/desktop`）：
+  - Tauri + WebView 加载 DaemonChat 聊天页；`beforeDevCommand`/`beforeBuildCommand` 运行 `inject-url` 注入 `CHAT_URL`。
+  - 生产构建：`CHAT_URL=https://your-domain.com bun run build`。
 - Keep validating with:
   - `bun run typecheck`
   - `bun run test`
   - `bun run test:e2e`（在 `apps/web` 下，E2E 冒烟；本地建议 `CI= bun run test:e2e`）
-  - focused tests where applicable (for example `apps/web/src/server/auth.test.ts`, `apps/web/app/api/chat/stream/route.test.ts`, `apps/worker/src/claimJobs.test.ts`, `apps/worker/src/retry.test.ts`, `apps/web/src/features/historyFilters.test.ts`, `packages/api/src/__tests__/router.test.ts`)
+  - focused tests where applicable (for example `apps/web/src/server/auth.test.ts`, `apps/web/app/api/chat/stream/route.test.ts`, `apps/web/app/api/chat/stream/anonymous/route.test.ts`, `apps/worker/src/claimJobs.test.ts`, `apps/worker/src/retry.test.ts`, `apps/web/src/features/historyFilters.test.ts`, `packages/api/src/__tests__/router.test.ts`)
 - For manual product QA and demos, use:
   - `docs/runbooks/local-experience.md`
 - Local web dev default port is now `3333` (`@daemon/web` dev script and local runbook/loadtest defaults are aligned).
