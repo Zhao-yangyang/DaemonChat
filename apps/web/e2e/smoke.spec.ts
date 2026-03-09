@@ -4,15 +4,18 @@ test.describe("Smoke tests — page loads", () => {
   test("homepage loads and shows login form when unauthenticated", async ({ page }) => {
     await page.goto("/zh");
     await expect(page.getByText("DaemonChat", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("开始使用")).toBeVisible();
+    await expect(page.getByTestId("auth-form")).toBeVisible();
   });
 
   test("homepage shows feature cards", async ({ page }) => {
     await page.goto("/zh");
-    await expect(page.getByText("🧠 长期记忆")).toBeVisible();
-    await expect(page.getByText("🤖 多模型支持")).toBeVisible();
-    await expect(page.getByText("📋 模板市场")).toBeVisible();
-    await expect(page.getByText("👥 团队协作")).toBeVisible();
+    await expect(page.getByTestId("auth-form")).toBeVisible();
+    // Feature card titles (in CardTitle, not description paragraph)
+    const cardTitles = page.locator("[data-slot='card-title']");
+    await expect(cardTitles.filter({ hasText: /长期记忆|Long-term Memory/ })).toBeVisible();
+    await expect(cardTitles.filter({ hasText: /多模型支持|Multi-model Support/ })).toBeVisible();
+    await expect(cardTitles.filter({ hasText: /模板市场|Template Marketplace/ })).toBeVisible();
+    await expect(cardTitles.filter({ hasText: /团队协作|Team Collaboration/ })).toBeVisible();
   });
 
   test("unauthenticated access to /agents redirects or shows auth prompt", async ({ page }) => {

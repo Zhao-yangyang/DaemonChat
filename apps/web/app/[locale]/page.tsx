@@ -84,42 +84,34 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">{t("features.memory")}</CardTitle>
-                <CardDescription>
-                  跨会话持久记忆，AI 记住你的偏好、习惯和上下文。
-                </CardDescription>
+                <CardDescription>{t("features.memoryDesc")}</CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">{t("features.multiModel")}</CardTitle>
-                <CardDescription>
-                  OpenAI、Anthropic、DeepSeek、Google 等主流模型自由切换。
-                </CardDescription>
+                <CardDescription>{t("features.multiModelDesc")}</CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">{t("features.templates")}</CardTitle>
-                <CardDescription>
-                  一键克隆社区 Agent 模板，快速构建专属助手。
-                </CardDescription>
+                <CardDescription>{t("features.templatesDesc")}</CardDescription>
               </CardHeader>
             </Card>
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">{t("features.team")}</CardTitle>
-                <CardDescription>
-                  创建工作空间，邀请成员共享 Agent 与记忆。
-                </CardDescription>
+                <CardDescription>{t("features.teamDesc")}</CardDescription>
               </CardHeader>
             </Card>
           </div>
         </section>
 
-        <Card>
+        <Card data-testid="auth-form">
           <CardHeader>
             <CardTitle className="text-xl">{tCommon("startUsing")}</CardTitle>
-            <CardDescription>使用邮箱登录或注册。</CardDescription>
+            <CardDescription>{t("authPrompt")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Auth

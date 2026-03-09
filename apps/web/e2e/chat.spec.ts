@@ -33,12 +33,12 @@ test.describe("Authenticated chat flow", () => {
     const url = page.url();
     expect(url).toContain("/chat/");
 
-    const input = page.getByPlaceholder("输入消息...");
+    const input = page.getByTestId("chat-input");
     await expect(input).toBeVisible({ timeout: 10_000 });
     const testMessage = "E2E 测试消息 " + Date.now();
     await input.fill(testMessage);
 
-    await page.getByRole("button", { name: "发送" }).click();
+    await page.getByTestId("chat-send").click();
 
     await expect(page.getByText(testMessage)).toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(MOCK_ASSISTANT_RESPONSE)).toBeVisible({ timeout: 15_000 });

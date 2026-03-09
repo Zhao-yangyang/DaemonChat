@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { trpc } from "@daemon/hooks";
 import {
@@ -27,6 +28,7 @@ import { formatTime } from "@/src/lib/format";
 import { Pencil, Search, Star, Trash2 } from "lucide-react";
 
 export default function TemplatesPage() {
+  const t = useTranslations("templates");
   const { session, isResolved } = useSession();
   const [onlyMine, setOnlyMine] = useState(false);
   const [keywordInput, setKeywordInput] = useState("");
@@ -138,8 +140,8 @@ export default function TemplatesPage() {
 
   return (
     <DashboardShell
-      title="模板市场"
-      description="浏览和克隆社区分享的 Agent 模板。"
+      title={t("title")}
+      description={t("description")}
       actions={
         <Button asChild variant="outline" size="sm">
           <a href="/agents">返回 Agent 列表</a>

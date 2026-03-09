@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { trpc } from "@daemon/hooks";
 import {
@@ -27,14 +28,8 @@ import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatTime } from "@/src/lib/format";
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: "所有者",
-  admin: "管理员",
-  member: "成员",
-  viewer: "查看者",
-};
-
 export default function WorkspacesPage() {
+  const t = useTranslations("workspaces");
   const { session, isResolved } = useSession();
   const [createOpen, setCreateOpen] = useState(false);
   const [wsName, setWsName] = useState("");
@@ -66,7 +61,7 @@ export default function WorkspacesPage() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardDescription>正在检查登录状态...</CardDescription>
+            <CardDescription>{t("checkingAuth")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -78,12 +73,12 @@ export default function WorkspacesPage() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>团队空间</CardTitle>
-            <CardDescription>请先登录再管理工作空间。</CardDescription>
+            <CardTitle>{t("title")}</CardTitle>
+            <CardDescription>{t("loginRequired")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-fit">
-              <Link href="/">返回登录页</Link>
+              <Link href="/">{t("backToLogin")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -91,13 +86,20 @@ export default function WorkspacesPage() {
     );
   }
 
+  const roleLabels: Record<string, string> = {
+    owner: t("roleOwner"),
+    admin: t("roleAdmin"),
+    member: t("roleMember"),
+    viewer: t("roleViewer"),
+  };
+
   return (
     <DashboardShell
-      title="团队空间"
-      description="管理你的工作空间与团队成员。"
+      title={t("title")}
+      description={t("description")}
       actions={
         <Button size="sm" onClick={() => setCreateOpen(true)}>
-          新建空间
+          {t("create")}
         </Button>
       }
     >
@@ -105,7 +107,7 @@ export default function WorkspacesPage() {
         {workspaces.error ? (
           <Alert variant="destructive">
             <AlertDescription>
-              {workspaces.error.message || "加载空间列表失败。"}
+              {workspaces.error.message || t("listError")}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -126,10 +128,10 @@ export default function WorkspacesPage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-medium">{ws.name}</p>
-                          <Badge variant="secondary">{ROLE_LABELS[ws.role] ?? ws.role}</Badge>
+                          <Badge variant="secondary">{roleLabels[ws.role] ?? ws.role}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          /{ws.slug} · 创建于 {formatTime(ws.createdAt)}
+                          /{ws.slug} · {t("createdAt")} {formatTime(ws.createdAt)}
                         </p>
                       </div>
                       <Button
@@ -137,7 +139,7 @@ export default function WorkspacesPage() {
                         size="sm"
                         onClick={() => setSelectedWs(ws.id === selectedWs ? null : ws.id)}
                       >
-                        {ws.id === selectedWs ? "收起" : "成员"}
+                        {ws.id === selectedWs ? t("collapse") : t("members")}
                       </Button>
                     </div>
 
@@ -146,7 +148,7 @@ export default function WorkspacesPage() {
                         {members.isLoading ? (
                           <Skeleton className="h-10 w-full" />
                         ) : members.error ? (
-                          <p className="text-sm text-destructive">加载成员失败</p>
+                          <p className="text-sm text-destructive">{t("loadMembersError")}</p>
                         ) : (
                           (members.data ?? []).map((m) => (
                             <div
@@ -157,7 +159,7 @@ export default function WorkspacesPage() {
                                 {m.user_id.slice(0, 8)}…
                               </span>
                               <Badge variant="outline">
-                                {ROLE_LABELS[m.role] ?? m.role}
+                                {roleLabels[m.role] ?? m.role}
                               </Badge>
                             </div>
                           ))

@@ -67,6 +67,10 @@ Example scoped command:
   - **Phase B**：i18n 国际化。`next-intl` + `[locale]` 动态段、`messages/zh.json`/`en.json`、`LanguageSwitcher` 侧边栏切换、默认 locale `zh`。
   - **Phase C**：Agent 公开分享。`getPublicAgent` domain、`agents_public_read` RLS policy、`/[locale]/share/[agentId]` 公开页、「复制分享链接」入口。
   - **Phase D**：对话分叉。`sessions.parent_session_id`/`fork_from_event_id`、`session.fork` tRPC、`listRecentEventsWithFork`、消息气泡「从此处分叉」、分叉会话历史合并展示。
+  - **Phase E**：i18n 完善与 data-testid 基线。share/agents/chat/home/memory/transcripts/usage/templates/workspaces 文案迁移至 `messages/zh.json`/`en.json`；关键交互元素添加 `data-testid`（auth-form、chat-input/chat-send/chat-messages/chat-fork、agents-create/agents-list、share-try/share-back、lang-switcher）；E2E 改用 `getByTestId` 选择器。
+  - **Phase F**：E2E 扩展与 CI 集成。`apps/web/e2e/share.spec.ts` 覆盖 Share 页 404 与有效 agent 校验；`.github/workflows/ci.yml` 新增 `e2e` job（依赖 quality-gate、安装 Playwright Chromium、运行 `bun run test:e2e`）。
+  - **Phase G**：Share 页 SEO/OG。`generateMetadata` 输出 `title`、`description`、`openGraph.title`/`openGraph.description`。
+  - **Phase H**：Extension POC（WXT）。`apps/extension` 使用 WXT 构建 Chrome 侧边栏扩展，iframe 加载 `http://localhost:3333/zh/chat`（可配置 `VITE_CHAT_URL`）；`bun run dev`/`bun run build`；产物 `.output/chrome-mv3/` 可加载到 Chrome 扩展页。
 - 历史计划已归档至 `docs/plans/archive/`。
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
@@ -282,6 +286,10 @@ Example scoped command:
 - If you change session fork behavior, update both:
   - `supabase/migrations/` 和 `packages/adapters/supabase/sql/schema.sql` 中的 sessions/transcript_events 相关列
   - `SessionStore.createForkedSession`、`TranscriptStore.listRecentEventsWithFork`、`buildContextForSession` 分叉逻辑
+- Extension POC（`apps/extension`）：
+  - WXT 构建，`bun run dev` 开发、`bun run build` 产出 `.output/chrome-mv3/`。
+  - 侧边栏 iframe 默认加载 `http://localhost:3333/zh/chat`；生产环境可设 `VITE_CHAT_URL` 指向部署 URL。
+  - 需先启动 `bun run dev --filter @daemon/web`，扩展才能正常加载聊天页。
 - Keep validating with:
   - `bun run typecheck`
   - `bun run test`
@@ -495,7 +503,7 @@ Example scoped command:
   - **E2E 测试保护网**（已完成）：
     - Playwright 基础设施：`apps/web/playwright.config.ts`，`baseURL: localhost:3333`，`reuseExistingServer: true`，本地非 CI 时使用系统 Chrome（`channel: "chrome"`）。
     - 冒烟测试：`apps/web/e2e/smoke.spec.ts` 覆盖首页登录表单、特性卡片、agents/memory/templates/usage 页面加载。
-    - `@daemon/web` 的 `test` 脚本为 `bun test src app`，排除 e2e；E2E 单独运行 `bun run test:e2e`。本地运行建议 `CI= bun run test:e2e` 以使用系统 Chrome。
+    - `@daemon/web` 的 `test` 脚本为 `bun test src app`，排除 e2e；E2E 单独运行 `bun run test:e2e`。本地运行建议 `CI= bun run test:e2e` 以使用系统 Chrome。E2E 优先使用 `data-testid` 选择器（auth-form、chat-input、chat-send、chat-messages、chat-fork、agents-create、agents-list、share-try、share-back、lang-switcher），避免因 i18n 文案变更导致用例失败。
   - **全局错误边界**（已完成）：
     - `apps/web/src/components/error-boundary.tsx`：React class component `componentDidCatch`，友好错误提示 + 重试按钮。
     - `apps/web/src/providers.tsx` 中 `<ErrorBoundary>` 包裹 children。

@@ -227,7 +227,7 @@ export default function ChatPage() {
       toast.success(t("forkFromHere"));
     },
     onError: (err) => {
-      toast.error(err.message || "分叉失败");
+      toast.error(err.message || t("forkFailed"));
     },
   });
 
@@ -820,11 +820,11 @@ export default function ChatPage() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setSearchOpen((prev) => !prev)}>
                     <Search className="size-3.5" />
-                    搜索消息
+                    {t("searchMessages")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={exportChat}>
                     <FileDown className="size-3.5" />
-                    导出 Markdown
+                    {t("exportMarkdown")}
                   </DropdownMenuItem>
                 </>
               )}
@@ -842,7 +842,7 @@ export default function ChatPage() {
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索当前会话消息..."
+              placeholder={t("searchPlaceholder")}
               className="h-8 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
               autoFocus
             />
@@ -857,33 +857,33 @@ export default function ChatPage() {
         ) : null}
 
         {/* Messages — min-h-0 lets this flex item shrink so input stays fixed at bottom */}
-        <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1">
+        <ScrollArea ref={scrollAreaRef} className="min-h-0 flex-1" data-testid="chat-messages">
           <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
             {transcript.isLoading && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <Loader2 className="mb-4 size-8 animate-spin text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">加载历史消息...</p>
+                <p className="text-sm text-muted-foreground">{t("loadingHistory")}</p>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10">
                   <MessageIcon className="size-6 text-primary" />
                 </div>
-                <h2 className="text-lg font-medium text-foreground">开始新对话</h2>
-                <p className="mt-1 text-sm text-muted-foreground">输入你的问题即可开始</p>
+                <h2 className="text-lg font-medium text-foreground">{t("startNewChat")}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{t("startNewChatHint")}</p>
               </div>
             ) : null}
 
             {transcript.error && messages.length === 0 ? (
               <div className="mx-auto max-w-sm rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center text-sm text-destructive">
-                加载历史消息失败：{transcript.error.message}
+                {t("loadHistoryFailed")}：{transcript.error.message}
                 <Button
                   size="xs"
                   variant="outline"
                   className="ml-2"
                   onClick={() => void transcript.refetch()}
                 >
-                  重试
+                  {t("retry")}
                 </Button>
               </div>
             ) : null}
@@ -920,7 +920,7 @@ export default function ChatPage() {
                             : "bg-muted text-muted-foreground"
                         )}
                       >
-                        {isUser ? "你" : "AI"}
+                        {isUser ? t("userLabel") : t("aiLabel")}
                       </div>
                       <div className={cn("min-w-0 flex-1 flex flex-col", isUser ? "items-end" : "items-start")}>
                         <div
@@ -938,11 +938,11 @@ export default function ChatPage() {
                                   value={editingContent}
                                   onChange={(event) => setEditingContent(event.target.value)}
                                   className="min-h-20 resize-y bg-background text-foreground"
-                                  aria-label="编辑消息"
+                                  aria-label={t("editAriaLabel")}
                                 />
                                 <div className="flex justify-end gap-2">
                                   <Button size="xs" variant="secondary" onClick={cancelEdit}>
-                                    取消
+                                    {t("cancel")}
                                   </Button>
                                   <Button
                                     size="xs"
@@ -950,7 +950,7 @@ export default function ChatPage() {
                                     onClick={() => void saveEditAndResend()}
                                     disabled={!editingContent.trim()}
                                   >
-                                    保存并重发
+                                    {t("saveResend")}
                                   </Button>
                                 </div>
                               </div>
@@ -978,7 +978,7 @@ export default function ChatPage() {
                                           return next;
                                         })}
                                       >
-                                        {isExpanded ? "收起" : "展开全文"}
+                                        {isExpanded ? t("collapse") : t("expand")}
                                       </button>
                                     ) : null}
                                   </>
@@ -988,7 +988,7 @@ export default function ChatPage() {
                               isPendingAssistant ? (
                                 <div className="flex items-center gap-2 text-muted-foreground">
                                   <Loader2 className="size-4 animate-spin" />
-                                  <span>思考中...</span>
+                                  <span>{t("thinking")}</span>
                                 </div>
                               ) : null
                             )
@@ -1007,7 +1007,7 @@ export default function ChatPage() {
                               className="hover:text-foreground transition-colors"
                               onClick={() => startEdit(idx, msg.content)}
                             >
-                              编辑
+                              {t("edit")}
                             </button>
                           ) : null}
                           {!isUser && hasVisibleContent && !isStreaming ? (
@@ -1017,7 +1017,7 @@ export default function ChatPage() {
                                 void navigator.clipboard.writeText(msg.content);
                               }}
                             >
-                              复制
+                              {t("copy")}
                             </button>
                           ) : null}
                           {!isUser && isLastAssistant && !isStreaming ? (
@@ -1025,12 +1025,13 @@ export default function ChatPage() {
                               className="hover:text-foreground transition-colors"
                               onClick={() => void regenerate()}
                             >
-                              重新生成
+                              {t("regenerate")}
                             </button>
                           ) : null}
                           {msg.eventId && currentSessionId && !isStreaming ? (
                             <button
                               className="hover:text-foreground transition-colors"
+                              data-testid="chat-fork"
                               onClick={() => {
                                 forkSessionMutation.mutate({
                                   agentId,
@@ -1058,7 +1059,7 @@ export default function ChatPage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">
-                {currentAgent?.config.llmProvider?.model || "未配置模型"}
+                {currentAgent?.config.llmProvider?.model || t("notConfigured")}
               </Badge>
             </div>
             {uploadError ? (
@@ -1126,7 +1127,7 @@ export default function ChatPage() {
                 className="shrink-0 rounded-lg"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isStreaming || isUploading}
-                title="添加图片或 PDF"
+                title={t("addImagePdf")}
               >
                 {isUploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
               </Button>
@@ -1136,6 +1137,7 @@ export default function ChatPage() {
                 placeholder={t("inputPlaceholder")}
                 aria-label={t("inputPlaceholder")}
                 className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
+                data-testid="chat-input"
                 onKeyDown={(event) => {
                   if ((event.nativeEvent as KeyboardEvent).isComposing) {
                     return;
@@ -1153,7 +1155,7 @@ export default function ChatPage() {
                   className="h-9 shrink-0 rounded-lg px-3 text-xs"
                   onClick={stopStreaming}
                 >
-                  停止生成
+                  {t("stopGenerating")}
                 </Button>
               ) : (
                 <Button
@@ -1161,6 +1163,7 @@ export default function ChatPage() {
                   className="shrink-0 rounded-lg"
                   onClick={send}
                   disabled={(!input.trim() && pendingAttachments.length === 0) || isUploading}
+                  data-testid="chat-send"
                 >
                   <Send className="size-4" />
                   <span className="sr-only">{t("send")}</span>
@@ -1168,7 +1171,7 @@ export default function ChatPage() {
               )}
             </div>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              Enter 发送 · Shift + Enter 换行 · 支持图片或 PDF
+              {t("inputHint")}
             </p>
           </div>
         </div>

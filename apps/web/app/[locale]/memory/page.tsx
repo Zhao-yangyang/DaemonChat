@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -33,6 +34,7 @@ import { useSession } from "@/src/hooks/use-session";
 const PAGE_SIZE = 8;
 
 function MemoryPageContent() {
+  const t = useTranslations("memory");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -196,8 +198,8 @@ function MemoryPageContent() {
 
   return (
     <DashboardShell
-      title="记忆管理"
-      description="围绕当前 Agent 浏览、筛选和新增记忆。"
+      title={t("title")}
+      description={t("description")}
     >
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
@@ -466,10 +468,11 @@ function MemoryPageContent() {
 }
 
 export default function MemoryPage() {
+  const t = useTranslations("memory");
   return (
     <Suspense
       fallback={
-        <DashboardShell title="记忆管理" description="围绕当前 Agent 浏览、筛选和新增记忆。">
+        <DashboardShell title={t("title")} description={t("description")}>
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6 sm:px-6">
             {Array.from({ length: 3 }).map((_, idx) => (
               <Card key={`memory-page-fallback-${idx}`}>

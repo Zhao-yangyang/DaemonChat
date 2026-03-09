@@ -22,6 +22,7 @@ export function LanguageSwitcher() {
       className="h-8 px-2 text-xs"
       onClick={toggle}
       title={locale === "zh" ? t("en") : t("zh")}
+      data-testid="lang-switcher"
     >
       {locale === "zh" ? "EN" : "中"}
     </Button>

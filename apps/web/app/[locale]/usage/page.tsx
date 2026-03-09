@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -48,6 +49,7 @@ const formatBucketLabel = (value: string, period: UsagePeriod): string => {
 };
 
 function UsagePageContent() {
+  const t = useTranslations("usage");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -142,8 +144,8 @@ function UsagePageContent() {
 
   return (
     <DashboardShell
-      title="Usage & Cost"
-      description="按 Agent 快速查看 token 与成本趋势。"
+      title={t("title")}
+      description={t("description")}
     >
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
@@ -327,10 +329,11 @@ function UsagePageContent() {
 }
 
 export default function UsagePage() {
+  const t = useTranslations("usage");
   return (
     <Suspense
       fallback={
-        <DashboardShell title="Usage & Cost" description="按 Agent 快速查看 token 与成本趋势。">
+        <DashboardShell title={t("title")} description={t("description")}>
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6 sm:px-6">
             <div className="grid gap-3 sm:grid-cols-3">
               {Array.from({ length: 3 }).map((_, idx) => (

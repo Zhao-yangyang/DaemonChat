@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link, useRouter } from "@/src/i18n/navigation";
 import { trpc } from "@daemon/hooks";
 import {
@@ -79,6 +79,7 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
 };
 
 export default function AgentsPage() {
+  const t = useTranslations("agents");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForm, setCreateForm] = useState<AgentConfigForm & { name: string; workspaceId?: string }>({
     ...EMPTY_CONFIG_FORM,
@@ -130,7 +131,7 @@ export default function AgentsPage() {
       router.push(`/chat/${agent.id}`);
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "创建 Agent 失败"));
+      toast.error(getErrorMessage(error, t("createError")));
     },
   });
   const updateAgent = trpc.agent.update.useMutation({
@@ -141,7 +142,7 @@ export default function AgentsPage() {
       agents.refetch();
     },
     onError: (error) => {
-      toast.error(getErrorMessage(error, "更新 Agent 配置失败"));
+      toast.error(getErrorMessage(error, t("updateError")));
     },
   });
   const deleteAgent = trpc.agent.delete.useMutation({
@@ -150,7 +151,7 @@ export default function AgentsPage() {
       agents.refetch();
     },
     onError: () => {
-      toast.error("删除 Agent 失败");
+      toast.error(t("deleteError"));
     },
   });
 
@@ -168,31 +169,31 @@ export default function AgentsPage() {
   const listErrorMessage = useMemo(
     () =>
       agents.error
-        ? getErrorMessage(agents.error, "加载 Agent 列表失败，请稍后重试。")
+        ? getErrorMessage(agents.error, t("listError"))
         : null,
-    [agents.error]
+    [agents.error, t]
   );
 
   const createErrorMessage = useMemo(
     () =>
       createAgent.error
-        ? getErrorMessage(createAgent.error, "创建 Agent 失败，请稍后重试。")
+        ? getErrorMessage(createAgent.error, t("createError"))
         : null,
-    [createAgent.error]
+    [createAgent.error, t]
   );
   const updateErrorMessage = useMemo(
     () =>
       updateAgent.error
-        ? getErrorMessage(updateAgent.error, "保存 Agent 配置失败，请稍后重试。")
+        ? getErrorMessage(updateAgent.error, t("updateError"))
         : null,
-    [updateAgent.error]
+    [updateAgent.error, t]
   );
   const deleteErrorMessage = useMemo(
     () =>
       deleteAgent.error
-        ? getErrorMessage(deleteAgent.error, "删除 Agent 失败，请稍后重试。")
+        ? getErrorMessage(deleteAgent.error, t("deleteError"))
         : null,
-    [deleteAgent.error]
+    [deleteAgent.error, t]
   );
 
   const selectedAgent = useMemo(
@@ -278,15 +279,15 @@ export default function AgentsPage() {
     const temperature = Number(configForm.temperature);
 
     if (!Number.isInteger(memoryTopK) || memoryTopK < 1 || memoryTopK > 50) {
-      setConfigFormError("Memory TopK 需为 1-50 的整数。");
+      setConfigFormError(t("validateMemoryTopK"));
       return;
     }
     if (!Number.isInteger(recentMessages) || recentMessages < 1 || recentMessages > 100) {
-      setConfigFormError("Recent Messages 需为 1-100 的整数。");
+      setConfigFormError(t("validateRecentMessages"));
       return;
     }
     if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
-      setConfigFormError("Temperature 需为 0-2 的数字。");
+      setConfigFormError(t("validateTemperature"));
       return;
     }
 
@@ -322,7 +323,7 @@ export default function AgentsPage() {
     setCreateFormError(null);
     const trimmedName = createForm.name.trim();
     if (!trimmedName) {
-      setCreateFormError("请输入 Agent 名称。");
+      setCreateFormError(t("validateName"));
       return;
     }
 
@@ -331,15 +332,15 @@ export default function AgentsPage() {
     const temperature = Number(createForm.temperature);
 
     if (!Number.isInteger(memoryTopK) || memoryTopK < 1 || memoryTopK > 50) {
-      setCreateFormError("Memory TopK 需为 1-50 的整数。");
+      setCreateFormError(t("validateMemoryTopK"));
       return;
     }
     if (!Number.isInteger(recentMessages) || recentMessages < 1 || recentMessages > 100) {
-      setCreateFormError("Recent Messages 需为 1-100 的整数。");
+      setCreateFormError(t("validateRecentMessages"));
       return;
     }
     if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
-      setCreateFormError("Temperature 需为 0-2 的数字。");
+      setCreateFormError(t("validateTemperature"));
       return;
     }
 
@@ -374,7 +375,7 @@ export default function AgentsPage() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardDescription>正在检查登录状态...</CardDescription>
+            <CardDescription>{t("checkingAuth")}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -386,12 +387,12 @@ export default function AgentsPage() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="w-full max-w-sm">
           <CardHeader>
-            <CardTitle>Agents</CardTitle>
-            <CardDescription>请先登录再创建或查看 Agent。</CardDescription>
+            <CardTitle>{t("title")}</CardTitle>
+            <CardDescription>{t("loginRequired")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild className="w-fit">
-              <Link href="/">返回登录页</Link>
+              <Link href="/">{t("backToLogin")}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -401,18 +402,18 @@ export default function AgentsPage() {
 
   return (
     <DashboardShell
-      title="Agent 工作台"
-      description="管理你的长期助手实例。"
+      title={t("title")}
+      description={t("description")}
       actions={
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
-            新建 Agent
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)} data-testid="agents-create">
+            {t("create")}
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href="/templates">模板市场</Link>
+            <Link href="/templates">{t("templatesNav")}</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link href="/chat">打开聊天</Link>
+            <Link href="/chat">{t("openChat")}</Link>
           </Button>
         </div>
       }
@@ -420,11 +421,11 @@ export default function AgentsPage() {
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Agent 列表</span>
+            <span className="text-sm font-medium">{t("listLabel")}</span>
             <Badge variant="secondary">{agents.data?.length ?? 0}</Badge>
           </div>
           <Button variant="ghost" size="sm" onClick={() => agents.refetch()} disabled={agents.isFetching}>
-            {agents.isFetching ? "刷新中..." : "刷新"}
+            {agents.isFetching ? t("refreshing") : t("refresh")}
           </Button>
         </div>
 
@@ -434,7 +435,7 @@ export default function AgentsPage() {
           </Alert>
         ) : null}
 
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="agents-list">
           {agents.isLoading
             ? Array.from({ length: 3 }).map((_, index) => (
                 <Card key={`agent-loading-${index}`}>
@@ -450,7 +451,7 @@ export default function AgentsPage() {
                       <p className="font-medium flex items-center gap-2 flex-wrap">
                         {agent.name}
                         {publishedAgentIds.has(agent.id) ? (
-                          <Badge variant="secondary" className="text-xs">已发布</Badge>
+                          <Badge variant="secondary" className="text-xs">{t("published")}</Badge>
                         ) : null}
                         <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50">
                           <ProviderIcon
@@ -461,7 +462,7 @@ export default function AgentsPage() {
                             }
                             size={14}
                           />
-                          {agent.config.llmProvider?.model || "未配置"}
+                          {agent.config.llmProvider?.model || t("notConfigured")}
                         </span>
                       </p>
                       <Tooltip>
@@ -477,10 +478,10 @@ export default function AgentsPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Button asChild size="sm">
-                        <Link href={`/chat/${agent.id}`}>聊天</Link>
+                        <Link href={`/chat/${agent.id}`}>{t("chat")}</Link>
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => openConfigDialog(agent)}>
-                        配置
+                        {t("config")}
                       </Button>
                       <Button
                         variant="outline"
@@ -488,13 +489,13 @@ export default function AgentsPage() {
                         onClick={() => setDeletingAgentId(agent.id)}
                         disabled={deleteAgent.isPending}
                       >
-                        删除
+                        {t("delete")}
                       </Button>
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>用量</Link>
+                        <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>{t("usage")}</Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>记忆</Link>
+                        <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>{t("memory")}</Link>
                       </Button>
                       <Button
                         variant="ghost"
@@ -506,7 +507,7 @@ export default function AgentsPage() {
                           publishTemplate.reset();
                         }}
                       >
-                        {publishedAgentIds.has(agent.id) ? "更新发布" : "发布"}
+                        {publishedAgentIds.has(agent.id) ? t("updatePublish") : t("publish")}
                       </Button>
                     </div>
                   </CardContent>
@@ -515,8 +516,8 @@ export default function AgentsPage() {
 
           {!agents.isLoading && !listErrorMessage && (agents.data?.length ?? 0) === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center">
-              <p className="text-sm text-muted-foreground mb-4">还没有 Agent，创建第一个即可开始聊天。</p>
-              <Button onClick={() => setCreateDialogOpen(true)}>新建 Agent</Button>
+              <p className="text-sm text-muted-foreground mb-4">{t("emptyHint")}</p>
+              <Button onClick={() => setCreateDialogOpen(true)}>{t("create")}</Button>
             </div>
           ) : null}
         </div>
@@ -525,26 +526,24 @@ export default function AgentsPage() {
         <Dialog open={createDialogOpen} onOpenChange={(open) => (!open ? closeCreateDialog() : undefined)}>
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>新建 Agent</DialogTitle>
-              <DialogDescription>
-                填写名称与 LLM 配置，一步完成创建，创建后可立即进入聊天。
-              </DialogDescription>
+              <DialogTitle>{t("createDialogTitle")}</DialogTitle>
+              <DialogDescription>{t("createDialogDesc")}</DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="create-agent-name">Agent 名称</Label>
+                <Label htmlFor="create-agent-name">{t("agentNameLabel")}</Label>
                 <Input
                   id="create-agent-name"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="例如：Personal Ops Copilot"
+                  placeholder={t("agentNamePlaceholder")}
                 />
               </div>
 
               {(workspaces.data ?? []).length > 0 && (
                 <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-workspace">工作空间</Label>
+                  <Label htmlFor="create-agent-workspace">{t("workspaceLabel")}</Label>
                   <Select
                     value={createForm.workspaceId ?? ""}
                     onValueChange={(v) =>
@@ -552,10 +551,10 @@ export default function AgentsPage() {
                     }
                   >
                     <SelectTrigger id="create-agent-workspace">
-                      <SelectValue placeholder="个人（不属于任何工作空间）" />
+                      <SelectValue placeholder={t("workspacePersonalPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">个人</SelectItem>
+                      <SelectItem value="">{t("workspacePersonal")}</SelectItem>
                       {(workspaces.data ?? []).map((ws: { id: string; name: string }) => (
                         <SelectItem key={ws.id} value={ws.id}>
                           {ws.name}
@@ -567,13 +566,13 @@ export default function AgentsPage() {
               )}
 
               <div className="grid gap-1.5">
-                <Label htmlFor="create-agent-system-prompt">System Prompt</Label>
+                <Label htmlFor="create-agent-system-prompt">{t("systemPromptLabel")}</Label>
                 <Textarea
                   id="create-agent-system-prompt"
                   rows={4}
                   value={createForm.systemPrompt}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
-                  placeholder="定义助手的角色、原则与风格，留空则使用默认长期助手设定。"
+                  placeholder={t("systemPromptPlaceholder")}
                 />
               </div>
 
@@ -584,7 +583,7 @@ export default function AgentsPage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-memory-topk">Memory TopK</Label>
+                  <Label htmlFor="create-agent-memory-topk">{t("memoryTopKLabel")}</Label>
                   <Input
                     id="create-agent-memory-topk"
                     type="number"
@@ -596,7 +595,7 @@ export default function AgentsPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-recent-messages">Recent Messages</Label>
+                  <Label htmlFor="create-agent-recent-messages">{t("recentMessagesLabel")}</Label>
                   <Input
                     id="create-agent-recent-messages"
                     type="number"
@@ -608,7 +607,7 @@ export default function AgentsPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-temperature">Temperature</Label>
+                  <Label htmlFor="create-agent-temperature">{t("temperatureLabel")}</Label>
                   <Input
                     id="create-agent-temperature"
                     type="number"
@@ -635,10 +634,10 @@ export default function AgentsPage() {
 
             <DialogFooter>
               <Button variant="outline" onClick={closeCreateDialog} disabled={createAgent.isPending}>
-                取消
+                {t("cancel")}
               </Button>
               <Button onClick={doCreateAgent} disabled={createAgent.isPending}>
-                {createAgent.isPending ? "创建中..." : "创建并进入聊天"}
+                {createAgent.isPending ? t("creating") : t("createAndChat")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -648,21 +647,21 @@ export default function AgentsPage() {
         <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Agent 配置</DialogTitle>
+              <DialogTitle>{t("configDialogTitle")}</DialogTitle>
               <DialogDescription>
-                {selectedAgent ? `正在编辑：${selectedAgent.name}` : "调整该 Agent 的模型与上下文参数。"}
+                {selectedAgent ? t("configDialogDescEditing", { name: selectedAgent.name }) : t("configDialogDescDefault")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="agent-system-prompt">System Prompt</Label>
+                <Label htmlFor="agent-system-prompt">{t("systemPromptLabel")}</Label>
                 <Textarea
                   id="agent-system-prompt"
                   rows={4}
                   value={configForm.systemPrompt}
                   onChange={(e) => setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
-                  placeholder="定义助手的角色、原则与风格，留空则使用默认长期助手设定。"
+                  placeholder={t("systemPromptPlaceholder")}
                 />
               </div>
 
@@ -670,7 +669,7 @@ export default function AgentsPage() {
                 value={configForm.llmProvider}
                 onChange={(lp) => setConfigForm((prev) => ({ ...prev, llmProvider: lp }))}
                 apiKeyPlaceholder={
-                  configForm.apiKeyConfigured ? "已配置（留空保留，输入则覆盖）" : undefined
+                  configForm.apiKeyConfigured ? t("apiKeyPlaceholder") : undefined
                 }
               />
 
@@ -687,9 +686,9 @@ export default function AgentsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="private">仅自己可见</SelectItem>
-                      <SelectItem value="workspace">工作空间成员可见</SelectItem>
-                      <SelectItem value="public">所有人可见</SelectItem>
+                      <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
+                      <SelectItem value="workspace">{t("visibilityWorkspace")}</SelectItem>
+                      <SelectItem value="public">{t("visibilityPublic")}</SelectItem>
                     </SelectContent>
                   </Select>
                   {configForm.visibility === "public" && editingAgentId ? (
@@ -701,13 +700,13 @@ export default function AgentsPage() {
                         const url = `${typeof window !== "undefined" ? window.location.origin : ""}/${locale}/share/${editingAgentId}`;
                         try {
                           await navigator.clipboard.writeText(url);
-                          toast.success("分享链接已复制到剪贴板");
+                          toast.success(t("shareLinkCopied"));
                         } catch {
-                          toast.error("复制失败，请手动复制");
+                          toast.error(t("copyFailed"));
                         }
                       }}
                     >
-                      复制分享链接
+                      {t("copyShareLink")}
                     </Button>
                   ) : null}
                 </div>
@@ -715,7 +714,7 @@ export default function AgentsPage() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="grid gap-1.5">
-                  <Label htmlFor="agent-memory-topk">Memory TopK</Label>
+                  <Label htmlFor="agent-memory-topk">{t("memoryTopKLabel")}</Label>
                   <Input
                     id="agent-memory-topk"
                     type="number"
@@ -727,7 +726,7 @@ export default function AgentsPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="agent-recent-messages">Recent Messages</Label>
+                  <Label htmlFor="agent-recent-messages">{t("recentMessagesLabel")}</Label>
                   <Input
                     id="agent-recent-messages"
                     type="number"
@@ -739,7 +738,7 @@ export default function AgentsPage() {
                 </div>
 
                 <div className="grid gap-1.5">
-                  <Label htmlFor="agent-temperature">Temperature</Label>
+                  <Label htmlFor="agent-temperature">{t("temperatureLabel")}</Label>
                   <Input
                     id="agent-temperature"
                     type="number"
@@ -766,10 +765,10 @@ export default function AgentsPage() {
 
             <DialogFooter>
               <Button variant="outline" onClick={closeConfigDialog} disabled={updateAgent.isPending}>
-                取消
+                {t("cancel")}
               </Button>
               <Button onClick={saveConfig} disabled={updateAgent.isPending || !editingAgentId}>
-                {updateAgent.isPending ? "保存中..." : "保存配置"}
+                {updateAgent.isPending ? t("saving") : t("saveConfig")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -779,11 +778,11 @@ export default function AgentsPage() {
         <Dialog open={Boolean(deletingAgentId)} onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>删除 Agent</DialogTitle>
+              <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
               <DialogDescription>
                 {deletingAgent
-                  ? `确认删除「${deletingAgent.name}」吗？此操作不可恢复。`
-                  : "确认删除该 Agent 吗？此操作不可恢复。"}
+                  ? t("deleteDialogConfirm", { name: deletingAgent.name })
+                  : t("deleteDialogConfirmDefault")}
               </DialogDescription>
             </DialogHeader>
             {deleteErrorMessage ? (
@@ -793,7 +792,7 @@ export default function AgentsPage() {
             ) : null}
             <DialogFooter>
               <Button variant="outline" onClick={closeDeleteDialog} disabled={deleteAgent.isPending}>
-                取消
+                {t("cancel")}
               </Button>
               <Button
                 variant="destructive"
@@ -803,7 +802,7 @@ export default function AgentsPage() {
                   deleteAgent.mutate({ agentId: deletingAgentId });
                 }}
               >
-                {deleteAgent.isPending ? "删除中..." : "确认删除"}
+                {deleteAgent.isPending ? t("deleting") : t("confirmDelete")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -821,22 +820,22 @@ export default function AgentsPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{publishAgentId && publishedAgentIds.has(publishAgentId) ? "更新模板" : "发布为模板"}</DialogTitle>
+              <DialogTitle>{publishAgentId && publishedAgentIds.has(publishAgentId) ? t("updateTemplateDialogTitle") : t("publishDialogTitle")}</DialogTitle>
               <DialogDescription>
                 {publishAgentId && publishedAgentIds.has(publishAgentId)
-                  ? "此 Agent 已发布过，确认将更新模板市场的配置与描述。"
-                  : "将当前 Agent 的配置发布到模板市场，其他用户可以一键克隆使用。"}
+                  ? t("updateTemplateDialogDesc")
+                  : t("publishDialogDesc")}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="publish-desc">模板描述</Label>
+                <Label htmlFor="publish-desc">{t("publishDescLabel")}</Label>
                 <Textarea
                   id="publish-desc"
                   rows={3}
                   value={publishDesc}
                   onChange={(e) => setPublishDesc(e.target.value)}
-                  placeholder="简要介绍此 Agent 的用途和特点..."
+                  placeholder={t("publishDescPlaceholder")}
                 />
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -846,18 +845,18 @@ export default function AgentsPage() {
                   onChange={(e) => setPublishPublic(e.target.checked)}
                   className="rounded"
                 />
-                公开发布（所有用户可见）
+                {t("publishPublic")}
               </label>
               {publishTemplate.error ? (
                 <Alert variant="destructive">
                   <AlertDescription>
-                    {getErrorMessage(publishTemplate.error, "发布失败，请稍后重试。")}
+                    {getErrorMessage(publishTemplate.error, t("publishError"))}
                   </AlertDescription>
                 </Alert>
               ) : null}
               {publishTemplate.isSuccess ? (
                 <Alert>
-                  <AlertDescription>模板发布成功！</AlertDescription>
+                  <AlertDescription>{t("publishSuccess")}</AlertDescription>
                 </Alert>
               ) : null}
             </div>
@@ -870,7 +869,7 @@ export default function AgentsPage() {
                 }}
                 disabled={publishTemplate.isPending}
               >
-                取消
+                {t("cancel")}
               </Button>
               <Button
                 onClick={() => {
@@ -884,10 +883,10 @@ export default function AgentsPage() {
                 disabled={publishTemplate.isPending || !publishAgentId || publishTemplate.isSuccess}
               >
                 {publishTemplate.isPending
-                  ? "提交中..."
+                  ? t("publishSubmitting")
                   : publishAgentId && publishedAgentIds.has(publishAgentId)
-                    ? "确认更新"
-                    : "确认发布"}
+                    ? t("confirmUpdate")
+                    : t("confirmPublish")}
               </Button>
             </DialogFooter>
           </DialogContent>

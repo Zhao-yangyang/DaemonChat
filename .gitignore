@@ -15,3 +15,5 @@ worktrees/
 
 # Playwright auth state (含 session token，勿提交)
 apps/web/playwright/.auth/
+# Playwright test results
+apps/web/test-results/
