@@ -44,7 +44,7 @@ describe("adapter fallback routing", () => {
           }
           return { text: "fallback ok" };
         },
-      }
+      },
     );
 
     const text = await adapter.completeChat({
@@ -86,7 +86,7 @@ describe("adapter fallback routing", () => {
             })(),
           };
         },
-      }
+      },
     );
 
     let output = "";
@@ -123,7 +123,7 @@ describe("adapter fallback routing", () => {
             yield "ok";
           })(),
         }),
-      }
+      },
     );
 
     let output = "";
@@ -158,7 +158,7 @@ describe("adapter fallback routing", () => {
           textStream: (async function* () {})(),
           text: Promise.resolve("final text"),
         }),
-      }
+      },
     );
 
     let output = "";

@@ -47,10 +47,10 @@ export async function POST(req: Request) {
   const sessionId = formData.get("sessionId") as string | null;
 
   if (!file || !agentId || !sessionId) {
-    return new Response(
-      JSON.stringify({ error: "Missing file, agentId, or sessionId" }),
-      { status: 400, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
-    );
+    return new Response(JSON.stringify({ error: "Missing file, agentId, or sessionId" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+    });
   }
 
   if (!ALLOWED_TYPES.has(file.type)) {
@@ -58,14 +58,16 @@ export async function POST(req: Request) {
       JSON.stringify({
         error: `Unsupported file type: ${file.type}. Allowed: jpeg, png, gif, webp, pdf`,
       }),
-      { status: 415, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
+      { status: 415, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } },
     );
   }
 
   if (file.size > MAX_FILE_SIZE) {
     return new Response(
-      JSON.stringify({ error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max: 10 MB` }),
-      { status: 413, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
+      JSON.stringify({
+        error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max: 10 MB`,
+      }),
+      { status: 413, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } },
     );
   }
 
@@ -98,10 +100,10 @@ export async function POST(req: Request) {
         agent_id: agentId,
         error_message: uploadError.message,
       });
-      return new Response(
-        JSON.stringify({ error: "Failed to upload file to storage" }),
-        { status: 500, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
-      );
+      return new Response(JSON.stringify({ error: "Failed to upload file to storage" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+      });
     }
 
     const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(storagePath);
@@ -148,7 +150,7 @@ export async function POST(req: Request) {
         byteSize: file.size,
         textContent: textContent ?? undefined,
       }),
-      { status: 200, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
+      { status: 200, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } },
     );
   } catch (err) {
     logError("chat.upload.unexpected_error", {
@@ -156,9 +158,9 @@ export async function POST(req: Request) {
       user_id: user.id,
       error_message: err instanceof Error ? err.message : String(err),
     });
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json", "X-Request-Id": requestId } }
-    );
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
+    });
   }
 }

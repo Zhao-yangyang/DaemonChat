@@ -3,14 +3,7 @@
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { useTranslations } from "next-intl";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@daemon/ui";
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@daemon/ui";
 import { ChatEntryGate } from "@/src/components/chat-entry-gate";
 import { useSession } from "@/src/hooks/use-session";
 import { useTheme } from "@/src/hooks/use-theme";
@@ -18,9 +11,7 @@ import { supabaseBrowserClient } from "@/src/supabaseClient";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export default function HomePage() {
@@ -34,11 +25,7 @@ export default function HomePage() {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-lg items-center px-4 py-8 sm:px-6">
         <section className="w-full space-y-5">
-          <img
-            src="/logo.png"
-            alt="DaemonChat Logo"
-            className="h-10 w-auto object-contain"
-          />
+          <img src="/logo.png" alt="DaemonChat Logo" className="h-10 w-auto object-contain" />
           <Badge className="w-fit" variant="secondary">
             {tCommon("brand")}
           </Badge>
@@ -62,11 +49,7 @@ export default function HomePage() {
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-6 px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid items-center gap-10 lg:grid-cols-[1fr_400px]">
         <section className="space-y-6">
-          <img
-            src="/logo.png"
-            alt="DaemonChat Logo"
-            className="h-12 w-auto object-contain"
-          />
+          <img src="/logo.png" alt="DaemonChat Logo" className="h-12 w-auto object-contain" />
           <Badge className="w-fit" variant="secondary">
             {tCommon("brand")}
           </Badge>

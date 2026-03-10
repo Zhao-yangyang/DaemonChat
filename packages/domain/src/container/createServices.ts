@@ -15,7 +15,11 @@ export function createServices(ports: Ports): Services {
       clock: ports.clock,
       workspace: ports.workspace,
     }),
-    session: createSessionService({ sessions: ports.sessions, agents: ports.agents, clock: ports.clock }),
+    session: createSessionService({
+      sessions: ports.sessions,
+      agents: ports.agents,
+      clock: ports.clock,
+    }),
     transcript: createTranscriptService({ transcripts: ports.transcripts }),
     memory: createMemoryService({ memory: ports.memory, llm: ports.llm, clock: ports.clock }),
     compaction: createCompactionService({

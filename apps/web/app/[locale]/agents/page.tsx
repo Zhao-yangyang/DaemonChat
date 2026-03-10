@@ -81,7 +81,9 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
 export default function AgentsPage() {
   const t = useTranslations("agents");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<AgentConfigForm & { name: string; workspaceId?: string }>({
+  const [createForm, setCreateForm] = useState<
+    AgentConfigForm & { name: string; workspaceId?: string }
+  >({
     ...EMPTY_CONFIG_FORM,
     name: "",
     workspaceId: undefined,
@@ -109,16 +111,16 @@ export default function AgentsPage() {
 
   const myTemplates = trpc.template.list.useQuery(
     { onlyMine: true, limit: 100 },
-    { enabled: Boolean(session), retry: false, refetchOnWindowFocus: false }
+    { enabled: Boolean(session), retry: false, refetchOnWindowFocus: false },
   );
   const publishedAgentIds = useMemo(
     () =>
       new Set(
         (myTemplates.data ?? [])
           .map((t) => t.source_agent_id as string | undefined)
-          .filter((id): id is string => Boolean(id))
+          .filter((id): id is string => Boolean(id)),
       ),
-    [myTemplates.data]
+    [myTemplates.data],
   );
 
   const createAgent = trpc.agent.create.useMutation({
@@ -167,42 +169,30 @@ export default function AgentsPage() {
   });
 
   const listErrorMessage = useMemo(
-    () =>
-      agents.error
-        ? getErrorMessage(agents.error, t("listError"))
-        : null,
-    [agents.error, t]
+    () => (agents.error ? getErrorMessage(agents.error, t("listError")) : null),
+    [agents.error, t],
   );
 
   const createErrorMessage = useMemo(
-    () =>
-      createAgent.error
-        ? getErrorMessage(createAgent.error, t("createError"))
-        : null,
-    [createAgent.error, t]
+    () => (createAgent.error ? getErrorMessage(createAgent.error, t("createError")) : null),
+    [createAgent.error, t],
   );
   const updateErrorMessage = useMemo(
-    () =>
-      updateAgent.error
-        ? getErrorMessage(updateAgent.error, t("updateError"))
-        : null,
-    [updateAgent.error, t]
+    () => (updateAgent.error ? getErrorMessage(updateAgent.error, t("updateError")) : null),
+    [updateAgent.error, t],
   );
   const deleteErrorMessage = useMemo(
-    () =>
-      deleteAgent.error
-        ? getErrorMessage(deleteAgent.error, t("deleteError"))
-        : null,
-    [deleteAgent.error, t]
+    () => (deleteAgent.error ? getErrorMessage(deleteAgent.error, t("deleteError")) : null),
+    [deleteAgent.error, t],
   );
 
   const selectedAgent = useMemo(
     () => (agents.data ?? []).find((agent) => agent.id === editingAgentId) ?? null,
-    [agents.data, editingAgentId]
+    [agents.data, editingAgentId],
   );
   const deletingAgent = useMemo(
     () => (agents.data ?? []).find((agent) => agent.id === deletingAgentId) ?? null,
-    [agents.data, deletingAgentId]
+    [agents.data, deletingAgentId],
   );
 
   const closeCreateDialog = () => {
@@ -256,9 +246,10 @@ export default function AgentsPage() {
       temperature: String(agent.config.temperature ?? 0.7),
       visibility: agent.visibility ?? "private",
       llmProvider: {
-        presetId: agent.config.llmProvider?.presetId
-          ?? detected?.providerId
-          ?? (agent.config.llmProvider?.baseURL ? CUSTOM_PROVIDER_ID : ""),
+        presetId:
+          agent.config.llmProvider?.presetId ??
+          detected?.providerId ??
+          (agent.config.llmProvider?.baseURL ? CUSTOM_PROVIDER_ID : ""),
         model: agent.config.llmProvider?.model ?? "",
         baseURL: agent.config.llmProvider?.baseURL ?? "",
         apiKey: isRedacted ? "" : rawApiKey,
@@ -292,8 +283,7 @@ export default function AgentsPage() {
     }
 
     const lp = configForm.llmProvider;
-    const apiKeyToSend =
-      lp.apiKey || (configForm.apiKeyConfigured ? API_KEY_REDACTED : "");
+    const apiKeyToSend = lp.apiKey || (configForm.apiKeyConfigured ? API_KEY_REDACTED : "");
     const hasProvider = lp.baseURL && lp.model && (lp.apiKey || configForm.apiKeyConfigured);
 
     updateAgent.mutate({
@@ -424,7 +414,12 @@ export default function AgentsPage() {
             <span className="text-sm font-medium">{t("listLabel")}</span>
             <Badge variant="secondary">{agents.data?.length ?? 0}</Badge>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => agents.refetch()} disabled={agents.isFetching}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => agents.refetch()}
+            disabled={agents.isFetching}
+          >
             {agents.isFetching ? t("refreshing") : t("refresh")}
           </Button>
         </div>
@@ -451,14 +446,17 @@ export default function AgentsPage() {
                       <p className="font-medium flex items-center gap-2 flex-wrap">
                         {agent.name}
                         {publishedAgentIds.has(agent.id) ? (
-                          <Badge variant="secondary" className="text-xs">{t("published")}</Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {t("published")}
+                          </Badge>
                         ) : null}
                         <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50">
                           <ProviderIcon
                             providerId={
-                              agent.config.llmProvider?.presetId && agent.config.llmProvider.presetId !== "__custom__"
+                              agent.config.llmProvider?.presetId &&
+                              agent.config.llmProvider.presetId !== "__custom__"
                                 ? agent.config.llmProvider.presetId
-                                : agent.config.llmProvider?.sdkProvider ?? ""
+                                : (agent.config.llmProvider?.sdkProvider ?? "")
                             }
                             size={14}
                           />
@@ -492,10 +490,14 @@ export default function AgentsPage() {
                         {t("delete")}
                       </Button>
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>{t("usage")}</Link>
+                        <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>
+                          {t("usage")}
+                        </Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>{t("memory")}</Link>
+                        <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>
+                          {t("memory")}
+                        </Link>
                       </Button>
                       <Button
                         variant="ghost"
@@ -523,7 +525,10 @@ export default function AgentsPage() {
         </div>
 
         {/* Create Agent Dialog */}
-        <Dialog open={createDialogOpen} onOpenChange={(open) => (!open ? closeCreateDialog() : undefined)}>
+        <Dialog
+          open={createDialogOpen}
+          onOpenChange={(open) => (!open ? closeCreateDialog() : undefined)}
+        >
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("createDialogTitle")}</DialogTitle>
@@ -571,7 +576,9 @@ export default function AgentsPage() {
                   id="create-agent-system-prompt"
                   rows={4}
                   value={createForm.systemPrompt}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({ ...prev, systemPrompt: e.target.value }))
+                  }
                   placeholder={t("systemPromptPlaceholder")}
                 />
               </div>
@@ -590,7 +597,9 @@ export default function AgentsPage() {
                     min={1}
                     max={50}
                     value={createForm.memoryTopK}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, memoryTopK: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, memoryTopK: e.target.value }))
+                    }
                   />
                 </div>
 
@@ -602,7 +611,9 @@ export default function AgentsPage() {
                     min={1}
                     max={100}
                     value={createForm.recentMessages}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, recentMessages: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, recentMessages: e.target.value }))
+                    }
                   />
                 </div>
 
@@ -615,7 +626,9 @@ export default function AgentsPage() {
                     max={2}
                     step={0.1}
                     value={createForm.temperature}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, temperature: e.target.value }))}
+                    onChange={(e) =>
+                      setCreateForm((prev) => ({ ...prev, temperature: e.target.value }))
+                    }
                   />
                 </div>
               </div>
@@ -633,7 +646,11 @@ export default function AgentsPage() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={closeCreateDialog} disabled={createAgent.isPending}>
+              <Button
+                variant="outline"
+                onClick={closeCreateDialog}
+                disabled={createAgent.isPending}
+              >
                 {t("cancel")}
               </Button>
               <Button onClick={doCreateAgent} disabled={createAgent.isPending}>
@@ -644,12 +661,17 @@ export default function AgentsPage() {
         </Dialog>
 
         {/* Agent Config Dialog */}
-        <Dialog open={Boolean(editingAgentId)} onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}>
+        <Dialog
+          open={Boolean(editingAgentId)}
+          onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}
+        >
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{t("configDialogTitle")}</DialogTitle>
               <DialogDescription>
-                {selectedAgent ? t("configDialogDescEditing", { name: selectedAgent.name }) : t("configDialogDescDefault")}
+                {selectedAgent
+                  ? t("configDialogDescEditing", { name: selectedAgent.name })
+                  : t("configDialogDescDefault")}
               </DialogDescription>
             </DialogHeader>
 
@@ -660,7 +682,9 @@ export default function AgentsPage() {
                   id="agent-system-prompt"
                   rows={4}
                   value={configForm.systemPrompt}
-                  onChange={(e) => setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))}
+                  onChange={(e) =>
+                    setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))
+                  }
                   placeholder={t("systemPromptPlaceholder")}
                 />
               </div>
@@ -668,9 +692,7 @@ export default function AgentsPage() {
               <LlmProviderSection
                 value={configForm.llmProvider}
                 onChange={(lp) => setConfigForm((prev) => ({ ...prev, llmProvider: lp }))}
-                apiKeyPlaceholder={
-                  configForm.apiKeyConfigured ? t("apiKeyPlaceholder") : undefined
-                }
+                apiKeyPlaceholder={configForm.apiKeyConfigured ? t("apiKeyPlaceholder") : undefined}
               />
 
               <div className="grid gap-1.5">
@@ -721,7 +743,9 @@ export default function AgentsPage() {
                     min={1}
                     max={50}
                     value={configForm.memoryTopK}
-                    onChange={(e) => setConfigForm((prev) => ({ ...prev, memoryTopK: e.target.value }))}
+                    onChange={(e) =>
+                      setConfigForm((prev) => ({ ...prev, memoryTopK: e.target.value }))
+                    }
                   />
                 </div>
 
@@ -733,7 +757,9 @@ export default function AgentsPage() {
                     min={1}
                     max={100}
                     value={configForm.recentMessages}
-                    onChange={(e) => setConfigForm((prev) => ({ ...prev, recentMessages: e.target.value }))}
+                    onChange={(e) =>
+                      setConfigForm((prev) => ({ ...prev, recentMessages: e.target.value }))
+                    }
                   />
                 </div>
 
@@ -746,7 +772,9 @@ export default function AgentsPage() {
                     max={2}
                     step={0.1}
                     value={configForm.temperature}
-                    onChange={(e) => setConfigForm((prev) => ({ ...prev, temperature: e.target.value }))}
+                    onChange={(e) =>
+                      setConfigForm((prev) => ({ ...prev, temperature: e.target.value }))
+                    }
                   />
                 </div>
               </div>
@@ -764,7 +792,11 @@ export default function AgentsPage() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={closeConfigDialog} disabled={updateAgent.isPending}>
+              <Button
+                variant="outline"
+                onClick={closeConfigDialog}
+                disabled={updateAgent.isPending}
+              >
                 {t("cancel")}
               </Button>
               <Button onClick={saveConfig} disabled={updateAgent.isPending || !editingAgentId}>
@@ -775,7 +807,10 @@ export default function AgentsPage() {
         </Dialog>
 
         {/* Delete Confirmation Dialog */}
-        <Dialog open={Boolean(deletingAgentId)} onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}>
+        <Dialog
+          open={Boolean(deletingAgentId)}
+          onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}
+        >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
@@ -791,7 +826,11 @@ export default function AgentsPage() {
               </Alert>
             ) : null}
             <DialogFooter>
-              <Button variant="outline" onClick={closeDeleteDialog} disabled={deleteAgent.isPending}>
+              <Button
+                variant="outline"
+                onClick={closeDeleteDialog}
+                disabled={deleteAgent.isPending}
+              >
                 {t("cancel")}
               </Button>
               <Button
@@ -820,7 +859,11 @@ export default function AgentsPage() {
         >
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>{publishAgentId && publishedAgentIds.has(publishAgentId) ? t("updateTemplateDialogTitle") : t("publishDialogTitle")}</DialogTitle>
+              <DialogTitle>
+                {publishAgentId && publishedAgentIds.has(publishAgentId)
+                  ? t("updateTemplateDialogTitle")
+                  : t("publishDialogTitle")}
+              </DialogTitle>
               <DialogDescription>
                 {publishAgentId && publishedAgentIds.has(publishAgentId)
                   ? t("updateTemplateDialogDesc")

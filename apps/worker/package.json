@@ -6,8 +6,7 @@
   "scripts": {
     "loadtest:claim": "bun src/scripts/claimConsistency.ts",
     "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint not configured\""
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@daemon/adapters-llm-vercel": "workspace:*",

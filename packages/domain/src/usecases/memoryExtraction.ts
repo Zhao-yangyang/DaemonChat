@@ -72,7 +72,9 @@ export function createMemoryExtractionService(ports: {
 
   const cosineSimilarity = (a: number[], b: number[]): number => {
     if (a.length !== b.length || a.length === 0) return 0;
-    let dot = 0, normA = 0, normB = 0;
+    let dot = 0,
+      normA = 0,
+      normB = 0;
     for (let i = 0; i < a.length; i++) {
       dot += a[i] * b[i];
       normA += a[i] * a[i];
@@ -86,7 +88,7 @@ export function createMemoryExtractionService(ports: {
     async extractMemoryFromSession(
       agentId: string,
       sessionId: string,
-      options: ExtractMemoryOptions
+      options: ExtractMemoryOptions,
     ): Promise<MemoryItem[]> {
       const maxEvents = options.maxEvents && options.maxEvents > 0 ? options.maxEvents : 80;
       const events = await ports.transcripts.listRecentEvents({
@@ -131,11 +133,7 @@ export function createMemoryExtractionService(ports: {
         '{ "type": "fact|rule|preference|task", "content": "string", "tags": ["string"], "sensitivity": "public|private|secret", "contextEligible": true|false }',
         "仅输出 JSON，不要输出解释文字。",
         ...(existingSummary
-          ? [
-              "",
-              "以下是已有记忆，请勿重复提取相同或高度相似的内容：",
-              existingSummary,
-            ]
+          ? ["", "以下是已有记忆，请勿重复提取相同或高度相似的内容：", existingSummary]
           : []),
         "",
         "对话：",
@@ -158,8 +156,7 @@ export function createMemoryExtractionService(ports: {
           if (!item || typeof item !== "object") return null;
           const record = item as Record<string, unknown>;
           const type = normalizeType(record.type);
-          const content =
-            typeof record.content === "string" ? record.content.trim() : "";
+          const content = typeof record.content === "string" ? record.content.trim() : "";
           if (!type || !content) return null;
           return {
             type,
@@ -167,9 +164,7 @@ export function createMemoryExtractionService(ports: {
             tags: normalizeTags(record.tags),
             sensitivity: normalizeSensitivity(record.sensitivity),
             contextEligible:
-              typeof record.contextEligible === "boolean"
-                ? record.contextEligible
-                : true,
+              typeof record.contextEligible === "boolean" ? record.contextEligible : true,
           };
         })
         .filter((item): item is ExtractedMemoryDraft => Boolean(item));
@@ -185,7 +180,7 @@ export function createMemoryExtractionService(ports: {
 
         // Semantic dedup: skip if too similar to any existing memory
         const isDuplicate = existingEmbeddings.some(
-          (existing) => cosineSimilarity(embedding, existing) > DEDUP_THRESHOLD
+          (existing) => cosineSimilarity(embedding, existing) > DEDUP_THRESHOLD,
         );
         if (isDuplicate) {
           continue;
@@ -212,4 +207,3 @@ export function createMemoryExtractionService(ports: {
     },
   };
 }
-

@@ -56,13 +56,7 @@ type DashboardShellProps = {
   children: React.ReactNode;
 };
 
-function SidebarNav({
-  pathname,
-  onNavigate,
-}: {
-  pathname: string;
-  onNavigate?: () => void;
-}) {
+function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
   const { session, user } = useSession();
@@ -77,11 +71,7 @@ function SidebarNav({
           className="flex items-center gap-2 text-base font-semibold tracking-tight"
           onClick={onNavigate}
         >
-          <img
-            src="/logo.png"
-            alt="DaemonChat Logo"
-            className="size-6 object-contain"
-          />
+          <img src="/logo.png" alt="DaemonChat Logo" className="size-6 object-contain" />
           {tCommon("brand")}
         </Link>
       </div>
@@ -117,10 +107,7 @@ function SidebarNav({
 
       <div className="space-y-2 px-3 py-4">
         {displayName ? (
-          <p
-            className="truncate text-xs text-muted-foreground"
-            title={email ?? undefined}
-          >
+          <p className="truncate text-xs text-muted-foreground" title={email ?? undefined}>
             {displayName}
           </p>
         ) : null}
@@ -142,12 +129,7 @@ function SidebarNav({
   );
 }
 
-export function DashboardShell({
-  title,
-  description,
-  actions,
-  children,
-}: DashboardShellProps) {
+export function DashboardShell({ title, description, actions, children }: DashboardShellProps) {
   const pathname = usePathname();
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -173,34 +155,25 @@ export function DashboardShell({
               <SheetHeader className="sr-only">
                 <SheetTitle>导航</SheetTitle>
               </SheetHeader>
-              <SidebarNav
-                pathname={pathname}
-                onNavigate={() => setSheetOpen(false)}
-              />
+              <SidebarNav pathname={pathname} onNavigate={() => setSheetOpen(false)} />
             </SheetContent>
           </Sheet>
 
           <div className="flex min-w-0 flex-1 items-center justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold sm:text-base">
-                {title}
-              </h1>
+              <h1 className="truncate text-sm font-semibold sm:text-base">{title}</h1>
               <p className="hidden truncate text-sm text-muted-foreground sm:block">
                 {description}
               </p>
             </div>
             {actions ? (
-              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                {actions}
-              </div>
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">{actions}</div>
             ) : null}
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">{children}</main>
       </div>
     </div>
   );

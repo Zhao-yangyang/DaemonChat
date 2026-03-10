@@ -8,7 +8,7 @@ describe("worker retry helpers", () => {
         attempt: 1,
         baseDelayMs: 5000,
         maxDelayMs: 120000,
-      })
+      }),
     ).toBe(5000);
 
     expect(
@@ -16,7 +16,7 @@ describe("worker retry helpers", () => {
         attempt: 3,
         baseDelayMs: 5000,
         maxDelayMs: 120000,
-      })
+      }),
     ).toBe(20000);
 
     expect(
@@ -24,7 +24,7 @@ describe("worker retry helpers", () => {
         attempt: 10,
         baseDelayMs: 5000,
         maxDelayMs: 120000,
-      })
+      }),
     ).toBe(120000);
   });
 

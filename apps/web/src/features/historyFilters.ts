@@ -9,7 +9,7 @@ export function filterMemoryItems(
     query: string;
     sensitivity: MemorySensitivityFilter;
     contextEligible: MemoryEligibilityFilter;
-  }
+  },
 ): MemoryItem[] {
   const query = input.query.trim().toLowerCase();
 
@@ -27,12 +27,7 @@ export function filterMemoryItems(
 
     if (!query) return true;
 
-    const haystack = [
-      item.content,
-      item.type,
-      item.sensitivity,
-      ...(item.tags ?? []),
-    ]
+    const haystack = [item.content, item.type, item.sensitivity, ...(item.tags ?? [])]
       .join(" ")
       .toLowerCase();
 
@@ -60,7 +55,7 @@ export function filterTranscriptEvents(
   input: {
     query: string;
     type: TranscriptTypeFilter;
-  }
+  },
 ): TranscriptEvent[] {
   const query = input.query.trim().toLowerCase();
 
@@ -81,7 +76,7 @@ export function paginateItems<T>(
   input: {
     page: number;
     pageSize: number;
-  }
+  },
 ): {
   items: T[];
   page: number;

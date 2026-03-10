@@ -47,7 +47,7 @@ export const resolveChatMaxInputTokens = (env: EnvLike): number | undefined =>
 
 export const resolveChatBudgetDegradePolicy = (
   env: EnvLike,
-  baseBudget: Pick<ChatBudget, "reserveOutputTokens" | "memoryTopK" | "recentMessages">
+  baseBudget: Pick<ChatBudget, "reserveOutputTokens" | "memoryTopK" | "recentMessages">,
 ): ChatBudgetDegradePolicy => {
   const defaultReserve = Math.min(baseBudget.reserveOutputTokens, 512);
   const defaultMemoryTopK = Math.max(1, Math.min(baseBudget.memoryTopK, 4));
@@ -57,19 +57,19 @@ export const resolveChatBudgetDegradePolicy = (
     enabled: parseBoolean(env.CHAT_BUDGET_DEGRADE_ENABLED),
     reserveOutputTokens: clampPositiveInt(
       parsePositiveInt(env.CHAT_DEGRADE_RESERVE_OUTPUT_TOKENS),
-      defaultReserve
+      defaultReserve,
     ),
     memoryTopK: clampPositiveInt(parsePositiveInt(env.CHAT_DEGRADE_MEMORY_TOPK), defaultMemoryTopK),
     recentMessages: clampPositiveInt(
       parsePositiveInt(env.CHAT_DEGRADE_RECENT_MESSAGES),
-      defaultRecentMessages
+      defaultRecentMessages,
     ),
   };
 };
 
 export const buildDegradedBudget = <T extends ChatBudget>(
   budget: T,
-  policy: ChatBudgetDegradePolicy
+  policy: ChatBudgetDegradePolicy,
 ): { budget: T; degraded: boolean } => {
   const nextBudget = {
     ...budget,

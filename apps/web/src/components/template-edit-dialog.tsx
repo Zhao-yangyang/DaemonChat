@@ -66,9 +66,7 @@ export function TemplateEditDialog({
   });
 
   const toggleTag = (id: string) => {
-    setTagIds((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
-    );
+    setTagIds((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
   const handleSubmit = () => {
@@ -155,9 +153,7 @@ export function TemplateEditDialog({
               </div>
             </div>
           ) : null}
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

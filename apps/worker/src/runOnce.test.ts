@@ -76,8 +76,7 @@ function createMockDeps(overrides: {
             eq: (_c1: string, _v1: string) => ({
               eq: (_c2: string, _v2: string) => ({
                 order: (_c3: string, _opts: any) => ({
-                  limit: (_n: number) =>
-                    Promise.resolve({ data: transcriptEvents, error: null }),
+                  limit: (_n: number) => Promise.resolve({ data: transcriptEvents, error: null }),
                 }),
               }),
             }),
@@ -94,8 +93,7 @@ function createMockDeps(overrides: {
           select: (_cols: string) => ({
             eq: (_c1: string, _v1: string) => ({
               is: (_c2: string, _v2: any) => ({
-                limit: (_n: number) =>
-                  Promise.resolve({ data: memoryItems, error: null }),
+                limit: (_n: number) => Promise.resolve({ data: memoryItems, error: null }),
               }),
               eq: (_c2: string, _v2: string) => ({
                 order: () => ({

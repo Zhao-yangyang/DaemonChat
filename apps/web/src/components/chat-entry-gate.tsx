@@ -52,7 +52,15 @@ export function ChatEntryGate() {
       createAttemptedRef.current = true;
       createAgent.mutate({ name: "Default Agent" });
     }
-  }, [agents.data, agents.error, agents.isFetched, agents.isLoading, createAgent, createAgent.isPending, router]);
+  }, [
+    agents.data,
+    agents.error,
+    agents.isFetched,
+    agents.isLoading,
+    createAgent,
+    createAgent.isPending,
+    router,
+  ]);
 
   if (agents.error) {
     return (

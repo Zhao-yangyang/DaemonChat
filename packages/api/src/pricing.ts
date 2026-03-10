@@ -18,7 +18,7 @@ const parseNumber = (value: string | undefined): number | undefined => {
 
 const parsePricingFromJson = (
   model: string,
-  source: string | undefined
+  source: string | undefined,
 ): ModelPricing | undefined => {
   if (!source) return undefined;
   try {
@@ -46,7 +46,7 @@ const parsePricingFromJson = (
 
 export function resolveModelPricingFromEnv(
   model: string,
-  env: PricingEnv = process.env
+  env: PricingEnv = process.env,
 ): ModelPricing | undefined {
   const fromJson = parsePricingFromJson(model, env.MODEL_PRICING_JSON);
   if (fromJson) return fromJson;

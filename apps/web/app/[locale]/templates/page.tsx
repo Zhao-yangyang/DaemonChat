@@ -66,38 +66,65 @@ export default function TemplatesPage() {
   });
 
   const templates = trpc.template.list.useQuery(
-    { onlyMine, limit: 50, keyword: keyword || undefined, tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined },
-    { enabled: Boolean(session), retry: false, refetchOnWindowFocus: false }
+    {
+      onlyMine,
+      limit: 50,
+      keyword: keyword || undefined,
+      tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
+    },
+    { enabled: Boolean(session), retry: false, refetchOnWindowFocus: false },
   );
 
-  const openCloneDialog = (
-    tpl: { id: string; name: string; description?: string | null; config: Record<string, unknown>; tags?: Array<{ id: string; name: string }>; avgRating?: number | null; ratingCount?: number }
-  ) => {
+  const openCloneDialog = (tpl: {
+    id: string;
+    name: string;
+    description?: string | null;
+    config: Record<string, unknown>;
+    tags?: Array<{ id: string; name: string }>;
+    avgRating?: number | null;
+    ratingCount?: number;
+  }) => {
     setSelectedTemplate(tpl);
     setCloneDialogOpen(true);
   };
 
-  const openDetailDialog = (
-    tpl: { id: string; name: string; description?: string | null; config: Record<string, unknown>; tags?: Array<{ id: string; name: string }>; avgRating?: number | null; ratingCount?: number }
-  ) => {
+  const openDetailDialog = (tpl: {
+    id: string;
+    name: string;
+    description?: string | null;
+    config: Record<string, unknown>;
+    tags?: Array<{ id: string; name: string }>;
+    avgRating?: number | null;
+    ratingCount?: number;
+  }) => {
     setSelectedTemplate(tpl);
     setDetailDialogOpen(true);
   };
 
   const toggleTag = (tagId: string) => {
-    setSelectedTagIds((prev) => (prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]));
+    setSelectedTagIds((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+    );
   };
 
-  const openEditDialog = (
-    tpl: { id: string; name: string; description?: string | null; is_public: boolean; tags?: Array<{ id: string; name: string }> }
-  ) => {
+  const openEditDialog = (tpl: {
+    id: string;
+    name: string;
+    description?: string | null;
+    is_public: boolean;
+    tags?: Array<{ id: string; name: string }>;
+  }) => {
     setEditDeleteTemplate(tpl);
     setEditDialogOpen(true);
   };
 
-  const openDeleteDialog = (
-    tpl: { id: string; name: string; description?: string | null; is_public: boolean; tags?: Array<{ id: string; name: string }> }
-  ) => {
+  const openDeleteDialog = (tpl: {
+    id: string;
+    name: string;
+    description?: string | null;
+    is_public: boolean;
+    tags?: Array<{ id: string; name: string }>;
+  }) => {
     setEditDeleteTemplate(tpl);
     setDeleteDialogOpen(true);
   };

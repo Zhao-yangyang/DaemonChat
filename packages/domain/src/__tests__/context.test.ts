@@ -10,7 +10,11 @@ const budgetBase: ContextBudget = {
   recentMessages: 10,
 };
 
-const makeEvent = (content: string, createdAt: string, type: TranscriptEvent["type"]): TranscriptEvent => ({
+const makeEvent = (
+  content: string,
+  createdAt: string,
+  type: TranscriptEvent["type"],
+): TranscriptEvent => ({
   id: `event-${createdAt}`,
   agentId: "agent-1",
   sessionId: "session-1",

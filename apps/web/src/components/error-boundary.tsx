@@ -25,7 +25,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    Sentry.captureException(error, { contexts: { react: { componentStack: info.componentStack } } });
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info.componentStack } },
+    });
     console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
@@ -37,9 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <Alert variant="destructive">
               <AlertTriangle className="size-4" />
               <AlertTitle>页面出错了</AlertTitle>
-              <AlertDescription>
-                {this.state.error?.message || "发生了未知错误"}
-              </AlertDescription>
+              <AlertDescription>{this.state.error?.message || "发生了未知错误"}</AlertDescription>
             </Alert>
             <div className="flex gap-2">
               <Button

@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MemoryItem, TranscriptEvent } from "@daemon/domain";
-import {
-  filterMemoryItems,
-  filterTranscriptEvents,
-  paginateItems,
-} from "./historyFilters";
+import { filterMemoryItems, filterTranscriptEvents, paginateItems } from "./historyFilters";
 
 const memoryFixture = (input: Partial<MemoryItem> & { id: string }): MemoryItem => ({
   id: input.id,
@@ -22,7 +18,7 @@ const memoryFixture = (input: Partial<MemoryItem> & { id: string }): MemoryItem 
 });
 
 const transcriptFixture = (
-  input: Partial<TranscriptEvent> & { id: string; type: TranscriptEvent["type"] }
+  input: Partial<TranscriptEvent> & { id: string; type: TranscriptEvent["type"] },
 ): TranscriptEvent => ({
   id: input.id,
   agentId: input.agentId ?? "agent-1",

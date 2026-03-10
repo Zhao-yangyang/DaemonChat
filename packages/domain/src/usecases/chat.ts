@@ -26,10 +26,7 @@ const CONTEXT_POLICY_VERSION = "v1";
 const isUniqueViolationError = (error: unknown): boolean => {
   if (!error || typeof error !== "object") return false;
   const value = error as { code?: string; message?: string };
-  return (
-    value.code === "23505" ||
-    value.message?.toLowerCase().includes("duplicate key") === true
-  );
+  return value.code === "23505" || value.message?.toLowerCase().includes("duplicate key") === true;
 };
 
 const extractEventText = (event: TranscriptEvent): string => {
@@ -77,7 +74,7 @@ const estimateCostUsd = (input: {
 const buildTurnUsageMeta = (
   usageMeta: Record<string, unknown> | undefined,
   modelSelection: LlmModelSelection | null,
-  configuredModel: string | undefined
+  configuredModel: string | undefined,
 ): Record<string, unknown> => ({
   ...(usageMeta ?? {}),
   model_route_selected: modelSelection?.route ?? "unknown",
@@ -107,10 +104,7 @@ export function createChatService(ports: {
 
   const MEMORY_FLUSH_EVERY_N_TURNS = 20;
 
-  const shouldTriggerMemoryFlush = async (
-    agentId: string,
-    sessionId: string
-  ): Promise<boolean> => {
+  const shouldTriggerMemoryFlush = async (agentId: string, sessionId: string): Promise<boolean> => {
     try {
       // Fetch enough events to cover N turns (each has user + assistant message)
       const events = await ports.transcripts.listRecentEvents({
@@ -129,7 +123,7 @@ export function createChatService(ports: {
     agentId: string,
     session: { id: string; parentSessionId?: string | null; forkFromEventId?: string | null },
     userInput: string,
-    options: ChatTurnOptions
+    options: ChatTurnOptions,
   ) => {
     const memoryItems = await memory.retrieveTopMemory(agentId, userInput, options.memoryTopK, {
       contextEligible: true,
@@ -232,7 +226,7 @@ export function createChatService(ports: {
       input.agentId,
       input.session,
       input.userInput,
-      input.options
+      input.options,
     );
     return {
       sessionId: input.session.id,
@@ -306,10 +300,9 @@ export function createChatService(ports: {
 
     // Enqueue MEMORY_FLUSH based on turn count or compaction
     if (ports.jobs && input.memoryScope) {
-      const shouldFlush = input.context.shouldCompact || await shouldTriggerMemoryFlush(
-        input.agentId,
-        input.sessionId
-      );
+      const shouldFlush =
+        input.context.shouldCompact ||
+        (await shouldTriggerMemoryFlush(input.agentId, input.sessionId));
       if (shouldFlush) {
         try {
           await ports.jobs.enqueue({
@@ -333,7 +326,7 @@ export function createChatService(ports: {
       agentId: string,
       sessionKey: string,
       userInput: string,
-      options: ChatTurnOptions
+      options: ChatTurnOptions,
     ): Promise<{
       sessionId: string;
       assistantText: string;
@@ -356,7 +349,7 @@ export function createChatService(ports: {
         });
       }
       ensureNoInFlightConflict(
-        idempotentState && "inProgress" in idempotentState ? idempotentState : null
+        idempotentState && "inProgress" in idempotentState ? idempotentState : null,
       );
 
       const context = await buildContextForSession(agentId, session, userInput, options);
@@ -386,7 +379,7 @@ export function createChatService(ports: {
           };
         }
         ensureNoInFlightConflict(
-          conflictState && "inProgress" in conflictState ? conflictState : null
+          conflictState && "inProgress" in conflictState ? conflictState : null,
         );
         throw error;
       }
@@ -401,9 +394,7 @@ export function createChatService(ports: {
         },
         abortSignal: options.abortSignal,
       })) {
-        assistantText = assistantText
-          ? `${assistantText} ${chunk}`.trim()
-          : chunk;
+        assistantText = assistantText ? `${assistantText} ${chunk}`.trim() : chunk;
       }
       await finalizeTurn({
         agentId,
@@ -429,7 +420,7 @@ export function createChatService(ports: {
       agentId: string,
       sessionKey: string,
       userInput: string,
-      options: ChatTurnOptions
+      options: ChatTurnOptions,
     ): Promise<{
       sessionId: string;
       context: ContextPack;
@@ -451,7 +442,7 @@ export function createChatService(ports: {
         };
       }
       ensureNoInFlightConflict(
-        idempotentState && "inProgress" in idempotentState ? idempotentState : null
+        idempotentState && "inProgress" in idempotentState ? idempotentState : null,
       );
 
       const context = await buildContextForSession(agentId, session, userInput, options);
@@ -481,12 +472,12 @@ export function createChatService(ports: {
           };
         }
         ensureNoInFlightConflict(
-          conflictState && "inProgress" in conflictState ? conflictState : null
+          conflictState && "inProgress" in conflictState ? conflictState : null,
         );
         throw error;
       }
 
-      const stream = async function* () {
+      const stream = (async function* () {
         let assistantText = "";
         let modelSelection: LlmModelSelection | null = null;
         try {
@@ -515,7 +506,7 @@ export function createChatService(ports: {
             memoryScope: options.memoryScope,
           });
         }
-      }();
+      })();
 
       return { sessionId: session.id, context, stream };
     },

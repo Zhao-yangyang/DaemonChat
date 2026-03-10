@@ -29,7 +29,19 @@ import {
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
-import { Send, Search, X, Loader2, ImagePlus, Archive, ArchiveRestore, MoreVertical, FileDown, RefreshCw, FileText } from "lucide-react";
+import {
+  Send,
+  Search,
+  X,
+  Loader2,
+  ImagePlus,
+  Archive,
+  ArchiveRestore,
+  MoreVertical,
+  FileDown,
+  RefreshCw,
+  FileText,
+} from "lucide-react";
 
 const formatMsgTime = (iso?: string): string => {
   if (!iso) return "";
@@ -40,7 +52,12 @@ const formatMsgTime = (iso?: string): string => {
   return `${hh}:${mm}`;
 };
 
-type ChatMessage = { role: "user" | "assistant"; content: string; timestamp?: string; eventId?: string };
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp?: string;
+  eventId?: string;
+};
 
 const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
 const hasVisibleText = (value: string | null | undefined): boolean =>
@@ -57,7 +74,9 @@ const extractTextFragments = (value: unknown, depth = 0): string[] => {
 
   const record = value as Record<string, unknown>;
   const preferredKeys = ["text", "content", "message", "value", "output_text"];
-  const preferredFragments = preferredKeys.flatMap((key) => extractTextFragments(record[key], depth + 1));
+  const preferredFragments = preferredKeys.flatMap((key) =>
+    extractTextFragments(record[key], depth + 1),
+  );
   if (preferredFragments.length > 0) return preferredFragments;
 
   if (Array.isArray(record.parts)) {
@@ -84,7 +103,13 @@ const toMessageText = (content: unknown): string => {
 };
 
 const toChatMessagesFromEvents = (
-  events: Array<{ id?: string; type: string; content: unknown; created_at?: string; createdAt?: string }>
+  events: Array<{
+    id?: string;
+    type: string;
+    content: unknown;
+    created_at?: string;
+    createdAt?: string;
+  }>,
 ): ChatMessage[] => {
   const items: ChatMessage[] = [];
   for (const event of events) {
@@ -111,7 +136,10 @@ const toExportMarkdown = (items: ChatMessage[]): string =>
     .join("\n\n---\n\n");
 
 const safeFilePart = (value: string): string =>
-  value.trim().replace(/[^\w\u4e00-\u9fa5-]+/g, "_").slice(0, 40) || "chat";
+  value
+    .trim()
+    .replace(/[^\w\u4e00-\u9fa5-]+/g, "_")
+    .slice(0, 40) || "chat";
 
 export default function ChatPage() {
   const t = useTranslations("chat");
@@ -151,12 +179,12 @@ export default function ChatPage() {
 
   const currentAgent = useMemo(
     () => (agentList.data ?? []).find((a) => a.id === agentId) ?? null,
-    [agentList.data, agentId]
+    [agentList.data, agentId],
   );
 
   const sessionList = trpc.session.list.useQuery(
     { agentId, limit: 20, includeArchived: showArchived },
-    { enabled: Boolean(agentId), refetchOnWindowFocus: false }
+    { enabled: Boolean(agentId), refetchOnWindowFocus: false },
   );
 
   const currentSessionKey = sessionKey.trim();
@@ -164,7 +192,7 @@ export default function ChatPage() {
 
   const selectedSession = useMemo(
     () => (sessionList.data ?? []).find((item) => item.sessionKey === currentSessionKey) ?? null,
-    [currentSessionKey, sessionList.data]
+    [currentSessionKey, sessionList.data],
   );
   const currentSessionId =
     selectedSession?.id ??
@@ -173,10 +201,16 @@ export default function ChatPage() {
 
   const forkContext =
     (selectedSession?.parentSessionId && selectedSession?.forkFromEventId
-      ? { parentSessionId: selectedSession.parentSessionId, forkFromEventId: selectedSession.forkFromEventId }
+      ? {
+          parentSessionId: selectedSession.parentSessionId,
+          forkFromEventId: selectedSession.forkFromEventId,
+        }
       : null) ??
     (currentSessionKey === lastForkedSession?.sessionKey && lastForkedSession
-      ? { parentSessionId: lastForkedSession.parentSessionId, forkFromEventId: lastForkedSession.forkFromEventId }
+      ? {
+          parentSessionId: lastForkedSession.parentSessionId,
+          forkFromEventId: lastForkedSession.forkFromEventId,
+        }
       : null);
   const transcript = trpc.transcript.list.useQuery(
     {
@@ -188,7 +222,7 @@ export default function ChatPage() {
     {
       enabled: Boolean(agentId && currentSessionId),
       refetchOnWindowFocus: false,
-    }
+    },
   );
   const deleteSessionMutation = trpc.session.delete.useMutation({
     onSuccess: async () => {
@@ -221,7 +255,9 @@ export default function ChatPage() {
         });
       }
       await sessionList.refetch();
-      setLocalSessionKeys((prev) => (prev.includes(newSession.sessionKey) ? prev : [...prev, newSession.sessionKey]));
+      setLocalSessionKeys((prev) =>
+        prev.includes(newSession.sessionKey) ? prev : [...prev, newSession.sessionKey],
+      );
       setSessionKey(newSession.sessionKey);
       setMessagesBySession((prev) => ({ ...prev, [newSession.sessionKey]: [] }));
       toast.success(t("forkFromHere"));
@@ -298,7 +334,7 @@ export default function ChatPage() {
 
   const updateMessagesForSession = (
     targetSessionKey: string,
-    updater: (items: ChatMessage[]) => ChatMessage[]
+    updater: (items: ChatMessage[]) => ChatMessage[],
   ) => {
     setMessagesBySession((prev) => {
       const next = { ...prev };
@@ -428,9 +464,7 @@ export default function ChatPage() {
       let receivedAssistantChunk = false;
 
       const handleBlock = (block: string) => {
-        const line = block
-          .split("\n")
-          .find((entry) => entry.startsWith("data: "));
+        const line = block.split("\n").find((entry) => entry.startsWith("data: "));
         if (!line) {
           return;
         }
@@ -498,7 +532,7 @@ export default function ChatPage() {
   const uploadAttachments = async (
     attachments: PendingAttachment[],
     activeSessionKey: string,
-    accessToken: string
+    accessToken: string,
   ): Promise<{ imageUrls: Array<{ url: string; mimeType?: string }>; pdfTexts: string[] }> => {
     const imageUrls: Array<{ url: string; mimeType?: string }> = [];
     const pdfTexts: string[] = [];
@@ -539,7 +573,7 @@ export default function ChatPage() {
     if (!currentSessionKey) {
       setSessionKey(activeSessionKey);
       setLocalSessionKeys((prev) =>
-        prev.includes(activeSessionKey) ? prev : [activeSessionKey, ...prev]
+        prev.includes(activeSessionKey) ? prev : [activeSessionKey, ...prev],
       );
     }
     const attachmentsToSend = [...pendingAttachments];
@@ -548,16 +582,13 @@ export default function ChatPage() {
     const hasImages = attachmentsToSend.some((a) => a.type === "image");
     const hasPdfs = attachmentsToSend.some((a) => a.type === "pdf");
     const baseUserMessage =
-      input.trim() ||
-      (hasImages ? "请看这些图片" : hasPdfs ? "请根据文档内容回答" : "");
+      input.trim() || (hasImages ? "请看这些图片" : hasPdfs ? "请根据文档内容回答" : "");
 
     const displayContent =
       attachmentsToSend.length > 0
         ? `${baseUserMessage}\n\n${attachmentsToSend
             .map((a) =>
-              a.type === "image"
-                ? `![${a.file.name}](${a.preview})`
-                : `[${a.file.name}]`
+              a.type === "image" ? `![${a.file.name}](${a.preview})` : `[${a.file.name}]`,
             )
             .join("\n")}`
         : baseUserMessage;
@@ -577,11 +608,7 @@ export default function ChatPage() {
         const session = await supabaseBrowserClient.auth.getSession();
         const accessToken = session.data.session?.access_token;
         if (accessToken) {
-          const result = await uploadAttachments(
-            attachmentsToSend,
-            activeSessionKey,
-            accessToken
-          );
+          const result = await uploadAttachments(attachmentsToSend, activeSessionKey, accessToken);
           imageUrls = result.imageUrls.length > 0 ? result.imageUrls : undefined;
           pdfTexts = result.pdfTexts;
         }
@@ -748,7 +775,9 @@ export default function ChatPage() {
           </Button>
 
           {isStreaming && (
-            <Badge variant="secondary" className="text-xs">{t("streaming")}</Badge>
+            <Badge variant="secondary" className="text-xs">
+              {t("streaming")}
+            </Badge>
           )}
 
           {/* 会话操作菜单 */}
@@ -849,7 +878,10 @@ export default function ChatPage() {
             <Button
               size="icon-sm"
               variant="ghost"
-              onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery("");
+              }}
             >
               <X className="size-4" />
             </Button>
@@ -892,7 +924,8 @@ export default function ChatPage() {
               {messages.map((msg, idx) => {
                 const isUser = msg.role === "user";
                 const hasVisibleContent = hasVisibleText(msg.content);
-                const isPendingAssistant = msg.role === "assistant" && !hasVisibleContent && isStreaming;
+                const isPendingAssistant =
+                  msg.role === "assistant" && !hasVisibleContent && isStreaming;
                 const isLastAssistant =
                   msg.role === "assistant" && idx === messages.length - 1 && hasVisibleContent;
                 if (!isUser && !hasVisibleContent && !isPendingAssistant) {
@@ -910,25 +943,33 @@ export default function ChatPage() {
                 const timeLabel = formatMsgTime(msg.timestamp);
 
                 return (
-                  <div key={`${msg.role}-${idx}`} className={cn("space-y-1", isUser && "items-end")}>
+                  <div
+                    key={`${msg.role}-${idx}`}
+                    className={cn("space-y-1", isUser && "items-end")}
+                  >
                     <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
                       <div
                         className={cn(
                           "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                           isUser
                             ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
+                            : "bg-muted text-muted-foreground",
                         )}
                       >
                         {isUser ? t("userLabel") : t("aiLabel")}
                       </div>
-                      <div className={cn("min-w-0 flex-1 flex flex-col", isUser ? "items-end" : "items-start")}>
+                      <div
+                        className={cn(
+                          "min-w-0 flex-1 flex flex-col",
+                          isUser ? "items-end" : "items-start",
+                        )}
+                      >
                         <div
                           className={cn(
                             "inline-block max-w-[min(85%,42rem)] rounded-2xl px-4 py-3",
                             isUser
                               ? "bg-primary text-primary-foreground text-sm leading-relaxed"
-                              : "bg-muted text-foreground"
+                              : "bg-muted text-foreground",
                           )}
                         >
                           {isUser ? (
@@ -957,48 +998,50 @@ export default function ChatPage() {
                             ) : (
                               <p className="whitespace-pre-wrap">{msg.content}</p>
                             )
-                          ) : (
-                            hasVisibleContent ? (
-                              (() => {
-                                const isLong = !isUser && msg.content.length > 2000;
-                                const isExpanded = expandedMessages.has(idx);
-                                const shouldCollapse = isLong && !isExpanded;
-                                return (
-                                  <>
-                                    <div className={shouldCollapse ? "max-h-96 overflow-hidden" : undefined}>
-                                      <MarkdownMessage content={msg.content} />
-                                    </div>
-                                    {isLong ? (
-                                      <button
-                                        className="mt-2 text-xs text-primary hover:underline"
-                                        onClick={() => setExpandedMessages((prev) => {
+                          ) : hasVisibleContent ? (
+                            (() => {
+                              const isLong = !isUser && msg.content.length > 2000;
+                              const isExpanded = expandedMessages.has(idx);
+                              const shouldCollapse = isLong && !isExpanded;
+                              return (
+                                <>
+                                  <div
+                                    className={
+                                      shouldCollapse ? "max-h-96 overflow-hidden" : undefined
+                                    }
+                                  >
+                                    <MarkdownMessage content={msg.content} />
+                                  </div>
+                                  {isLong ? (
+                                    <button
+                                      className="mt-2 text-xs text-primary hover:underline"
+                                      onClick={() =>
+                                        setExpandedMessages((prev) => {
                                           const next = new Set(prev);
                                           if (isExpanded) next.delete(idx);
                                           else next.add(idx);
                                           return next;
-                                        })}
-                                      >
-                                        {isExpanded ? t("collapse") : t("expand")}
-                                      </button>
-                                    ) : null}
-                                  </>
-                                );
-                              })()
-                            ) : (
-                              isPendingAssistant ? (
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <Loader2 className="size-4 animate-spin" />
-                                  <span>{t("thinking")}</span>
-                                </div>
-                              ) : null
-                            )
-                          )}
+                                        })
+                                      }
+                                    >
+                                      {isExpanded ? t("collapse") : t("expand")}
+                                    </button>
+                                  ) : null}
+                                </>
+                              );
+                            })()
+                          ) : isPendingAssistant ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="size-4 animate-spin" />
+                              <span>{t("thinking")}</span>
+                            </div>
+                          ) : null}
                         </div>
                         {/* Timestamp + actions row */}
                         <div
                           className={cn(
                             "mt-1 flex items-center gap-2 text-[11px] text-muted-foreground",
-                            isUser && "flex-row-reverse"
+                            isUser && "flex-row-reverse",
                           )}
                         >
                           {timeLabel ? <span>{timeLabel}</span> : null}
@@ -1078,7 +1121,10 @@ export default function ChatPage() {
                     ) : (
                       <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border bg-muted/50 px-2">
                         <FileText className="size-6 text-muted-foreground" />
-                        <span className="truncate text-xs text-muted-foreground" title={att.file.name}>
+                        <span
+                          className="truncate text-xs text-muted-foreground"
+                          title={att.file.name}
+                        >
                           {att.file.name}
                         </span>
                       </div>
@@ -1108,11 +1154,14 @@ export default function ChatPage() {
                   const MAX = 10 * 1024 * 1024;
                   const imageRe = /^image\/(jpeg|png|gif|webp)$/;
                   const newAttachments: PendingAttachment[] = files
-                    .filter((f) => f.size <= MAX && (imageRe.test(f.type) || f.type === "application/pdf"))
+                    .filter(
+                      (f) =>
+                        f.size <= MAX && (imageRe.test(f.type) || f.type === "application/pdf"),
+                    )
                     .map((file) =>
                       imageRe.test(file.type)
                         ? { file, preview: URL.createObjectURL(file), type: "image" as const }
-                        : { file, preview: "", type: "pdf" as const }
+                        : { file, preview: "", type: "pdf" as const },
                     );
                   if (newAttachments.length > 0) {
                     setPendingAttachments((prev) => [...prev, ...newAttachments]);
@@ -1129,7 +1178,11 @@ export default function ChatPage() {
                 disabled={isStreaming || isUploading}
                 title={t("addImagePdf")}
               >
-                {isUploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+                {isUploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ImagePlus className="size-4" />
+                )}
               </Button>
               <Textarea
                 value={input}
@@ -1170,9 +1223,7 @@ export default function ChatPage() {
                 </Button>
               )}
             </div>
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              {t("inputHint")}
-            </p>
+            <p className="mt-2 text-center text-xs text-muted-foreground">{t("inputHint")}</p>
           </div>
         </div>
       </div>
@@ -1182,7 +1233,15 @@ export default function ChatPage() {
 
 function MessageIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );

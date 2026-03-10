@@ -55,12 +55,7 @@ export { Label } from "./components/ui/label";
 export { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 export { Alert, AlertTitle, AlertDescription } from "./components/ui/alert";
 export { Separator } from "./components/ui/separator";
-export {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "./components/ui/tooltip";
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 export {
   Sheet,
   SheetTrigger,
@@ -72,17 +67,8 @@ export {
   SheetDescription,
 } from "./components/ui/sheet";
 export { Progress } from "./components/ui/progress";
-export {
-  Avatar,
-  AvatarImage,
-  AvatarFallback,
-} from "./components/ui/avatar";
-export {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "./components/ui/tabs";
+export { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/ui/tabs";
 export { Popover, PopoverTrigger, PopoverContent } from "./components/ui/popover";
 export {
   Command,

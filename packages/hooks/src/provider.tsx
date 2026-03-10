@@ -21,7 +21,7 @@ export function TrpcProvider({ children, headers }: TrpcProviderProps) {
           headers,
         }),
       ],
-    })
+    }),
   );
 
   return (

@@ -39,7 +39,10 @@ export function ModelIcon({
     const providerPart = id.slice(0, slashIdx);
     return (
       <span
-        className={cn("shrink-0 inline-flex items-center justify-center rounded-md bg-muted/30", className)}
+        className={cn(
+          "shrink-0 inline-flex items-center justify-center rounded-md bg-muted/30",
+          className,
+        )}
         style={{ width: size, height: size, minWidth: size, minHeight: size }}
       >
         <ProviderIcon providerId={providerPart} size={Math.round(size * 0.75)} />
@@ -49,7 +52,10 @@ export function ModelIcon({
 
   return (
     <span
-      className={cn("shrink-0 inline-flex items-center justify-center overflow-hidden rounded-md", className)}
+      className={cn(
+        "shrink-0 inline-flex items-center justify-center overflow-hidden rounded-md",
+        className,
+      )}
       style={{ width: size, height: size, minWidth: size, minHeight: size }}
     >
       <LobeModelIcon model={id} size={size} type={type} />

@@ -75,7 +75,7 @@ describe("agent usecases", () => {
 
     const agent = await service.createAgent("user-1", "Owned");
     await expect(
-      service.updateAgent(agent.id, "user-2", { name: "Stolen" })
+      service.updateAgent(agent.id, "user-2", { name: "Stolen" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 

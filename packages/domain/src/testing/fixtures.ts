@@ -14,10 +14,10 @@ const defaultStream = async function* (): AsyncIterable<string> {
 
 const defaultComplete = async (): Promise<string> => "";
 
-export function createTestPorts(options?: {
-  now?: Timestamp;
-  llm?: Partial<LlmPort>;
-}): { ports: Ports; stores: ReturnType<typeof createInMemoryStores> } {
+export function createTestPorts(options?: { now?: Timestamp; llm?: Partial<LlmPort> }): {
+  ports: Ports;
+  stores: ReturnType<typeof createInMemoryStores>;
+} {
   const stores = createInMemoryStores();
   const clock = new FixedClock(options?.now ?? "2026-02-03T00:00:00Z");
 
@@ -43,7 +43,10 @@ export function createTestPorts(options?: {
   };
 }
 
-export async function seedAgent(ports: Ports, input: { ownerUserId: string; name: string }): Promise<string> {
+export async function seedAgent(
+  ports: Ports,
+  input: { ownerUserId: string; name: string },
+): Promise<string> {
   const agent = await ports.agents.createAgent({
     ownerUserId: input.ownerUserId,
     name: input.name,
@@ -55,7 +58,7 @@ export async function seedAgent(ports: Ports, input: { ownerUserId: string; name
 
 export async function seedSession(
   ports: Ports,
-  input: { agentId: string; sessionKey: string }
+  input: { agentId: string; sessionKey: string },
 ): Promise<string> {
   const session = await ports.sessions.createSession({
     agentId: input.agentId,
@@ -65,7 +68,9 @@ export async function seedSession(
   return session.id;
 }
 
-export function buildMemoryInput(partial: Partial<MemoryItem> & { agentId: string }): Omit<MemoryItem, "id" | "createdAt" | "updatedAt"> {
+export function buildMemoryInput(
+  partial: Partial<MemoryItem> & { agentId: string },
+): Omit<MemoryItem, "id" | "createdAt" | "updatedAt"> {
   return {
     agentId: partial.agentId,
     scopeType: partial.scopeType ?? "user",

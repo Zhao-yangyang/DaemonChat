@@ -22,22 +22,35 @@ export interface WorkspaceStore {
 }
 
 export interface AgentStore {
-  createAgent(input: { ownerUserId: UUID; name: string; config: AgentConfig; workspaceId?: UUID; visibility?: import("../types").AgentVisibility; now: Timestamp }): Promise<Agent>;
+  createAgent(input: {
+    ownerUserId: UUID;
+    name: string;
+    config: AgentConfig;
+    workspaceId?: UUID;
+    visibility?: import("../types").AgentVisibility;
+    now: Timestamp;
+  }): Promise<Agent>;
   getAgentById(agentId: UUID): Promise<Agent | null>;
   listAgentsByOwner(ownerUserId: UUID, opts?: { workspaceId?: UUID }): Promise<Agent[]>;
-  updateAgent(input: { agentId: UUID; name?: string; config?: Partial<AgentConfig>; visibility?: import("../types").AgentVisibility; now: Timestamp }): Promise<Agent>;
+  updateAgent(input: {
+    agentId: UUID;
+    name?: string;
+    config?: Partial<AgentConfig>;
+    visibility?: import("../types").AgentVisibility;
+    now: Timestamp;
+  }): Promise<Agent>;
   deleteAgent(agentId: UUID): Promise<void>;
 }
 
 export interface SessionStore {
   getCurrentSession(input: { agentId: UUID; sessionKey: string }): Promise<Session | null>;
   getSessionById(input: { agentId: UUID; sessionId: UUID }): Promise<Session | null>;
-  listRecentSessions(input: { agentId: UUID; limit: number; includeArchived?: boolean }): Promise<Session[]>;
-  createSession(input: {
+  listRecentSessions(input: {
     agentId: UUID;
-    sessionKey: string;
-    now: Timestamp;
-  }): Promise<Session>;
+    limit: number;
+    includeArchived?: boolean;
+  }): Promise<Session[]>;
+  createSession(input: { agentId: UUID; sessionKey: string; now: Timestamp }): Promise<Session>;
   createForkedSession(input: {
     agentId: UUID;
     parentSessionId: UUID;
@@ -74,10 +87,7 @@ export interface TranscriptStore {
     forkUpToEventId: UUID;
     limit: number;
   }): Promise<TranscriptEvent[]>;
-  getLatestCompaction(input: {
-    agentId: UUID;
-    sessionId: UUID;
-  }): Promise<TranscriptEvent | null>;
+  getLatestCompaction(input: { agentId: UUID; sessionId: UUID }): Promise<TranscriptEvent | null>;
   listEventsByRequestId(input: {
     agentId: UUID;
     sessionId: UUID;
@@ -89,7 +99,7 @@ export interface MemoryStore {
   insertMemoryItem(
     input: Omit<MemoryItem, "id" | "createdAt" | "updatedAt"> & {
       now: Timestamp;
-    }
+    },
   ): Promise<MemoryItem>;
   listMemoryItems(input: { agentId: UUID; limit: number }): Promise<MemoryItem[]>;
   queryTopK(input: {
@@ -116,7 +126,7 @@ export interface MemoryStore {
 
 export interface UsageStore {
   insertUsageEvent(
-    input: Omit<UsageEvent, "id" | "createdAt"> & { createdAt: Timestamp }
+    input: Omit<UsageEvent, "id" | "createdAt"> & { createdAt: Timestamp },
   ): Promise<UsageEvent>;
   sumUsage(input: { agentId: UUID; from: Timestamp; to: Timestamp }): Promise<UsageSummary>;
   seriesUsage(input: {
@@ -129,7 +139,7 @@ export interface UsageStore {
 
 export interface AuditStore {
   insertAuditEvent(
-    input: Omit<AuditEvent, "id" | "createdAt"> & { createdAt: Timestamp }
+    input: Omit<AuditEvent, "id" | "createdAt"> & { createdAt: Timestamp },
   ): Promise<AuditEvent>;
 }
 

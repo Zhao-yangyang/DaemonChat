@@ -6,9 +6,7 @@ test.describe("Share page", () => {
     expect(res?.status()).toBe(404);
   });
 
-  test("valid public agent shows name, summary, try and back buttons", async ({
-    page,
-  }) => {
+  test("valid public agent shows name, summary, try and back buttons", async ({ page }) => {
     // Requires E2E_PUBLIC_AGENT_ID to be set and point to a real public agent
     const publicAgentId = process.env.E2E_PUBLIC_AGENT_ID;
     if (!publicAgentId) {

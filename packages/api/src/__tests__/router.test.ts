@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { TRPCError } from "@trpc/server";
-import { API_KEY_REDACTED, DEFAULT_AGENT_CONFIG, ForbiddenError, IdempotencyConflictError, type Services } from "@daemon/domain";
+import {
+  API_KEY_REDACTED,
+  DEFAULT_AGENT_CONFIG,
+  ForbiddenError,
+  IdempotencyConflictError,
+  type Services,
+} from "@daemon/domain";
 import type { ApiContext } from "../context";
 import { appRouter } from "../router";
 import { chatRateLimiter } from "../rateLimit";
@@ -43,11 +49,8 @@ const buildContainer = (overrides?: {
     ports: {
       usage: {
         sumUsage:
-          overrides?.usageSum ??
-          (async () => ({ tokensIn: 0, tokensOut: 0, costEstimate: 0 })),
-        seriesUsage:
-          overrides?.usageSeries ??
-          (async () => []),
+          overrides?.usageSum ?? (async () => ({ tokensIn: 0, tokensOut: 0, costEstimate: 0 })),
+        seriesUsage: overrides?.usageSeries ?? (async () => []),
       },
       rateLimit: overrides?.rateLimitConsume
         ? {
@@ -123,9 +126,7 @@ const buildContainer = (overrides?: {
       deleteMemoryItem: overrides?.deleteMemoryItem ?? (async () => {}),
     },
     session: {
-      listRecentSessions:
-        overrides?.listSessions ??
-        (async () => []),
+      listRecentSessions: overrides?.listSessions ?? (async () => []),
       deleteSession: overrides?.deleteSession ?? (async () => {}),
       renameSession: overrides?.renameSession ?? (async () => {}),
       forkSession:
@@ -156,7 +157,7 @@ const buildContext = (input?: {
 });
 
 const requireUsageInput = (
-  value: { agentId: string; from: string; to: string } | null
+  value: { agentId: string; from: string; to: string } | null,
 ): { agentId: string; from: string; to: string } => {
   if (!value) {
     throw new Error("Expected usage input to be captured");
@@ -166,7 +167,7 @@ const requireUsageInput = (
 
 const withEnv = async (
   next: Partial<Record<string, string | undefined>>,
-  run: () => Promise<void>
+  run: () => Promise<void>,
 ) => {
   const prev: Record<string, string | undefined> = {};
   for (const [key, value] of Object.entries(next)) {
@@ -199,7 +200,7 @@ describe("api router", () => {
     const caller = appRouter.createCaller(
       buildContext({
         user: null,
-      })
+      }),
     );
 
     await expect(caller.agent.list()).rejects.toMatchObject({
@@ -218,7 +219,7 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     await expect(caller.agent.list()).rejects.toMatchObject({
@@ -238,12 +239,13 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     await expect(caller.agent.create({ name: "Alpha" })).rejects.toMatchObject({
       code: "FORBIDDEN",
-      message: "Supabase denied access to agents. Verify RLS policies in rls.sql and your login session.",
+      message:
+        "Supabase denied access to agents. Verify RLS policies in rls.sql and your login session.",
     });
   });
 
@@ -255,15 +257,17 @@ describe("api router", () => {
           workspace: {
             checkPermission: async () => false,
             requirePermission: async () => {
-              throw new ForbiddenError("Workspace permission denied: create_agent requires higher role or ownership");
+              throw new ForbiddenError(
+                "Workspace permission denied: create_agent requires higher role or ownership",
+              );
             },
           },
         }),
-      })
+      }),
     );
 
     await expect(
-      caller.agent.create({ name: "New Agent", workspaceId: "ws-1" })
+      caller.agent.create({ name: "New Agent", workspaceId: "ws-1" }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
       message: expect.stringContaining("Workspace permission denied"),
@@ -280,7 +284,7 @@ describe("api router", () => {
             return { tokensIn: 12, tokensOut: 34, costEstimate: 0.005 };
           },
         }),
-      })
+      }),
     );
 
     const result = await caller.usage.summary({
@@ -315,14 +319,14 @@ describe("api router", () => {
             return { tokensIn: 1, tokensOut: 2, costEstimate: 0.001 };
           },
         }),
-      })
+      }),
     );
 
     await expect(
       caller.usage.summary({
         agentId: "agent-2",
         period: "day",
-      })
+      }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -339,7 +343,7 @@ describe("api router", () => {
             return { tokensIn: 1, tokensOut: 2, costEstimate: 0.003 };
           },
         }),
-      })
+      }),
     );
 
     const result = await caller.usage.summary({
@@ -383,7 +387,7 @@ describe("api router", () => {
             ];
           },
         }),
-      })
+      }),
     );
 
     const result = await caller.usage.trend({
@@ -415,7 +419,7 @@ describe("api router", () => {
             return [];
           },
         }),
-      })
+      }),
     );
 
     await caller.usage.trend({
@@ -449,7 +453,7 @@ describe("api router", () => {
             ];
           },
         }),
-      })
+      }),
     );
 
     const result = await caller.session.list({
@@ -472,7 +476,7 @@ describe("api router", () => {
             captured = { agentId, userId };
           },
         }),
-      })
+      }),
     );
 
     await caller.agent.delete({ agentId: "agent-1" });
@@ -492,7 +496,7 @@ describe("api router", () => {
             captured = { agentId, sessionId, userId };
           },
         }),
-      })
+      }),
     );
 
     await caller.session.delete({ agentId: "agent-1", sessionId: "session-1" });
@@ -513,7 +517,7 @@ describe("api router", () => {
             captured = { agentId, sessionId, displayName, userId };
           },
         }),
-      })
+      }),
     );
 
     await caller.session.rename({
@@ -531,7 +535,8 @@ describe("api router", () => {
   });
 
   test("session.fork creates forked session through agent ownership", async () => {
-    let captured: { agentId: string; parentSessionId: string; forkFromEventId: string } | null = null;
+    let captured: { agentId: string; parentSessionId: string; forkFromEventId: string } | null =
+      null;
     const caller = appRouter.createCaller(
       buildContext({
         container: buildContainer({
@@ -550,7 +555,7 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     const result = await caller.session.fork({
@@ -575,7 +580,7 @@ describe("api router", () => {
             throw new IdempotencyConflictError("duplicate request");
           },
         }),
-      })
+      }),
     );
 
     let thrown: unknown;
@@ -623,7 +628,7 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     await expect(
@@ -631,7 +636,7 @@ describe("api router", () => {
         agentId: "agent-2",
         sessionKey: "main",
         userInput: "hello",
-      })
+      }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -675,7 +680,7 @@ describe("api router", () => {
                 };
               },
             }),
-          })
+          }),
         );
 
         await expect(
@@ -683,12 +688,12 @@ describe("api router", () => {
             agentId: "agent-1",
             sessionKey: "main",
             userInput: "hello",
-          })
+          }),
         ).rejects.toMatchObject({
           code: "TOO_MANY_REQUESTS",
         });
         expect(chatCalled).toBe(false);
-      }
+      },
     );
   });
 
@@ -723,7 +728,7 @@ describe("api router", () => {
                 };
               },
             }),
-          })
+          }),
         );
 
         await expect(
@@ -731,13 +736,13 @@ describe("api router", () => {
             agentId: "agent-1",
             sessionKey: "main",
             userInput: "hello world",
-          })
+          }),
         ).rejects.toMatchObject({
           code: "BAD_REQUEST",
           message: "chat input exceeds max token limit",
         });
         expect(chatCalled).toBe(false);
-      }
+      },
     );
   });
 
@@ -784,7 +789,7 @@ describe("api router", () => {
                 };
               },
             }),
-          })
+          }),
         );
 
         const result = await caller.chat.turn({
@@ -811,7 +816,7 @@ describe("api router", () => {
           memory_top_k_after: 2,
           recent_messages_after: 4,
         });
-      }
+      },
     );
   });
 
@@ -838,11 +843,11 @@ describe("api router", () => {
             agentId: "agent-1",
             sessionKey: "main",
             userInput: "second",
-          })
+          }),
         ).rejects.toMatchObject({
           code: "TOO_MANY_REQUESTS",
         });
-      }
+      },
     );
   });
 
@@ -882,7 +887,7 @@ describe("api router", () => {
                 };
               },
             }),
-          })
+          }),
         );
 
         await expect(
@@ -890,12 +895,12 @@ describe("api router", () => {
             agentId: "agent-1",
             sessionKey: "main",
             userInput: "hello",
-          })
+          }),
         ).rejects.toMatchObject({
           code: "TOO_MANY_REQUESTS",
         });
         expect(chatCalled).toBe(false);
-      }
+      },
     );
   });
 
@@ -912,7 +917,7 @@ describe("api router", () => {
         tags: [],
         sensitivity: "public",
         contextEligible: true,
-      })
+      }),
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
@@ -942,7 +947,7 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     const item = await caller.memory.create({
@@ -983,7 +988,7 @@ describe("api router", () => {
             };
           },
         }),
-      })
+      }),
     );
 
     await caller.memory.update({
@@ -1015,7 +1020,7 @@ describe("api router", () => {
             captured = { agentId, memoryId };
           },
         }),
-      })
+      }),
     );
 
     await caller.memory.delete({
@@ -1065,26 +1070,40 @@ describe("api router", () => {
       };
       const mockSupabase = { from: mockFrom };
       const caller = appRouter.createCaller(
-        buildContext({ user: { id: "user-1" }, supabase: mockSupabase as ApiContext["supabase"] })
+        buildContext({ user: { id: "user-1" }, supabase: mockSupabase as ApiContext["supabase"] }),
       );
 
       const result = await caller.template.list({ onlyMine: false, limit: 20 });
 
       expect(result).toHaveLength(1);
       expect(result[0].config?.llmProvider).toBeDefined();
-      expect((result[0].config?.llmProvider as Record<string, unknown>)?.apiKey).toBe(API_KEY_REDACTED);
+      expect((result[0].config?.llmProvider as Record<string, unknown>)?.apiKey).toBe(
+        API_KEY_REDACTED,
+      );
     });
 
     test("template.publish strips apiKey from config before inserting", async () => {
       let insertedConfig: Record<string, unknown> | null = null;
       const mockSupabase = {
         from: () => ({
-          select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
+          select: () => ({
+            eq: () => ({
+              eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }),
+            }),
+          }),
           insert: (row: { config?: Record<string, unknown> }) => {
             insertedConfig = row.config ?? null;
-            return { select: () => ({ single: () => Promise.resolve({ data: { id: "tpl-new" }, error: null }) }) };
+            return {
+              select: () => ({
+                single: () => Promise.resolve({ data: { id: "tpl-new" }, error: null }),
+              }),
+            };
           },
-          update: () => ({ eq: () => ({ select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }) }) }),
+          update: () => ({
+            eq: () => ({
+              select: () => ({ single: () => Promise.resolve({ data: {}, error: null }) }),
+            }),
+          }),
         }),
       };
       const caller = appRouter.createCaller(
@@ -1097,7 +1116,11 @@ describe("api router", () => {
               name: "My Agent",
               config: {
                 ...DEFAULT_AGENT_CONFIG,
-                llmProvider: { apiKey: "sk-leak", model: "gpt-4", baseURL: "https://api.openai.com" },
+                llmProvider: {
+                  apiKey: "sk-leak",
+                  model: "gpt-4",
+                  baseURL: "https://api.openai.com",
+                },
               },
               visibility: "private" as const,
               createdAt: "",
@@ -1105,7 +1128,7 @@ describe("api router", () => {
             }),
           }),
           supabase: mockSupabase as ApiContext["supabase"],
-        })
+        }),
       );
 
       await caller.template.publish({ agentId: "agent-1", description: "", isPublic: true });
@@ -1164,7 +1187,7 @@ describe("api router", () => {
             }),
           }),
           supabase: mockSupabase as ApiContext["supabase"],
-        })
+        }),
       );
 
       await caller.template.publish({ agentId: "agent-1" });
@@ -1178,7 +1201,7 @@ describe("api router", () => {
       const createAgentOverride = async (
         _ownerUserId: string,
         name: string,
-        config?: Partial<import("@daemon/domain").AgentConfig>
+        config?: Partial<import("@daemon/domain").AgentConfig>,
       ) => {
         createAgentConfig = (config ?? null) as Record<string, unknown> | null;
         return {
@@ -1194,13 +1217,17 @@ describe("api router", () => {
       const cloneMockData = {
         id: "tpl-1",
         name: "Template",
-        config: { llmProvider: { apiKey: "old-key", model: "gpt-4", baseURL: "https://api.openai.com" } },
+        config: {
+          llmProvider: { apiKey: "old-key", model: "gpt-4", baseURL: "https://api.openai.com" },
+        },
         clone_count: 0,
         is_public: true,
         author_user_id: "user-1",
       };
       const mockFrom = () => ({
-        select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: cloneMockData, error: null }) }) }),
+        select: () => ({
+          eq: () => ({ single: () => Promise.resolve({ data: cloneMockData, error: null }) }),
+        }),
         update: () => ({ eq: () => Promise.resolve({ error: null }) }),
       });
       const mockSupabase = { from: mockFrom };
@@ -1223,7 +1250,10 @@ describe("api router", () => {
       });
 
       expect(createAgentConfig).toBeTruthy();
-      const lp = (createAgentConfig as unknown as Record<string, unknown>)?.llmProvider as Record<string, unknown>;
+      const lp = (createAgentConfig as unknown as Record<string, unknown>)?.llmProvider as Record<
+        string,
+        unknown
+      >;
       expect(lp?.apiKey).toBe("sk-my-key");
       expect(lp?.model).toBe("gpt-4o");
     });

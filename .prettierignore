@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.next
+.output
+.turbo
+.vercel
+coverage
+bun.lock
+supabase
+apps/web/public

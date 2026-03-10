@@ -1,12 +1,6 @@
 import { createContainer } from "@/src/server/container";
 import { resolveApiUserFromAccessToken } from "@/src/server/auth";
-import {
-  approxTokens,
-  logError,
-  logInfo,
-  logWarn,
-  serializeError,
-} from "@/src/server/logger";
+import { approxTokens, logError, logInfo, logWarn, serializeError } from "@/src/server/logger";
 import {
   buildDegradedBudget,
   consumeChatRateLimit,
@@ -20,7 +14,14 @@ import {
   wouldExceedChatMaxInputTokens,
   wouldExceedTokenHardCap,
 } from "@daemon/api";
-import { createChatService, DEFAULT_AGENT_CONFIG, DEFAULT_SYSTEM_PROMPT, ForbiddenError, IdempotencyConflictError, NotFoundError } from "@daemon/domain";
+import {
+  createChatService,
+  DEFAULT_AGENT_CONFIG,
+  DEFAULT_SYSTEM_PROMPT,
+  ForbiddenError,
+  IdempotencyConflictError,
+  NotFoundError,
+} from "@daemon/domain";
 import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 
 const env = {
@@ -91,9 +92,7 @@ const sendEvent = (controller: ReadableStreamDefaultController, data: unknown) =
   controller.enqueue(new TextEncoder().encode(payload));
 };
 
-export const createPostHandler = (
-  overrides: Partial<ChatStreamRouteDeps> = {}
-) => {
+export const createPostHandler = (overrides: Partial<ChatStreamRouteDeps> = {}) => {
   const deps = {
     ...defaultRouteDeps,
     ...overrides,
@@ -322,7 +321,10 @@ export const createPostHandler = (
         error_code: "LLM_NOT_CONFIGURED",
         latency_ms: Date.now() - startedAt,
       });
-      return new Response("Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型", { status: 400 });
+      return new Response(
+        "Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型",
+        { status: 400 },
+      );
     }
 
     // Dynamically create LLM from Agent config
@@ -561,7 +563,7 @@ export const createPostHandler = (
           imageUrls: body.imageUrls,
           budget: effectiveBudget,
           abortSignal: abortController.signal,
-        }
+        },
       );
     } catch (error) {
       if (error instanceof IdempotencyConflictError) {
@@ -633,7 +635,7 @@ export const createPostHandler = (
                     body.agentId,
                     result.sessionId,
                     displayName,
-                    user.id
+                    user.id,
                   );
                 }
               }

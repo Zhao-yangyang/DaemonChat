@@ -23,10 +23,7 @@ import {
   Skeleton,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
-import {
-  parseUsageQueryState,
-  toUsageSearchParams,
-} from "@/src/features/historyQueryState";
+import { parseUsageQueryState, toUsageSearchParams } from "@/src/features/historyQueryState";
 
 type UsagePeriod = "day" | "month";
 
@@ -63,14 +60,8 @@ function UsagePageContent() {
   const [agentId, setAgentId] = useState(parsed.agentId);
   const [period, setPeriod] = useState<UsagePeriod>(parsed.period);
 
-  const usage = trpc.usage.summary.useQuery(
-    { agentId, period },
-    { enabled: Boolean(agentId) }
-  );
-  const trend = trpc.usage.trend.useQuery(
-    { agentId, period },
-    { enabled: Boolean(agentId) }
-  );
+  const usage = trpc.usage.summary.useQuery({ agentId, period }, { enabled: Boolean(agentId) });
+  const trend = trpc.usage.trend.useQuery({ agentId, period }, { enabled: Boolean(agentId) });
 
   useEffect(() => {
     if (parsed.agentId) {
@@ -122,18 +113,13 @@ function UsagePageContent() {
     const polyline = points.map((point) => `${point.x},${point.y}`).join(" ");
     const fillPath = `${polyline} ${width},${height} 0,${height}`;
     const labelIndexes = Array.from(
-      new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])
+      new Set([0, Math.floor((data.length - 1) / 2), data.length - 1]),
     );
     const labels = labelIndexes
       .map((index) => data[index])
       .filter((item): item is (typeof data)[number] => Boolean(item))
       .map((item, labelIndex) => ({
-        x:
-          labelIndex === 0
-            ? 0
-            : labelIndex === 1
-              ? width / 2
-              : width,
+        x: labelIndex === 0 ? 0 : labelIndex === 1 ? width / 2 : width,
         text: formatBucketLabel(item.bucketStart, period),
       }));
 
@@ -143,10 +129,7 @@ function UsagePageContent() {
   const hasAgents = (agents.data?.length ?? 0) > 0;
 
   return (
-    <DashboardShell
-      title={t("title")}
-      description={t("description")}
-    >
+    <DashboardShell title={t("title")} description={t("description")}>
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="grid gap-3 sm:grid-cols-3">
@@ -181,7 +164,10 @@ function UsagePageContent() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => { usage.refetch(); trend.refetch(); }}
+              onClick={() => {
+                usage.refetch();
+                trend.refetch();
+              }}
               disabled={!agentId}
             >
               刷新
@@ -207,19 +193,25 @@ function UsagePageContent() {
             <Card>
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Tokens In</p>
-                <p className="mt-1 text-2xl font-semibold">{formatNumber(usage.data?.tokensIn ?? 0)}</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatNumber(usage.data?.tokensIn ?? 0)}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Tokens Out</p>
-                <p className="mt-1 text-2xl font-semibold">{formatNumber(usage.data?.tokensOut ?? 0)}</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatNumber(usage.data?.tokensOut ?? 0)}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Cost Estimate</p>
-                <p className="mt-1 text-2xl font-semibold">{formatUsd(usage.data?.costEstimate ?? 0)}</p>
+                <p className="mt-1 text-2xl font-semibold">
+                  {formatUsd(usage.data?.costEstimate ?? 0)}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -285,13 +277,26 @@ function UsagePageContent() {
                       strokeLinejoin="round"
                       strokeLinecap="round"
                     />
-                    <line x1="0" y1="220" x2="640" y2="220" stroke="var(--border)" strokeWidth="1" />
+                    <line
+                      x1="0"
+                      y1="220"
+                      x2="640"
+                      y2="220"
+                      stroke="var(--border)"
+                      strokeWidth="1"
+                    />
                     {trendChart.labels.map((label, idx) => (
                       <text
                         key={`${label.text}-${idx}`}
                         x={label.x}
                         y="246"
-                        textAnchor={idx === 0 ? "start" : idx === trendChart.labels.length - 1 ? "end" : "middle"}
+                        textAnchor={
+                          idx === 0
+                            ? "start"
+                            : idx === trendChart.labels.length - 1
+                              ? "end"
+                              : "middle"
+                        }
                         style={{ fill: "var(--muted-foreground)" }}
                         className="text-[11px]"
                       >
@@ -319,8 +324,10 @@ function UsagePageContent() {
         {!usage.isLoading && !hasAgents ? (
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
             你还没有 Agent。先去{" "}
-            <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
-            {" "}创建一个。
+            <Link href="/agents" className="text-primary underline underline-offset-4">
+              Agents
+            </Link>{" "}
+            创建一个。
           </div>
         ) : null}
       </div>

@@ -20,8 +20,7 @@ export interface WebEnv {
   SUPABASE_ANON_KEY: string;
 }
 
-const isPlaceholderSupabase = (url: string) =>
-  !url || url.includes("placeholder");
+const isPlaceholderSupabase = (url: string) => !url || url.includes("placeholder");
 
 /** CI 占位模式下避免真实 Supabase 请求，Share 页可正确返回 404 */
 const placeholderAgentStore: AgentStore = {
@@ -51,6 +50,7 @@ export function createRawSupabaseClient(env: WebEnv, accessToken?: string) {
  * The real LLM is created dynamically per-request based on Agent config.
  */
 const stubLlm: LlmPort = {
+  // eslint-disable-next-line require-yield
   async *streamChat() {
     throw new Error("LLM not configured — use per-agent LLM Provider");
   },

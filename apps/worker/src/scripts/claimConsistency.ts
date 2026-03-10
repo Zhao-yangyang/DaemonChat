@@ -38,9 +38,7 @@ const isRunJob = (job: JobRow, runId: string, type: string): boolean => {
 async function main() {
   const confirm = env.CLAIM_CONFIRM ?? "";
   if (confirm !== "I_UNDERSTAND_QUEUE_IMPACT") {
-    throw new Error(
-      "Set CLAIM_CONFIRM=I_UNDERSTAND_QUEUE_IMPACT before running this script."
-    );
+    throw new Error("Set CLAIM_CONFIRM=I_UNDERSTAND_QUEUE_IMPACT before running this script.");
   }
 
   const supabaseUrl = required("SUPABASE_URL");
@@ -67,7 +65,7 @@ async function main() {
   if (queuedError) throw queuedError;
   if ((queuedCount ?? 0) > 0 && !toBool(env.CLAIM_ALLOW_NONEMPTY_QUEUE, false)) {
     throw new Error(
-      `Detected ${queuedCount} queued runnable jobs. Aborting to avoid claiming non-test jobs.`
+      `Detected ${queuedCount} queued runnable jobs. Aborting to avoid claiming non-test jobs.`,
     );
   }
 
@@ -174,8 +172,8 @@ async function main() {
           ids: unexpectedClaims.slice(0, 20),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   }
 

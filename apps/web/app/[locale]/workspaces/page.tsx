@@ -53,7 +53,7 @@ export default function WorkspacesPage() {
 
   const members = trpc.workspace.members.useQuery(
     { workspaceId: selectedWs ?? "" },
-    { enabled: Boolean(selectedWs), retry: false }
+    { enabled: Boolean(selectedWs), retry: false },
   );
 
   if (!isResolved) {
@@ -106,9 +106,7 @@ export default function WorkspacesPage() {
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {workspaces.error ? (
           <Alert variant="destructive">
-            <AlertDescription>
-              {workspaces.error.message || t("listError")}
-            </AlertDescription>
+            <AlertDescription>{workspaces.error.message || t("listError")}</AlertDescription>
           </Alert>
         ) : null}
 
@@ -121,58 +119,60 @@ export default function WorkspacesPage() {
                   </CardContent>
                 </Card>
               ))
-            : (workspaces.data ?? []).map((ws: { id: string; name: string; slug: string; ownerUserId: string; role: string; createdAt: string }) => (
-                <Card key={ws.id} className="transition-shadow hover:shadow-md">
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{ws.name}</p>
-                          <Badge variant="secondary">{roleLabels[ws.role] ?? ws.role}</Badge>
+            : (workspaces.data ?? []).map(
+                (ws: {
+                  id: string;
+                  name: string;
+                  slug: string;
+                  ownerUserId: string;
+                  role: string;
+                  createdAt: string;
+                }) => (
+                  <Card key={ws.id} className="transition-shadow hover:shadow-md">
+                    <CardContent className="py-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{ws.name}</p>
+                            <Badge variant="secondary">{roleLabels[ws.role] ?? ws.role}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            /{ws.slug} · {t("createdAt")} {formatTime(ws.createdAt)}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          /{ws.slug} · {t("createdAt")} {formatTime(ws.createdAt)}
-                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedWs(ws.id === selectedWs ? null : ws.id)}
+                        >
+                          {ws.id === selectedWs ? t("collapse") : t("members")}
+                        </Button>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedWs(ws.id === selectedWs ? null : ws.id)}
-                      >
-                        {ws.id === selectedWs ? t("collapse") : t("members")}
-                      </Button>
-                    </div>
 
-                    {ws.id === selectedWs ? (
-                      <div className="mt-3 space-y-2 border-t pt-3">
-                        {members.isLoading ? (
-                          <Skeleton className="h-10 w-full" />
-                        ) : members.error ? (
-                          <p className="text-sm text-destructive">{t("loadMembersError")}</p>
-                        ) : (
-                          (members.data ?? []).map((m) => (
-                            <div
-                              key={m.id}
-                              className="flex items-center justify-between text-sm"
-                            >
-                              <span className="font-mono text-xs text-muted-foreground">
-                                {m.user_id.slice(0, 8)}…
-                              </span>
-                              <Badge variant="outline">
-                                {roleLabels[m.role] ?? m.role}
-                              </Badge>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ))}
+                      {ws.id === selectedWs ? (
+                        <div className="mt-3 space-y-2 border-t pt-3">
+                          {members.isLoading ? (
+                            <Skeleton className="h-10 w-full" />
+                          ) : members.error ? (
+                            <p className="text-sm text-destructive">{t("loadMembersError")}</p>
+                          ) : (
+                            (members.data ?? []).map((m) => (
+                              <div key={m.id} className="flex items-center justify-between text-sm">
+                                <span className="font-mono text-xs text-muted-foreground">
+                                  {m.user_id.slice(0, 8)}…
+                                </span>
+                                <Badge variant="outline">{roleLabels[m.role] ?? m.role}</Badge>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ),
+              )}
 
-          {!workspaces.isLoading &&
-            !workspaces.error &&
-            (workspaces.data?.length ?? 0) === 0 ? (
+          {!workspaces.isLoading && !workspaces.error && (workspaces.data?.length ?? 0) === 0 ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               还没有工作空间。创建一个以开始团队协作。
             </div>
@@ -205,14 +205,12 @@ export default function WorkspacesPage() {
                       e.target.value
                         .toLowerCase()
                         .replace(/[^a-z0-9-]/g, "-")
-                        .replace(/-{2,}/g, "-")
+                        .replace(/-{2,}/g, "-"),
                     )
                   }
                   placeholder="product-team"
                 />
-                <p className="text-xs text-muted-foreground">
-                  仅允许小写字母、数字和连字符
-                </p>
+                <p className="text-xs text-muted-foreground">仅允许小写字母、数字和连字符</p>
               </div>
               {createWorkspace.error ? (
                 <Alert variant="destructive">
@@ -236,9 +234,7 @@ export default function WorkspacesPage() {
                     createWorkspace.mutate({ name: wsName.trim(), slug: wsSlug.trim() });
                   }
                 }}
-                disabled={
-                  !wsName.trim() || !wsSlug.trim() || createWorkspace.isPending
-                }
+                disabled={!wsName.trim() || !wsSlug.trim() || createWorkspace.isPending}
               >
                 {createWorkspace.isPending ? "创建中..." : "创建"}
               </Button>

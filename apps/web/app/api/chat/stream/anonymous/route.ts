@@ -1,10 +1,5 @@
 import { createContainer } from "@/src/server/container";
-import {
-  logError,
-  logInfo,
-  logWarn,
-  serializeError,
-} from "@/src/server/logger";
+import { logError, logInfo, logWarn, serializeError } from "@/src/server/logger";
 import { consumeChatRateLimit } from "@daemon/api";
 import { DEFAULT_AGENT_CONFIG, DEFAULT_SYSTEM_PROMPT } from "@daemon/domain";
 import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
@@ -57,10 +52,7 @@ function parseBody(value: unknown): AnonymousBody | null {
     if (m && typeof m === "object" && "role" in m && "content" in m) {
       const role = (m as { role: string }).role;
       const content = (m as { content: unknown }).content;
-      if (
-        (role === "user" || role === "assistant") &&
-        typeof content === "string"
-      ) {
+      if ((role === "user" || role === "assistant") && typeof content === "string") {
         messages.push({ role, content });
       }
     }
@@ -127,7 +119,7 @@ export async function POST(req: Request) {
       {
         status: 429,
         headers: { "Content-Type": "application/json" },
-      }
+      },
     );
   }
 
@@ -171,12 +163,7 @@ export async function POST(req: Request) {
 
   const agentConfig = { ...DEFAULT_AGENT_CONFIG, ...(agent.config ?? {}) };
   const llmProvider = agentConfig.llmProvider;
-  if (
-    !llmProvider ||
-    !llmProvider.apiKey ||
-    !llmProvider.baseURL ||
-    !llmProvider.model
-  ) {
+  if (!llmProvider || !llmProvider.apiKey || !llmProvider.baseURL || !llmProvider.model) {
     logWarn("anonymous_chat.llm_not_configured", {
       request_id: requestId,
       route: ROUTE_PATH,
@@ -191,7 +178,7 @@ export async function POST(req: Request) {
   try {
     llm = createLlmFromAgentConfig(
       { ...llmProvider, model: llmProvider.model },
-      { temperature: agentConfig.temperature }
+      { temperature: agentConfig.temperature },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "LLM 创建失败";
@@ -206,8 +193,7 @@ export async function POST(req: Request) {
     return new Response(message, { status: 400 });
   }
 
-  const systemPrompt =
-    (agentConfig.systemPrompt as string) || DEFAULT_SYSTEM_PROMPT;
+  const systemPrompt = (agentConfig.systemPrompt as string) || DEFAULT_SYSTEM_PROMPT;
   const messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }> = [
     { role: "system", content: systemPrompt },
     ...body.messages.map((m) => ({

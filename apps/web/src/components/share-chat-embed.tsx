@@ -18,7 +18,9 @@ type ShareChatEmbedProps = {
 
 export function ShareChatEmbed({ agentId, agentName, maxTurns }: ShareChatEmbedProps) {
   const t = useTranslations("share");
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>(
+    [],
+  );
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -181,14 +183,7 @@ export function ShareChatEmbed({ agentId, agentName, maxTurns }: ShareChatEmbedP
                 </p>
               ) : (
                 messages.map((m, i) => (
-                  <div
-                    key={i}
-                    className={
-                      m.role === "user"
-                        ? "ml-4 text-right"
-                        : "mr-4"
-                    }
-                  >
+                  <div key={i} className={m.role === "user" ? "ml-4 text-right" : "mr-4"}>
                     <span className="text-xs text-muted-foreground">
                       {m.role === "user" ? "你" : "AI"}
                     </span>
@@ -218,9 +213,7 @@ export function ShareChatEmbed({ agentId, agentName, maxTurns }: ShareChatEmbedP
           </ScrollArea>
           {atMaxTurns ? (
             <div className="border-t p-4">
-              <p className="mb-3 text-center text-sm text-muted-foreground">
-                {t("trialEnded")}
-              </p>
+              <p className="mb-3 text-center text-sm text-muted-foreground">{t("trialEnded")}</p>
               <Button asChild className="w-full">
                 <Link href="/" data-testid="share-login-cta">
                   {t("loginToContinue")}

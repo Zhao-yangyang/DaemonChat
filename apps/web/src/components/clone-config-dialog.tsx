@@ -40,9 +40,7 @@ function templateConfigToFormState(config: Record<string, unknown>): LlmProvider
   });
 
   const presetId =
-    (lp.presetId as string) ??
-    detected?.providerId ??
-    (lp.baseURL ? CUSTOM_PROVIDER_ID : "");
+    (lp.presetId as string) ?? detected?.providerId ?? (lp.baseURL ? CUSTOM_PROVIDER_ID : "");
 
   return {
     presetId: presetId || "",
@@ -64,7 +62,7 @@ function formStateToLlmProviderConfig(lp: LlmProviderFormState): {
   const baseURL =
     lp.presetId === CUSTOM_PROVIDER_ID
       ? lp.baseURL
-      : findProviderPreset(lp.presetId)?.baseURL ?? lp.baseURL;
+      : (findProviderPreset(lp.presetId)?.baseURL ?? lp.baseURL);
   if (!baseURL?.trim() || !lp.model.trim()) return null;
   return {
     baseURL: baseURL.trim(),
@@ -126,7 +124,8 @@ export function CloneConfigDialog({ template, open, onOpenChange }: CloneConfigD
     if (!template) return;
     setFormError(null);
 
-    const trimmedName = (agentName || `${template.name} (copy)`).trim() || `${template.name} (copy)`;
+    const trimmedName =
+      (agentName || `${template.name} (copy)`).trim() || `${template.name} (copy)`;
 
     const llmConfig = formStateToLlmProviderConfig(llmProvider);
     if (llmProvider.presetId) {
@@ -179,18 +178,13 @@ export function CloneConfigDialog({ template, open, onOpenChange }: CloneConfigD
 
           <LlmProviderSection value={llmProvider} onChange={setLlmProvider} />
 
-          {formError ? (
-            <p className="text-sm text-destructive">{formError}</p>
-          ) : null}
+          {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             取消
           </Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={cloneTemplate.isPending}
-          >
+          <Button onClick={handleConfirm} disabled={cloneTemplate.isPending}>
             {cloneTemplate.isPending ? "克隆中..." : "确认克隆"}
           </Button>
         </DialogFooter>

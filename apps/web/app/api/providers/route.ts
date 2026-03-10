@@ -21,15 +21,18 @@ export async function GET() {
     if (!res.ok) throw new Error("Failed to fetch openrouter models");
 
     const json = await res.json();
-    const models: { id: string, name: string }[] = json.data ?? [];
+    const models: { id: string; name: string }[] = json.data ?? [];
 
     const orProviders = new Map<string, string>();
     models.forEach((m) => {
-      const parts = m.id.split('/');
+      const parts = m.id.split("/");
       if (parts.length > 1) {
         const rawId = parts[0];
         if (!orProviders.has(rawId)) {
-          const label = rawId.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+          const label = rawId
+            .split("-")
+            .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+            .join(" ");
           orProviders.set(rawId, label);
         }
       }
@@ -54,7 +57,9 @@ export async function GET() {
 
   const originalLength = LLM_PROVIDER_PRESETS.length;
   const staticPart = basePresets.slice(0, originalLength);
-  const dynamicPart = basePresets.slice(originalLength).sort((a, b) => a.label.localeCompare(b.label));
+  const dynamicPart = basePresets
+    .slice(originalLength)
+    .sort((a, b) => a.label.localeCompare(b.label));
 
   const result = [...staticPart, ...dynamicPart];
   cachedProviders = result;

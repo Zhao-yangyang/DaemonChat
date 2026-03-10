@@ -29,10 +29,12 @@ export function useSession(): UseSessionResult {
         setIsResolved(true);
       });
 
-    const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-      setIsResolved(true);
-    });
+    const { data: listener } = supabaseBrowserClient.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        setSession(nextSession ?? null);
+        setIsResolved(true);
+      },
+    );
 
     return () => {
       isMounted = false;

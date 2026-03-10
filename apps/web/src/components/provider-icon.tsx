@@ -18,12 +18,10 @@ for (const [k, v] of Object.entries(MP)) {
 function normalize(id: string): string {
   const parts = (id ?? "")
     .trim()
-    .split(/[\s\-_\.]+/)
+    .split(/[\s\-_.]+/)
     .filter(Boolean);
   if (parts.length <= 1) return parts[0]?.toLowerCase() ?? "";
-  return parts
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-    .join("");
+  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("");
 }
 
 /** 模糊匹配 ModelProvider，返回 enum 成员（用于 provider={ModelProvider.XXX}） */
@@ -36,10 +34,7 @@ function resolveProvider(normalized: string): keyof typeof ModelProvider | null 
   if (PROVIDER_VALUES.includes(lower)) {
     value = lower;
   } else if (lower.length >= 2) {
-    value =
-      PROVIDER_VALUES.find(
-        (v) => v.includes(lower) && v.length <= lower.length + 4
-      ) ?? null;
+    value = PROVIDER_VALUES.find((v) => v.includes(lower) && v.length <= lower.length + 4) ?? null;
   }
   if (!value) {
     const contained = PROVIDER_VALUES.filter((v) => lower.includes(v));
@@ -58,6 +53,11 @@ export function ProviderIcon({
   className?: string;
 }) {
   const raw = (providerId ?? "").trim();
+  const providerKey = useMemo(
+    () => (raw && raw.toLowerCase() !== "__custom__" ? resolveProvider(normalize(raw)) : null),
+    [raw],
+  );
+
   if (!raw || raw.toLowerCase() === "__custom__") {
     return (
       <Cpu
@@ -67,8 +67,6 @@ export function ProviderIcon({
       />
     );
   }
-
-  const providerKey = useMemo(() => resolveProvider(normalize(raw)), [raw]);
   return (
     <span
       className={cn("shrink-0 inline-flex items-center justify-center", className)}

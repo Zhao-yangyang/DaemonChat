@@ -61,12 +61,12 @@ function TranscriptsPageContent() {
 
   const sessionList = trpc.session.list.useQuery(
     { agentId, limit: 30 },
-    { enabled: Boolean(agentId), refetchOnWindowFocus: false }
+    { enabled: Boolean(agentId), refetchOnWindowFocus: false },
   );
 
   const transcripts = trpc.transcript.list.useQuery(
     { agentId, sessionId, limit },
-    { enabled: Boolean(agentId && sessionId) }
+    { enabled: Boolean(agentId && sessionId) },
   );
 
   const filteredEvents = useMemo(
@@ -75,7 +75,7 @@ function TranscriptsPageContent() {
         query,
         type: typeFilter,
       }),
-    [transcripts.data, query, typeFilter]
+    [transcripts.data, query, typeFilter],
   );
 
   const paged = useMemo(
@@ -84,7 +84,7 @@ function TranscriptsPageContent() {
         page,
         pageSize: PAGE_SIZE,
       }),
-    [filteredEvents, page]
+    [filteredEvents, page],
   );
 
   useEffect(() => {
@@ -137,10 +137,7 @@ function TranscriptsPageContent() {
   const hasSessions = (sessionList.data?.length ?? 0) > 0;
 
   return (
-    <DashboardShell
-      title={t("title")}
-      description={t("description")}
-    >
+    <DashboardShell title={t("title")} description={t("description")}>
       <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="grid gap-3 sm:grid-cols-3">
@@ -148,14 +145,20 @@ function TranscriptsPageContent() {
             <Label>Agent</Label>
             <Select
               value={agentId || undefined}
-              onValueChange={(value) => { setAgentId(value); setSessionId(""); setPage(1); }}
+              onValueChange={(value) => {
+                setAgentId(value);
+                setSessionId("");
+                setPage(1);
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
               </SelectTrigger>
               <SelectContent>
                 {(agents.data ?? []).map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -165,7 +168,10 @@ function TranscriptsPageContent() {
             <Label>会话</Label>
             <Select
               value={sessionId || undefined}
-              onValueChange={(value) => { setSessionId(value); setPage(1); }}
+              onValueChange={(value) => {
+                setSessionId(value);
+                setPage(1);
+              }}
               disabled={!agentId || sessionList.isLoading}
             >
               <SelectTrigger>
@@ -173,7 +179,9 @@ function TranscriptsPageContent() {
               </SelectTrigger>
               <SelectContent>
                 {(sessionList.data ?? []).map((session) => (
-                  <SelectItem key={session.id} value={session.id}>{session.sessionKey}</SelectItem>
+                  <SelectItem key={session.id} value={session.id}>
+                    {session.sessionKey}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -210,7 +218,10 @@ function TranscriptsPageContent() {
             <Input
               id="transcript-search"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
               placeholder="搜索内容"
             />
           </div>
@@ -218,7 +229,10 @@ function TranscriptsPageContent() {
             <Label>条数</Label>
             <Select
               value={String(limit)}
-              onValueChange={(value) => { setLimit(Number(value)); setPage(1); }}
+              onValueChange={(value) => {
+                setLimit(Number(value));
+                setPage(1);
+              }}
             >
               <SelectTrigger className="w-[100px]">
                 <SelectValue />
@@ -230,7 +244,11 @@ function TranscriptsPageContent() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" onClick={() => transcripts.refetch()} disabled={!agentId || !sessionId}>
+          <Button
+            variant="outline"
+            onClick={() => transcripts.refetch()}
+            disabled={!agentId || !sessionId}
+          >
             刷新
           </Button>
         </div>
@@ -239,7 +257,9 @@ function TranscriptsPageContent() {
         {agentId && sessionId ? (
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {filteredEvents.length} 条</span>
-            <span>第 {paged.page}/{paged.totalPages || 1} 页</span>
+            <span>
+              第 {paged.page}/{paged.totalPages || 1} 页
+            </span>
           </div>
         ) : null}
 
@@ -257,7 +277,9 @@ function TranscriptsPageContent() {
                 <Card key={event.id} className="transition-shadow hover:shadow-md">
                   <CardContent className="py-4">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">{event.type}</Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {event.type}
+                      </Badge>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="cursor-default font-mono text-xs text-muted-foreground">
@@ -268,7 +290,9 @@ function TranscriptsPageContent() {
                           <p className="font-mono text-xs">{event.id}</p>
                         </TooltipContent>
                       </Tooltip>
-                      <span className="text-xs text-muted-foreground">{formatTime(event.createdAt)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatTime(event.createdAt)}
+                      </span>
                     </div>
                     <pre className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs">
                       {JSON.stringify(event.content, null, 2)}
@@ -286,16 +310,20 @@ function TranscriptsPageContent() {
           {!transcripts.isLoading && !hasAgents ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               你还没有 Agent。先去{" "}
-              <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
-              {" "}创建一个。
+              <Link href="/agents" className="text-primary underline underline-offset-4">
+                Agents
+              </Link>{" "}
+              创建一个。
             </div>
           ) : null}
 
           {!transcripts.isLoading && hasAgents && !hasSessions ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               这个 Agent 还没有会话，先去{" "}
-              <Link href={`/chat/${agentId}`} className="text-primary underline underline-offset-4">Chat</Link>
-              {" "}发一条消息。
+              <Link href={`/chat/${agentId}`} className="text-primary underline underline-offset-4">
+                Chat
+              </Link>{" "}
+              发一条消息。
             </div>
           ) : null}
         </div>
@@ -303,10 +331,20 @@ function TranscriptsPageContent() {
         {/* Pagination */}
         {paged.totalPages > 1 ? (
           <div className="flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" disabled={paged.page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paged.page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
               上一页
             </Button>
-            <Button variant="outline" size="sm" disabled={paged.page >= paged.totalPages} onClick={() => setPage((p) => p + 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paged.page >= paged.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
               下一页
             </Button>
           </div>

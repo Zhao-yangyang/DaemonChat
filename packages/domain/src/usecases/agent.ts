@@ -8,7 +8,12 @@ export function createAgentService(ports: {
   workspace?: WorkspaceStore;
 }) {
   return {
-    async createAgent(ownerUserId: string, name: string, config?: Partial<AgentConfig>, workspaceId?: string): Promise<Agent> {
+    async createAgent(
+      ownerUserId: string,
+      name: string,
+      config?: Partial<AgentConfig>,
+      workspaceId?: string,
+    ): Promise<Agent> {
       const trimmed = name.trim();
       if (!trimmed) {
         throw new ValidationError("Agent name is required");
@@ -51,7 +56,11 @@ export function createAgentService(ports: {
     async updateAgent(
       agentId: string,
       userId: string,
-      updates: { name?: string; config?: Partial<AgentConfig>; visibility?: import("../types").AgentVisibility }
+      updates: {
+        name?: string;
+        config?: Partial<AgentConfig>;
+        visibility?: import("../types").AgentVisibility;
+      },
     ): Promise<Agent> {
       await this.getAgent(agentId, userId);
       if (updates.name !== undefined) {

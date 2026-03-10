@@ -25,10 +25,7 @@ import {
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { filterMemoryItems, paginateItems } from "@/src/features/historyFilters";
-import {
-  parseMemoryQueryState,
-  toMemorySearchParams,
-} from "@/src/features/historyQueryState";
+import { parseMemoryQueryState, toMemorySearchParams } from "@/src/features/historyQueryState";
 import { useSession } from "@/src/hooks/use-session";
 
 const PAGE_SIZE = 8;
@@ -52,25 +49,25 @@ function MemoryPageContent() {
   const [sensitivityFilter, setSensitivityFilter] = useState<
     "all" | "public" | "private" | "secret"
   >(parsedState.sensitivityFilter);
-  const [eligibilityFilter, setEligibilityFilter] = useState<
-    "all" | "eligible" | "ineligible"
-  >(parsedState.eligibilityFilter);
+  const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "eligible" | "ineligible">(
+    parsedState.eligibilityFilter,
+  );
   const [page, setPage] = useState(parsedState.page);
   const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const [editingTags, setEditingTags] = useState("");
   const [editingSensitivity, setEditingSensitivity] = useState<"public" | "private" | "secret">(
-    "public"
+    "public",
   );
   const [editingEligibility, setEditingEligibility] = useState<"eligible" | "ineligible">(
-    "eligible"
+    "eligible",
   );
 
   const userId = user?.id ?? "";
 
   const memoryList = trpc.memory.list.useQuery(
     { agentId, limit: 50 },
-    { enabled: Boolean(agentId) }
+    { enabled: Boolean(agentId) },
   );
 
   const createMemory = trpc.memory.create.useMutation({
@@ -100,7 +97,7 @@ function MemoryPageContent() {
         sensitivity: sensitivityFilter,
         contextEligible: eligibilityFilter,
       }),
-    [memoryList.data, query, sensitivityFilter, eligibilityFilter]
+    [memoryList.data, query, sensitivityFilter, eligibilityFilter],
   );
 
   const paged = useMemo(
@@ -109,7 +106,7 @@ function MemoryPageContent() {
         page,
         pageSize: PAGE_SIZE,
       }),
-    [filteredItems, page]
+    [filteredItems, page],
   );
 
   useEffect(() => {
@@ -118,10 +115,10 @@ function MemoryPageContent() {
     }
     setQuery((prev) => (prev === parsedState.query ? prev : parsedState.query));
     setSensitivityFilter((prev) =>
-      prev === parsedState.sensitivityFilter ? prev : parsedState.sensitivityFilter
+      prev === parsedState.sensitivityFilter ? prev : parsedState.sensitivityFilter,
     );
     setEligibilityFilter((prev) =>
-      prev === parsedState.eligibilityFilter ? prev : parsedState.eligibilityFilter
+      prev === parsedState.eligibilityFilter ? prev : parsedState.eligibilityFilter,
     );
     setPage((prev) => (prev === parsedState.page ? prev : parsedState.page));
   }, [parsedState]);
@@ -197,10 +194,7 @@ function MemoryPageContent() {
   };
 
   return (
-    <DashboardShell
-      title={t("title")}
-      description={t("description")}
-    >
+    <DashboardShell title={t("title")} description={t("description")}>
       <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
         {/* Filters */}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -224,7 +218,10 @@ function MemoryPageContent() {
             <Input
               id="memory-search"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
               placeholder="按内容或标签搜索"
             />
           </div>
@@ -309,7 +306,9 @@ function MemoryPageContent() {
         {agentId ? (
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>共 {filteredItems.length} 条</span>
-            <span>第 {paged.page}/{paged.totalPages || 1} 页</span>
+            <span>
+              第 {paged.page}/{paged.totalPages || 1} 页
+            </span>
           </div>
         ) : null}
 
@@ -399,9 +398,16 @@ function MemoryPageContent() {
                       <>
                         <p className="text-sm leading-relaxed">{item.content}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="secondary" className="text-xs">{item.type}</Badge>
-                          <Badge variant="secondary" className="text-xs">{item.sensitivity}</Badge>
-                          <Badge variant={item.contextEligible ? "default" : "secondary"} className="text-xs">
+                          <Badge variant="secondary" className="text-xs">
+                            {item.type}
+                          </Badge>
+                          <Badge variant="secondary" className="text-xs">
+                            {item.sensitivity}
+                          </Badge>
+                          <Badge
+                            variant={item.contextEligible ? "default" : "secondary"}
+                            className="text-xs"
+                          >
                             {item.contextEligible ? "eligible" : "ineligible"}
                           </Badge>
                         </div>
@@ -445,8 +451,10 @@ function MemoryPageContent() {
           {!memoryList.isLoading && !hasAgents ? (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               你还没有 Agent。先去{" "}
-              <Link href="/agents" className="text-primary underline underline-offset-4">Agents</Link>
-              {" "}创建一个。
+              <Link href="/agents" className="text-primary underline underline-offset-4">
+                Agents
+              </Link>{" "}
+              创建一个。
             </div>
           ) : null}
         </div>
@@ -454,10 +462,20 @@ function MemoryPageContent() {
         {/* Pagination */}
         {paged.totalPages > 1 ? (
           <div className="flex items-center justify-center gap-2">
-            <Button variant="outline" size="sm" disabled={paged.page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paged.page <= 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
               上一页
             </Button>
-            <Button variant="outline" size="sm" disabled={paged.page >= paged.totalPages} onClick={() => setPage((p) => p + 1)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paged.page >= paged.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
               下一页
             </Button>
           </div>

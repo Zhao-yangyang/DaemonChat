@@ -36,7 +36,10 @@ const percentile = (values: number[], p: number): number => {
 
 const randomId = () => crypto.randomUUID();
 
-const parseSse = async (res: Response, startedAt: number): Promise<Pick<Result, "firstTokenMs" | "error">> => {
+const parseSse = async (
+  res: Response,
+  startedAt: number,
+): Promise<Pick<Result, "firstTokenMs" | "error">> => {
   const body = res.body;
   if (!body) {
     return { firstTokenMs: null, error: "empty response body" };
@@ -49,9 +52,7 @@ const parseSse = async (res: Response, startedAt: number): Promise<Pick<Result, 
   let streamError: string | undefined;
 
   const handleBlock = (block: string) => {
-    const line = block
-      .split("\n")
-      .find((entry) => entry.startsWith("data: "));
+    const line = block.split("\n").find((entry) => entry.startsWith("data: "));
     if (!line) return;
     try {
       const payload = JSON.parse(line.slice(6)) as {
@@ -152,9 +153,7 @@ const runPool = async (input: {
     }
   };
 
-  await Promise.all(
-    Array.from({ length: input.concurrency }).map(() => worker())
-  );
+  await Promise.all(Array.from({ length: input.concurrency }).map(() => worker()));
   return results;
 };
 
@@ -214,14 +213,14 @@ async function main() {
           samples: failure.slice(0, 10),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
   }
 
   if (summary.errorRate > maxErrorRate) {
     console.error(
-      `Chat load test failed: errorRate=${summary.errorRate} exceeds threshold=${maxErrorRate}`
+      `Chat load test failed: errorRate=${summary.errorRate} exceeds threshold=${maxErrorRate}`,
     );
     process.exit(1);
   }

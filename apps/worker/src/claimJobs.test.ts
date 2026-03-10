@@ -14,7 +14,7 @@ describe("claimNextJobsAtomic", () => {
         },
       },
       5,
-      () => "2026-02-26T00:00:00.000Z"
+      () => "2026-02-26T00:00:00.000Z",
     );
 
     expect(calledWith).not.toBeNull();
@@ -37,8 +37,8 @@ describe("claimNextJobsAtomic", () => {
             error: { message: "db error" },
           }),
         },
-        2
-      )
+        2,
+      ),
     ).rejects.toEqual({ message: "db error" });
   });
 });

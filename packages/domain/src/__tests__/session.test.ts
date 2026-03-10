@@ -24,7 +24,11 @@ describe("session usecases", () => {
   test("deleteSession enforces owner check and deletes target session", async () => {
     const stores = createInMemoryStores();
     const clock = new ManualClock("2026-02-03T00:00:00Z");
-    const service = createSessionService({ sessions: stores.sessions, agents: stores.agents, clock });
+    const service = createSessionService({
+      sessions: stores.sessions,
+      agents: stores.agents,
+      clock,
+    });
 
     const agent = await stores.agents.createAgent({
       ownerUserId: "user-1",
@@ -38,7 +42,9 @@ describe("session usecases", () => {
       now: clock.now(),
     });
 
-    await expect(service.deleteSession(agent.id, session.id, "user-2")).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(service.deleteSession(agent.id, session.id, "user-2")).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     await service.deleteSession(agent.id, session.id, "user-1");
 
     const list = await stores.sessions.listRecentSessions({ agentId: agent.id, limit: 10 });
@@ -48,17 +54,25 @@ describe("session usecases", () => {
   test("deleteSession throws when agent not found", async () => {
     const stores = createInMemoryStores();
     const clock = new ManualClock("2026-02-03T00:00:00Z");
-    const service = createSessionService({ sessions: stores.sessions, agents: stores.agents, clock });
+    const service = createSessionService({
+      sessions: stores.sessions,
+      agents: stores.agents,
+      clock,
+    });
 
-    await expect(service.deleteSession("missing-agent", "session-1", "user-1")).rejects.toBeInstanceOf(
-      NotFoundError
-    );
+    await expect(
+      service.deleteSession("missing-agent", "session-1", "user-1"),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   test("renameSession enforces owner check and updates displayName", async () => {
     const stores = createInMemoryStores();
     const clock = new ManualClock("2026-02-03T00:00:00Z");
-    const service = createSessionService({ sessions: stores.sessions, agents: stores.agents, clock });
+    const service = createSessionService({
+      sessions: stores.sessions,
+      agents: stores.agents,
+      clock,
+    });
 
     const agent = await stores.agents.createAgent({
       ownerUserId: "user-1",
@@ -72,9 +86,9 @@ describe("session usecases", () => {
       now: clock.now(),
     });
 
-    await expect(service.renameSession(agent.id, session.id, "我的会话", "user-2")).rejects.toBeInstanceOf(
-      ForbiddenError
-    );
+    await expect(
+      service.renameSession(agent.id, session.id, "我的会话", "user-2"),
+    ).rejects.toBeInstanceOf(ForbiddenError);
     await service.renameSession(agent.id, session.id, "我的会话", "user-1");
 
     const list = await stores.sessions.listRecentSessions({ agentId: agent.id, limit: 10 });

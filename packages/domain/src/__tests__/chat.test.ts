@@ -113,7 +113,10 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
+      (message) =>
+        message.role === "system" &&
+        typeof message.content === "string" &&
+        message.content.includes("Memory"),
     );
 
     expect(memoryMessage?.content).toContain("likes sushi");
@@ -282,7 +285,10 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
+      (message) =>
+        message.role === "system" &&
+        typeof message.content === "string" &&
+        message.content.includes("Memory"),
     );
 
     expect(memoryMessage?.content).toContain("public memory");
@@ -358,7 +364,10 @@ describe("chat usecases", () => {
     });
 
     const memoryMessage = capturedMessages.find(
-      (message) => message.role === "system" && typeof message.content === "string" && message.content.includes("Memory")
+      (message) =>
+        message.role === "system" &&
+        typeof message.content === "string" &&
+        message.content.includes("Memory"),
     );
 
     expect(memoryMessage?.content).toContain("user one memory");
@@ -731,7 +740,7 @@ describe("chat usecases", () => {
           recentMessages: 5,
         },
         idempotencyKey: "req-inflight",
-      })
+      }),
     ).rejects.toMatchObject({
       name: "IdempotencyConflictError",
     });
@@ -819,8 +828,8 @@ describe("chat usecases", () => {
             memoryTopK: 2,
             recentMessages: 5,
           },
-        })
-      )
+        }),
+      ),
     );
 
     expect(new Set(results.map((item) => item.sessionId)).size).toBe(20);

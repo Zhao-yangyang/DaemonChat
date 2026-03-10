@@ -39,7 +39,7 @@ describe("anonymous chat route", () => {
           messages: [],
           userInput: "hi",
         },
-      })
+      }),
     );
     expect(res.status).toBe(403);
   });
@@ -49,7 +49,7 @@ describe("anonymous chat route", () => {
     const res = await POST(
       createRequest({
         body: { agentId: "x" },
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });
@@ -59,7 +59,7 @@ describe("anonymous chat route", () => {
     const res = await POST(
       createRequest({
         body: "not json",
-      })
+      }),
     );
     expect(res.status).toBe(400);
   });
@@ -73,7 +73,7 @@ describe("anonymous chat route", () => {
           messages: [],
           userInput: "hello",
         },
-      })
+      }),
     );
     expect(res.status).toBe(404);
   });
@@ -93,7 +93,7 @@ describe("anonymous chat route", () => {
           ],
           userInput: "e",
         },
-      })
+      }),
     );
     expect(res.status).toBe(429);
     const json = await res.json();
@@ -112,7 +112,7 @@ describe("anonymous chat route", () => {
           messages: [],
           userInput: "hi",
         },
-      })
+      }),
     );
     expect(res.status).toBe(500);
   });

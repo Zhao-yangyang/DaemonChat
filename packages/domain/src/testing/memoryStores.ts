@@ -189,9 +189,7 @@ export function createInMemoryStores(): {
     },
 
     async renameSession({ agentId, sessionId, displayName }) {
-      const session = sessions.find(
-        (entry) => entry.id === sessionId && entry.agentId === agentId
-      );
+      const session = sessions.find((entry) => entry.id === sessionId && entry.agentId === agentId);
       if (session) {
         session.displayName = displayName;
       }
@@ -199,7 +197,7 @@ export function createInMemoryStores(): {
 
     async deleteSession({ agentId, sessionId }) {
       const index = sessions.findIndex(
-        (session) => session.id === sessionId && session.agentId === agentId
+        (session) => session.id === sessionId && session.agentId === agentId,
       );
       if (index < 0) return;
       const [removed] = sessions.splice(index, 1);
@@ -268,10 +266,7 @@ export function createInMemoryStores(): {
       limit,
     }) {
       const forkEvent = transcripts.find(
-        (e) =>
-          e.id === forkUpToEventId &&
-          e.agentId === agentId &&
-          e.sessionId === parentSessionId
+        (e) => e.id === forkUpToEventId && e.agentId === agentId && e.sessionId === parentSessionId,
       );
       if (!forkEvent) {
         return this.listRecentEvents({ agentId, sessionId, limit });
@@ -282,7 +277,7 @@ export function createInMemoryStores(): {
           (e) =>
             e.agentId === agentId &&
             e.sessionId === parentSessionId &&
-            toMillis(e.createdAt) <= forkAt
+            toMillis(e.createdAt) <= forkAt,
         )
         .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
       const childEvents = transcripts
@@ -299,7 +294,7 @@ export function createInMemoryStores(): {
           (event) =>
             event.agentId === agentId &&
             event.sessionId === sessionId &&
-            event.type === "compaction"
+            event.type === "compaction",
         )
         .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
       return matches[0] ?? null;
@@ -311,7 +306,7 @@ export function createInMemoryStores(): {
           (event) =>
             event.agentId === agentId &&
             event.sessionId === sessionId &&
-            event.requestId === requestId
+            event.requestId === requestId,
         )
         .sort((a, b) => toMillis(a.createdAt) - toMillis(b.createdAt));
     },
@@ -380,7 +375,16 @@ export function createInMemoryStores(): {
       return scored.slice(0, topK).map((entry) => entry.item);
     },
 
-    async updateMemoryItem({ agentId, id, content, tags, sensitivity, contextEligible, embedding, now }) {
+    async updateMemoryItem({
+      agentId,
+      id,
+      content,
+      tags,
+      sensitivity,
+      contextEligible,
+      embedding,
+      now,
+    }) {
       const item = memoryItems.find((entry) => entry.id === id && entry.agentId === agentId);
       if (!item) {
         throw new Error("Memory not found");
@@ -426,7 +430,7 @@ export function createInMemoryStores(): {
           (event) =>
             event.agentId === agentId &&
             toMillis(event.createdAt) >= fromMillis &&
-            toMillis(event.createdAt) <= toMillisValue
+            toMillis(event.createdAt) <= toMillisValue,
         )
         .reduce<UsageSummary>(
           (acc, event) => {
@@ -435,7 +439,7 @@ export function createInMemoryStores(): {
             acc.costEstimate += event.costEstimate ?? 0;
             return acc;
           },
-          { tokensIn: 0, tokensOut: 0, costEstimate: 0 }
+          { tokensIn: 0, tokensOut: 0, costEstimate: 0 },
         );
       return summary;
     },

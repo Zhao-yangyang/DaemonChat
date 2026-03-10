@@ -2,7 +2,11 @@ import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import type { Session } from "../types";
 import type { AgentStore, Clock, SessionStore } from "../container/types";
 
-export function createSessionService(ports: { sessions: SessionStore; agents?: AgentStore; clock: Clock }) {
+export function createSessionService(ports: {
+  sessions: SessionStore;
+  agents?: AgentStore;
+  clock: Clock;
+}) {
   return {
     async resolveSession(agentId: string, sessionKey: string): Promise<Session> {
       const trimmed = sessionKey.trim();
@@ -32,7 +36,11 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       return { ...session, lastActiveAt: now };
     },
 
-    async listRecentSessions(agentId: string, limit = 20, includeArchived?: boolean): Promise<Session[]> {
+    async listRecentSessions(
+      agentId: string,
+      limit = 20,
+      includeArchived?: boolean,
+    ): Promise<Session[]> {
       const normalizedLimit = Number.isFinite(limit) ? Math.floor(limit) : 20;
       if (normalizedLimit <= 0) {
         throw new ValidationError("Limit must be greater than 0");
@@ -66,7 +74,7 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       agentId: string,
       sessionId: string,
       displayName: string,
-      ownerUserId: string
+      ownerUserId: string,
     ): Promise<void> {
       if (!ports.agents) {
         throw new ValidationError("Session rename requires agent store");
@@ -133,7 +141,7 @@ export function createSessionService(ports: { sessions: SessionStore; agents?: A
       agentId: string,
       parentSessionId: string,
       forkFromEventId: string,
-      ownerUserId: string
+      ownerUserId: string,
     ): Promise<Session> {
       if (!ports.agents) {
         throw new ValidationError("Session fork requires agent store");

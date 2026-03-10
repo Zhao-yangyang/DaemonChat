@@ -11,12 +11,15 @@ export interface RunOnceDeps {
   client: {
     rpc: (
       fn: string,
-      args: Record<string, unknown>
+      args: Record<string, unknown>,
     ) => PromiseLike<{ data: unknown; error: unknown | null }>;
     from: (table: string) => {
       update: (values: Record<string, unknown>) => {
         eq: (col: string, val: string) => PromiseLike<{ error: unknown | null }>;
-        lt: (col: string, val: string) => PromiseLike<{ data: unknown; error: unknown | null; count: number | null }>;
+        lt: (
+          col: string,
+          val: string,
+        ) => PromiseLike<{ data: unknown; error: unknown | null; count: number | null }>;
       };
       insert: (row: Record<string, unknown>) => PromiseLike<{ error: unknown | null }>;
     };
@@ -30,7 +33,7 @@ export interface RunOnceDeps {
       extractMemoryFromSession: (
         agentId: string,
         sessionId: string,
-        scope: { scopeType: "user" | "team" | "org"; scopeId: string }
+        scope: { scopeType: "user" | "team" | "org"; scopeId: string },
       ) => Promise<unknown[]>;
     };
     createCompactionService: (deps: any) => {
@@ -40,7 +43,7 @@ export interface RunOnceDeps {
         params: {
           shouldCompact: boolean;
           messages: Array<{ role: "user" | "assistant"; content: string }>;
-        }
+        },
       ) => Promise<unknown>;
     };
   };
@@ -72,7 +75,7 @@ const SAFETY_MARGIN_MS = 5000;
 
 export async function runOnce(
   deps: RunOnceDeps,
-  opts: RunOnceOptions = {}
+  opts: RunOnceOptions = {},
 ): Promise<RunOnceSummary> {
   const claimBatchSize = opts.claimBatchSize ?? 5;
   const maxJobsPerRun = opts.maxJobsPerRun ?? 20;
@@ -133,10 +136,7 @@ export async function runOnce(
   return summary;
 }
 
-async function recoverStaleJobs(
-  deps: RunOnceDeps,
-  requestId: string
-): Promise<number> {
+async function recoverStaleJobs(deps: RunOnceDeps, requestId: string): Promise<number> {
   try {
     const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const result = await (deps.client as any)
@@ -166,7 +166,7 @@ async function processJob(
   deps: RunOnceDeps,
   job: JobRecord,
   requestId: string,
-  retryOpts: { maxAttempts: number; retryBaseDelayMs: number; retryMaxDelayMs: number }
+  retryOpts: { maxAttempts: number; retryBaseDelayMs: number; retryMaxDelayMs: number },
 ): Promise<JobProcessResult> {
   const nowIso = new Date().toISOString();
   const startedAt = Date.now();
@@ -265,8 +265,11 @@ async function processJob(
 
       if (items && items.length > 0) {
         for (const item of items) {
-           const vector = await llm.embed(String(item.content));
-           await (deps.client as any).from("memory_items").update({ embedding: vector }).eq("id", item.id);
+          const vector = await llm.embed(String(item.content));
+          await (deps.client as any)
+            .from("memory_items")
+            .update({ embedding: vector })
+            .eq("id", item.id);
         }
       }
 
@@ -277,7 +280,6 @@ async function processJob(
         agent_id: agentId,
         count: items ? items.length : 0,
       });
-
     } else if (job.type === "MEMORY_FLUSH") {
       const sessionId = typeof payload.sessionId === "string" ? payload.sessionId : "";
       const scopeType =
@@ -291,16 +293,15 @@ async function processJob(
       }
 
       const memoryExtraction = deps.factories.createMemoryExtractionService({
-         memories: deps.memoryStore,
-         llm,
-         clock,
+        memories: deps.memoryStore,
+        llm,
+        clock,
       });
 
-      const extracted = await memoryExtraction.extractMemoryFromSession(
-        agentId,
-        sessionId,
-        { scopeType, scopeId }
-      );
+      const extracted = await memoryExtraction.extractMemoryFromSession(agentId, sessionId, {
+        scopeType,
+        scopeId,
+      });
       deps.logger.info("worker.job.memory_flushed", {
         request_id: requestId,
         route: "worker.processJob",

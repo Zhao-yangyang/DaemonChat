@@ -49,8 +49,7 @@ const isTranscriptTypeFilter = (value: string): value is TranscriptTypeFilter =>
   value === "memory_flush" ||
   value === "system";
 
-const isUsagePeriod = (value: string): value is UsagePeriod =>
-  value === "day" || value === "month";
+const isUsagePeriod = (value: string): value is UsagePeriod => value === "day" || value === "month";
 
 const parsePositiveInt = (value: string | null, fallback: number): number => {
   if (!value) return fallback;
@@ -59,9 +58,7 @@ const parsePositiveInt = (value: string | null, fallback: number): number => {
   return parsed;
 };
 
-export function parseMemoryQueryState(
-  params: Pick<URLSearchParams, "get">
-): MemoryQueryState {
+export function parseMemoryQueryState(params: Pick<URLSearchParams, "get">): MemoryQueryState {
   const sensitivityRaw = params.get("sensitivity") ?? "all";
   const eligibilityRaw = params.get("eligibility") ?? "all";
 
@@ -85,7 +82,7 @@ export function toMemorySearchParams(state: MemoryQueryState): URLSearchParams {
 }
 
 export function parseTranscriptQueryState(
-  params: Pick<URLSearchParams, "get">
+  params: Pick<URLSearchParams, "get">,
 ): TranscriptQueryState {
   const typeRaw = params.get("type") ?? "all";
   return {
@@ -98,9 +95,7 @@ export function parseTranscriptQueryState(
   };
 }
 
-export function toTranscriptSearchParams(
-  state: TranscriptQueryState
-): URLSearchParams {
+export function toTranscriptSearchParams(state: TranscriptQueryState): URLSearchParams {
   const params = new URLSearchParams();
   if (state.agentId) params.set("agent", state.agentId);
   if (state.sessionId) params.set("session", state.sessionId);
@@ -111,9 +106,7 @@ export function toTranscriptSearchParams(
   return params;
 }
 
-export function parseUsageQueryState(
-  params: Pick<URLSearchParams, "get">
-): UsageQueryState {
+export function parseUsageQueryState(params: Pick<URLSearchParams, "get">): UsageQueryState {
   const periodRaw = params.get("period") ?? "day";
   return {
     agentId: params.get("agent") ?? "",

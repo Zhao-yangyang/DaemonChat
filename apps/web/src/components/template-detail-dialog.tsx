@@ -42,7 +42,8 @@ function configPreview(config: Record<string, unknown>): {
   const lp = config?.llmProvider as Record<string, unknown> | undefined;
   const model = lp && typeof lp.model === "string" ? lp.model : undefined;
   const memoryTopK = typeof config?.memoryTopK === "number" ? config.memoryTopK : undefined;
-  const recentMessages = typeof config?.recentMessages === "number" ? config.recentMessages : undefined;
+  const recentMessages =
+    typeof config?.recentMessages === "number" ? config.recentMessages : undefined;
   return { model, memoryTopK, recentMessages };
 }
 
@@ -55,9 +56,13 @@ export function TemplateDetailDialog({
   const utils = trpc.useUtils();
   const [optimisticRating, setOptimisticRating] = useState<number | null>(null);
 
-  const { data: template, isLoading, error } = trpc.template.get.useQuery(
+  const {
+    data: template,
+    isLoading,
+    error,
+  } = trpc.template.get.useQuery(
     { templateId: templateId ?? "" },
-    { enabled: open && Boolean(templateId) }
+    { enabled: open && Boolean(templateId) },
   );
 
   useEffect(() => {
@@ -70,22 +75,29 @@ export function TemplateDetailDialog({
     onSuccess: (_, variables) => {
       utils.template.get.setData(
         { templateId: variables.templateId },
-        (prev: { myRating?: number | null; avgRating?: number | null; ratingCount?: number } | undefined) => {
+        (
+          prev:
+            | { myRating?: number | null; avgRating?: number | null; ratingCount?: number }
+            | undefined,
+        ) => {
           if (!prev) return prev;
           const count = prev.ratingCount ?? 0;
           const oldSum = (prev.avgRating ?? 0) * count;
           const prevRating = prev.myRating ?? 0;
           const hadPrevious = prev.myRating != null;
           const newCount = hadPrevious ? count : count + 1;
-          const newSum = hadPrevious ? oldSum - prevRating + variables.rating : oldSum + variables.rating;
-          const newAvg = newCount > 0 ? Math.round((newSum / newCount) * 10) / 10 : variables.rating;
+          const newSum = hadPrevious
+            ? oldSum - prevRating + variables.rating
+            : oldSum + variables.rating;
+          const newAvg =
+            newCount > 0 ? Math.round((newSum / newCount) * 10) / 10 : variables.rating;
           return {
             ...prev,
             myRating: variables.rating,
             avgRating: newAvg,
             ratingCount: newCount,
           };
-        }
+        },
       );
       utils.template.list.invalidate();
     },
@@ -98,7 +110,10 @@ export function TemplateDetailDialog({
   };
 
   const displayedRating =
-    optimisticRating ?? (rateMutation.isPending && rateMutation.variables ? rateMutation.variables.rating : null) ?? template?.myRating ?? null;
+    optimisticRating ??
+    (rateMutation.isPending && rateMutation.variables ? rateMutation.variables.rating : null) ??
+    template?.myRating ??
+    null;
 
   const handleClone = () => {
     if (!template || !onCloneClick) return;
@@ -118,18 +133,20 @@ export function TemplateDetailDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isLoading ? "模板详情" : error ? "加载失败" : template?.name ?? "模板详情"}
+            {isLoading ? "模板详情" : error ? "加载失败" : (template?.name ?? "模板详情")}
           </DialogTitle>
           <DialogDescription>
-            {isLoading ? "加载中..." : error ? (error.message || "加载失败") : template?.description ?? "模板配置预览与评分"}
+            {isLoading
+              ? "加载中..."
+              : error
+                ? error.message || "加载失败"
+                : (template?.description ?? "模板配置预览与评分")}
           </DialogDescription>
         </DialogHeader>
         {isLoading ? (
           <div className="py-8 text-center text-muted-foreground">加载中...</div>
         ) : error ? (
-          <div className="py-8 text-center text-destructive">
-            {error.message || "加载失败"}
-          </div>
+          <div className="py-8 text-center text-destructive">{error.message || "加载失败"}</div>
         ) : template ? (
           <>
             <div className="flex flex-wrap items-center gap-2 -mt-2">
@@ -152,9 +169,7 @@ export function TemplateDetailDialog({
               ) : null}
 
               <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                <span>
-                  克隆 {template.clone_count} 次
-                </span>
+                <span>克隆 {template.clone_count} 次</span>
                 <span>
                   {template.avgRating != null
                     ? `平均 ${Number(template.avgRating).toFixed(1)} 分`
@@ -176,7 +191,7 @@ export function TemplateDetailDialog({
                   <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {(() => {
                       const { model, memoryTopK, recentMessages } = configPreview(
-                        template.config ?? {}
+                        template.config ?? {},
                       );
                       return (
                         <>
@@ -214,9 +229,7 @@ export function TemplateDetailDialog({
                     </button>
                   ))}
                   <span className="ml-2 text-sm text-muted-foreground">
-                    {displayedRating != null
-                      ? `你已评 ${displayedRating} 星`
-                      : "点击评分"}
+                    {displayedRating != null ? `你已评 ${displayedRating} 星` : "点击评分"}
                   </span>
                 </div>
               </div>
@@ -226,9 +239,7 @@ export function TemplateDetailDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 关闭
               </Button>
-              {onCloneClick ? (
-                <Button onClick={handleClone}>克隆使用</Button>
-              ) : null}
+              {onCloneClick ? <Button onClick={handleClone}>克隆使用</Button> : null}
             </DialogFooter>
           </>
         ) : null}

@@ -5,7 +5,12 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createXai } from "@ai-sdk/xai";
 import { createMistral } from "@ai-sdk/mistral";
 import { streamText, generateText, embed } from "ai";
-import type { ChatMessageContent, LlmModelSelection, LlmPort, LlmProviderConfig } from "@daemon/domain";
+import type {
+  ChatMessageContent,
+  LlmModelSelection,
+  LlmPort,
+  LlmProviderConfig,
+} from "@daemon/domain";
 
 export interface VercelLlmConfig {
   model: string;
@@ -27,22 +32,13 @@ interface VercelLlmRuntimeDeps {
   embedImpl?: (input: any) => Promise<any>;
 }
 
-const normalizeText = (text: string): string =>
-  text
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+const normalizeText = (text: string): string => text.trim().toLowerCase().replace(/\s+/g, " ");
 
 const fnv1a = (input: string): number => {
   let hash = 2166136261;
   for (let i = 0; i < input.length; i += 1) {
     hash ^= input.charCodeAt(i);
-    hash +=
-      (hash << 1) +
-      (hash << 4) +
-      (hash << 7) +
-      (hash << 8) +
-      (hash << 24);
+    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
   }
   return hash >>> 0;
 };
@@ -69,10 +65,7 @@ const readStreamResultText = async (result: any): Promise<string> => {
   return "";
 };
 
-export const createDeterministicLocalEmbedding = (
-  text: string,
-  dimensions = 1536
-): number[] => {
+export const createDeterministicLocalEmbedding = (text: string, dimensions = 1536): number[] => {
   const dim = toPositiveInt(dimensions, 1536);
   const vector = new Array<number>(dim).fill(0);
   const normalized = normalizeText(text);
@@ -105,7 +98,7 @@ const toSdkContent = (content: ChatMessageContent): any => {
 };
 
 const toSdkMessages = (
-  messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>
+  messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>,
 ): any[] => messages.map((m) => ({ role: m.role, content: toSdkContent(m.content) }));
 
 function createProviderFromConfig(config: VercelLlmConfig) {
@@ -144,7 +137,7 @@ function createChatModel(provider: any, modelId: string, sdkProvider?: string): 
 
 export function createVercelLlmAdapter(
   config: VercelLlmConfig,
-  deps: VercelLlmRuntimeDeps = {}
+  deps: VercelLlmRuntimeDeps = {},
 ): LlmPort {
   const streamTextImpl = deps.streamTextImpl ?? streamText;
   const generateTextImpl = deps.generateTextImpl ?? generateText;
@@ -297,7 +290,12 @@ export function createVercelLlmAdapter(
  */
 export function createLlmFromAgentConfig(
   provider: LlmProviderConfig | undefined,
-  opts?: { embeddingMode?: "remote" | "local"; allowLocalEmbeddingFallback?: boolean; embeddingDimensions?: number; temperature?: number }
+  opts?: {
+    embeddingMode?: "remote" | "local";
+    allowLocalEmbeddingFallback?: boolean;
+    embeddingDimensions?: number;
+    temperature?: number;
+  },
 ): LlmPort {
   if (!provider || !provider.apiKey || !provider.baseURL || !provider.model) {
     throw new Error("Agent 未配置 LLM Provider，请在 Agent 设置中配置 API Key、Base URL 和模型");

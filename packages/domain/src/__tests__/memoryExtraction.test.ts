@@ -75,4 +75,3 @@ describe("memory extraction usecase", () => {
     expect(created).toHaveLength(0);
   });
 });
-

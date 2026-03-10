@@ -43,9 +43,7 @@ export function ModelCombobox({
     : value || placeholder;
 
   const trimmedSearch = search.trim();
-  const exactMatch = models.some(
-    (m) => m.id.toLowerCase() === trimmedSearch.toLowerCase()
-  );
+  const exactMatch = models.some((m) => m.id.toLowerCase() === trimmedSearch.toLowerCase());
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -63,9 +61,7 @@ export function ModelCombobox({
                 加载模型列表...
               </span>
             ) : (
-              <span className={!value ? "text-muted-foreground" : ""}>
-                {displayLabel}
-              </span>
+              <span className={!value ? "text-muted-foreground" : ""}>{displayLabel}</span>
             )}
           </span>
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
@@ -73,11 +69,7 @@ export function ModelCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={placeholder}
-            value={search}
-            onValueChange={setSearch}
-          />
+          <CommandInput placeholder={placeholder} value={search} onValueChange={setSearch} />
           <CommandList>
             {!loading && models.length === 0 && !trimmedSearch && (
               <CommandEmpty>暂无可用模型</CommandEmpty>
@@ -88,10 +80,7 @@ export function ModelCombobox({
                   .filter((m) => {
                     if (!trimmedSearch) return true;
                     const q = trimmedSearch.toLowerCase();
-                    return (
-                      m.id.toLowerCase().includes(q) ||
-                      m.name.toLowerCase().includes(q)
-                    );
+                    return m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q);
                   })
                   .map((m) => (
                     <CommandItem
@@ -107,7 +96,7 @@ export function ModelCombobox({
                       <Check
                         className={cn(
                           "size-4 shrink-0",
-                          value === m.id ? "opacity-100" : "opacity-0"
+                          value === m.id ? "opacity-100" : "opacity-0",
                         )}
                       />
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-md">
@@ -141,7 +130,7 @@ export function ModelCombobox({
                   <Check
                     className={cn(
                       "size-4 shrink-0",
-                      value === trimmedSearch ? "opacity-100" : "opacity-0"
+                      value === trimmedSearch ? "opacity-100" : "opacity-0",
                     )}
                   />
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-md">

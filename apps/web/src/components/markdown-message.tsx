@@ -19,10 +19,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
         components={{
           pre({ children, ...props }) {
             return (
-              <pre
-                className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs"
-                {...props}
-              >
+              <pre className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs" {...props}>
                 {children}
               </pre>
             );
@@ -31,10 +28,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
             const isInline = !codeClassName;
             if (isInline) {
               return (
-                <code
-                  className="rounded bg-secondary px-1 py-0.5 text-xs"
-                  {...props}
-                >
+                <code className="rounded bg-secondary px-1 py-0.5 text-xs" {...props}>
                   {children}
                 </code>
               );

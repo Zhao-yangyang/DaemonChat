@@ -12,7 +12,7 @@ export function createTranscriptService(ports: { transcripts: TranscriptStore })
         tokensIn: number | null;
         tokensOut: number | null;
         createdAt: string;
-      }
+      },
     ): Promise<TranscriptEvent> {
       return ports.transcripts.appendEvent({
         agentId,
@@ -28,14 +28,14 @@ export function createTranscriptService(ports: { transcripts: TranscriptStore })
     async loadRecentContext(
       agentId: string,
       sessionId: string,
-      limit: number
+      limit: number,
     ): Promise<TranscriptEvent[]> {
       return ports.transcripts.listRecentEvents({ agentId, sessionId, limit });
     },
 
     async loadLatestCompaction(
       agentId: string,
-      sessionId: string
+      sessionId: string,
     ): Promise<TranscriptEvent | null> {
       return ports.transcripts.getLatestCompaction({ agentId, sessionId });
     },

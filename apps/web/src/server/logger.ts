@@ -65,7 +65,7 @@ const sendAlert = async (level: LogLevel, event: string, fields: LogFields) => {
       await fetchWithTimeout(
         alertWebhookUrl,
         { method: "POST", headers: { "Content-Type": "application/json" }, body },
-        ALERT_TIMEOUT_MS
+        ALERT_TIMEOUT_MS,
       );
       return;
     } catch (error) {
@@ -80,7 +80,7 @@ const sendAlert = async (level: LogLevel, event: string, fields: LogFields) => {
             alert_event: event,
             attempt: attempt + 1,
             error_message: message,
-          })
+          }),
         );
       }
     }

@@ -13,10 +13,7 @@ export type WorkspaceAction =
   | "delete_workspace";
 
 /** 权限矩阵：action -> 允许的 role；ownOnly 时 member 仅能操作自己的资源 */
-const CAN_DO: Record<
-  WorkspaceAction,
-  { roles: WorkspaceRole[]; ownOnly?: boolean }
-> = {
+const CAN_DO: Record<WorkspaceAction, { roles: WorkspaceRole[]; ownOnly?: boolean }> = {
   create_agent: { roles: ["owner", "admin", "member"] },
   edit_agent: { roles: ["owner", "admin", "member"], ownOnly: true },
   delete_agent: { roles: ["owner", "admin", "member"], ownOnly: true },
@@ -33,7 +30,7 @@ export function createWorkspaceService(ports: { workspace: WorkspaceStore }) {
       workspaceId: string,
       userId: string,
       action: WorkspaceAction,
-      opts?: { agentOwnerUserId?: string }
+      opts?: { agentOwnerUserId?: string },
     ): Promise<boolean> {
       const role = await ports.workspace.getMemberRole(workspaceId, userId);
       if (!role) return false;
@@ -52,17 +49,12 @@ export function createWorkspaceService(ports: { workspace: WorkspaceStore }) {
       workspaceId: string,
       userId: string,
       action: WorkspaceAction,
-      opts?: { agentOwnerUserId?: string }
+      opts?: { agentOwnerUserId?: string },
     ): Promise<void> {
-      const allowed = await this.checkPermission(
-        workspaceId,
-        userId,
-        action,
-        opts
-      );
+      const allowed = await this.checkPermission(workspaceId, userId, action, opts);
       if (!allowed) {
         throw new ForbiddenError(
-          `Workspace permission denied: ${action} requires higher role or ownership`
+          `Workspace permission denied: ${action} requires higher role or ownership`,
         );
       }
     },

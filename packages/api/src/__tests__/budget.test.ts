@@ -39,19 +39,19 @@ describe("budget helpers", () => {
     expect(
       resolveChatMaxInputTokens({
         CHAT_MAX_INPUT_TOKENS: "8192",
-      })
+      }),
     ).toBe(8192);
 
     expect(
       resolveChatMaxInputTokens({
         CHAT_MAX_INPUT_TOKENS: "0",
-      })
+      }),
     ).toBeUndefined();
 
     expect(
       resolveChatMaxInputTokens({
         CHAT_MAX_INPUT_TOKENS: "abc",
-      })
+      }),
     ).toBeUndefined();
   });
 
@@ -88,7 +88,7 @@ describe("budget helpers", () => {
         usage: { tokensIn: 400, tokensOut: 300 },
         incomingUserTokens: 100,
         reserveOutputTokens: 150,
-      })
+      }),
     ).toBe(false);
 
     expect(
@@ -97,7 +97,7 @@ describe("budget helpers", () => {
         usage: { tokensIn: 400, tokensOut: 300 },
         incomingUserTokens: 100,
         reserveOutputTokens: 250,
-      })
+      }),
     ).toBe(true);
   });
 
@@ -106,14 +106,14 @@ describe("budget helpers", () => {
       wouldExceedChatMaxInputTokens({
         incomingUserTokens: 512,
         maxInputTokens: 1024,
-      })
+      }),
     ).toBe(false);
 
     expect(
       wouldExceedChatMaxInputTokens({
         incomingUserTokens: 2048,
         maxInputTokens: 1024,
-      })
+      }),
     ).toBe(true);
   });
 
@@ -129,7 +129,7 @@ describe("budget helpers", () => {
         reserveOutputTokens: 2048,
         memoryTopK: 10,
         recentMessages: 30,
-      }
+      },
     );
 
     expect(policy).toEqual({
@@ -152,7 +152,7 @@ describe("budget helpers", () => {
         reserveOutputTokens: 2048,
         memoryTopK: 12,
         recentMessages: 50,
-      }
+      },
     );
 
     expect(policy).toEqual({

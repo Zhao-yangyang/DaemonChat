@@ -19,7 +19,7 @@ const parseAlertMinLevel = (value: string | undefined): LogLevel => {
 
 const alertWebhookUrl = process.env.WORKER_ALERT_WEBHOOK_URL ?? process.env.ALERT_WEBHOOK_URL ?? "";
 const alertMinLevel = parseAlertMinLevel(
-  process.env.WORKER_ALERT_MIN_LEVEL ?? process.env.ALERT_MIN_LEVEL
+  process.env.WORKER_ALERT_MIN_LEVEL ?? process.env.ALERT_MIN_LEVEL,
 );
 const ALERT_TIMEOUT_MS = 5000;
 const ALERT_MAX_RETRIES = 1;
@@ -67,7 +67,7 @@ const sendAlert = async (level: LogLevel, event: string, fields: LogFields) => {
       await fetchWithTimeout(
         alertWebhookUrl,
         { method: "POST", headers: { "Content-Type": "application/json" }, body },
-        ALERT_TIMEOUT_MS
+        ALERT_TIMEOUT_MS,
       );
       return;
     } catch (error) {
@@ -82,7 +82,7 @@ const sendAlert = async (level: LogLevel, event: string, fields: LogFields) => {
             alert_event: event,
             attempt: attempt + 1,
             error_message: message,
-          })
+          }),
         );
       }
     }

@@ -43,8 +43,13 @@ interface LlmProviderSectionProps {
   apiKeyPlaceholder?: string;
 }
 
-export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmProviderSectionProps) {
-  const [dynamicProviders, setDynamicProviders] = useState<LlmProviderPreset[]>(LLM_PROVIDER_PRESETS);
+export function LlmProviderSection({
+  value,
+  onChange,
+  apiKeyPlaceholder,
+}: LlmProviderSectionProps) {
+  const [dynamicProviders, setDynamicProviders] =
+    useState<LlmProviderPreset[]>(LLM_PROVIDER_PRESETS);
   const [dynamicModels, setDynamicModels] = useState<Array<{ id: string; name: string }>>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
@@ -124,9 +129,10 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
     }
   };
 
-  const selectedPreset = value.presetId && value.presetId !== CUSTOM_PROVIDER_ID
-    ? dynamicProviders.find((p) => p.id === value.presetId)
-    : null;
+  const selectedPreset =
+    value.presetId && value.presetId !== CUSTOM_PROVIDER_ID
+      ? dynamicProviders.find((p) => p.id === value.presetId)
+      : null;
 
   const apiKeyHelpUrl = findProviderPreset(value.presetId)?.apiKeyHelpUrl;
   const resolvedApiKeyPlaceholder =
@@ -135,7 +141,9 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
   return (
     <div className="grid gap-1.5 rounded-md border p-4 bg-muted/20">
       <Label className="text-base font-semibold">LLM Provider</Label>
-      <p className="text-xs text-muted-foreground mb-2">选择大模型提供商，填入 API Key 即可使用。</p>
+      <p className="text-xs text-muted-foreground mb-2">
+        选择大模型提供商，填入 API Key 即可使用。
+      </p>
       <div className="grid gap-3">
         {/* Provider selector */}
         <div className="grid gap-1.5">
@@ -177,7 +185,9 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
         {value.presetId === CUSTOM_PROVIDER_ID && (
           <>
             <div className="grid gap-1.5">
-              <Label htmlFor="llm-baseurl" className="text-xs">Base URL</Label>
+              <Label htmlFor="llm-baseurl" className="text-xs">
+                Base URL
+              </Label>
               <Input
                 id="llm-baseurl"
                 value={value.baseURL}
@@ -186,7 +196,9 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="llm-model" className="text-xs">Model Name</Label>
+              <Label htmlFor="llm-model" className="text-xs">
+                Model Name
+              </Label>
               <Input
                 id="llm-model"
                 value={value.model}
@@ -200,7 +212,9 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
         {/* API Key (shown when any provider is selected) */}
         {value.presetId && (
           <div className="grid gap-1.5">
-            <Label htmlFor="llm-apikey" className="text-xs">API Key</Label>
+            <Label htmlFor="llm-apikey" className="text-xs">
+              API Key
+            </Label>
             <Input
               id="llm-apikey"
               type="password"
@@ -209,7 +223,12 @@ export function LlmProviderSection({ value, onChange, apiKeyPlaceholder }: LlmPr
               placeholder={resolvedApiKeyPlaceholder}
             />
             {apiKeyHelpUrl && (
-              <a href={apiKeyHelpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary underline">
+              <a
+                href={apiKeyHelpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary underline"
+              >
                 获取 API Key
               </a>
             )}

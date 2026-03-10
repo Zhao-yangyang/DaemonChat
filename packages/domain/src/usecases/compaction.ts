@@ -13,7 +13,7 @@ export function createCompactionService(ports: {
       input: {
         shouldCompact: boolean;
         messages: ContextMessage[];
-      }
+      },
     ): Promise<TranscriptEvent | null> {
       if (!input.shouldCompact) {
         return null;

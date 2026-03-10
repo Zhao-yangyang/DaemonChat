@@ -7,8 +7,7 @@ import type {
   TranscriptEvent,
 } from "../types";
 
-const defaultCountTokens = (input: { text: string }): number =>
-  Math.ceil(input.text.length / 4);
+const defaultCountTokens = (input: { text: string }): number => Math.ceil(input.text.length / 4);
 
 const contentFromEvent = (event: TranscriptEvent): string => {
   if (typeof event.content === "string") {
@@ -115,7 +114,7 @@ const IMAGE_TOKEN_ESTIMATE = 765;
 const estimateTokens = (
   messages: ContextMessage[],
   model: string | undefined,
-  countTokens: (input: { text: string; model?: string }) => number
+  countTokens: (input: { text: string; model?: string }) => number,
 ): number =>
   messages.reduce((sum, message) => {
     const textTokens = countTokens({ text: contentToText(message.content), model });
@@ -139,9 +138,7 @@ export function buildContextPack(input: {
 }): ContextPack {
   const countTokens = input.countTokens ?? defaultCountTokens;
   const maxContextTokens =
-    input.budget.modelWindow -
-    input.budget.reserveOutputTokens -
-    input.budget.reserveToolTokens;
+    input.budget.modelWindow - input.budget.reserveOutputTokens - input.budget.reserveToolTokens;
 
   let memoryTopK = input.memoryItems.slice(0, input.budget.memoryTopK);
   let recentMessages = input.recentMessages.slice(-input.budget.recentMessages);

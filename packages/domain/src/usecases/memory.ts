@@ -2,11 +2,7 @@ import { ValidationError } from "../errors";
 import type { MemoryItem } from "../types";
 import type { Clock, LlmPort, MemoryStore } from "../container/types";
 
-export function createMemoryService(ports: {
-  memory: MemoryStore;
-  llm: LlmPort;
-  clock: Clock;
-}) {
+export function createMemoryService(ports: { memory: MemoryStore; llm: LlmPort; clock: Clock }) {
   return {
     async writeMemoryItem(
       agentId: string,
@@ -19,7 +15,7 @@ export function createMemoryService(ports: {
         sensitivity: MemoryItem["sensitivity"];
         contextEligible: boolean;
         embedding?: number[];
-      }
+      },
     ): Promise<MemoryItem> {
       const trimmed = input.content.trim();
       if (!trimmed) {
@@ -51,7 +47,7 @@ export function createMemoryService(ports: {
         contextEligible?: boolean;
         scopeType?: MemoryItem["scopeType"];
         scopeId?: string;
-      }
+      },
     ): Promise<MemoryItem[]> {
       const embedding = await ports.llm.embed({ text: query });
       return ports.memory.queryTopK({
@@ -77,7 +73,7 @@ export function createMemoryService(ports: {
         tags?: string[];
         sensitivity?: MemoryItem["sensitivity"];
         contextEligible?: boolean;
-      }
+      },
     ): Promise<MemoryItem> {
       const trimmedMemoryId = memoryId.trim();
       if (!trimmedMemoryId) {

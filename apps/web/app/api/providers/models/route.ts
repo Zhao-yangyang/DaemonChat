@@ -14,12 +14,13 @@ const OPENAI_COMPATIBLE_PROVIDERS = new Set([
   "openrouter",
 ]);
 
-const NON_CHAT_PATTERNS = /^(text-embedding|embedding|tts|whisper|dall-e|davinci|babbage|ada|curie)/i;
+const NON_CHAT_PATTERNS =
+  /^(text-embedding|embedding|tts|whisper|dall-e|davinci|babbage|ada|curie)/i;
 
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutMs = 10000
+  timeoutMs = 10000,
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -31,12 +32,15 @@ async function fetchWithTimeout(
 }
 
 // 无需鉴权的 OpenRouter 兜底接口，获取最新模型数据
-async function fetchFromOpenRouterPublic(sdkProvider: string, providerId?: string): Promise<ModelItem[]> {
+async function fetchFromOpenRouterPublic(
+  sdkProvider: string,
+  providerId?: string,
+): Promise<ModelItem[]> {
   const res = await fetchWithTimeout("https://openrouter.ai/api/v1/models", {});
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   const data: Array<{ id: string; name: string }> = json.data ?? [];
-  
+
   let filterPrefix = "";
   if (providerId && providerId !== "openrouter" && providerId !== "__custom__") {
     filterPrefix = `${providerId}/`;
@@ -56,14 +60,16 @@ async function fetchFromOpenRouterPublic(sdkProvider: string, providerId?: strin
 
   let models = data;
   if (filterPrefix && sdkProvider !== "openrouter") {
-    models = models.filter(m => m.id.startsWith(filterPrefix)).map(m => ({
-      // Only visually replace for well-known native SDK providers,
-      // but if the user uses a dynamic provider through OpenRouter, we shouldn't strip it 
-      // otherwise OpenRouter will reject the model call `llama-3` instead of `meta-llama/llama-3`.
-      // Actually, OpenRouter handles naked models occasionally, but it's safer to keep the ID format intact unless it's a native proxy.
-      id: providerId ? m.id : m.id.replace(filterPrefix, ""),
-      name: m.name
-    }));
+    models = models
+      .filter((m) => m.id.startsWith(filterPrefix))
+      .map((m) => ({
+        // Only visually replace for well-known native SDK providers,
+        // but if the user uses a dynamic provider through OpenRouter, we shouldn't strip it
+        // otherwise OpenRouter will reject the model call `llama-3` instead of `meta-llama/llama-3`.
+        // Actually, OpenRouter handles naked models occasionally, but it's safer to keep the ID format intact unless it's a native proxy.
+        id: providerId ? m.id : m.id.replace(filterPrefix, ""),
+        name: m.name,
+      }));
   } else if (sdkProvider === "openrouter" || providerId === "openrouter") {
     models = data;
   }
@@ -73,10 +79,7 @@ async function fetchFromOpenRouterPublic(sdkProvider: string, providerId?: strin
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-async function fetchOpenAICompatible(
-  baseURL: string,
-  apiKey: string
-): Promise<ModelItem[]> {
+async function fetchOpenAICompatible(baseURL: string, apiKey: string): Promise<ModelItem[]> {
   let normBase = baseURL.replace(/\/+$/, "");
   if (!normBase.endsWith("/v1") && !normBase.includes("openrouter")) {
     if (
@@ -102,15 +105,12 @@ async function fetchOpenAICompatible(
 }
 
 async function fetchAnthropic(apiKey: string): Promise<ModelItem[]> {
-  const res = await fetchWithTimeout(
-    "https://api.anthropic.com/v1/models",
-    {
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-    }
-  );
+  const res = await fetchWithTimeout("https://api.anthropic.com/v1/models", {
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = await res.json();
   const data: Array<{ id: string; display_name?: string }> = json.data ?? [];
@@ -119,10 +119,7 @@ async function fetchAnthropic(apiKey: string): Promise<ModelItem[]> {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-async function fetchGoogle(
-  baseURL: string,
-  apiKey: string
-): Promise<ModelItem[]> {
+async function fetchGoogle(baseURL: string, apiKey: string): Promise<ModelItem[]> {
   const url = `${baseURL.replace(/\/+$/, "")}/models?key=${encodeURIComponent(apiKey)}`;
   const res = await fetchWithTimeout(url, {});
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -133,9 +130,7 @@ async function fetchGoogle(
     supportedGenerationMethods?: string[];
   }> = json.models ?? [];
   return models
-    .filter((m) =>
-      m.supportedGenerationMethods?.includes("generateContent")
-    )
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
     .map((m) => ({
       id: m.name.replace(/^models\//, ""),
       name: m.displayName || m.name.replace(/^models\//, ""),
@@ -159,14 +154,11 @@ export async function POST(req: NextRequest) {
   };
 
   if (!sdkProvider) {
-    return NextResponse.json(
-      { models: [], error: "Missing sdkProvider" },
-      { status: 400 }
-    );
+    return NextResponse.json({ models: [], error: "Missing sdkProvider" }, { status: 400 });
   }
 
   // 1. 无 API Key 获取，走 OpenRouter 公开获取模型列表兜底机制
-  if (!apiKey || (baseURL && baseURL.includes('openrouter'))) {
+  if (!apiKey || (baseURL && baseURL.includes("openrouter"))) {
     try {
       const models = await fetchFromOpenRouterPublic(sdkProvider, providerId);
       return NextResponse.json({ models });
@@ -184,14 +176,11 @@ export async function POST(req: NextRequest) {
     } else if (sdkProvider === "google") {
       models = await fetchGoogle(
         baseURL || "https://generativelanguage.googleapis.com/v1beta",
-        apiKey
+        apiKey,
       );
     } else if (OPENAI_COMPATIBLE_PROVIDERS.has(sdkProvider)) {
       if (!baseURL) {
-        return NextResponse.json(
-          { models: [], error: "Missing baseURL" },
-          { status: 400 }
-        );
+        return NextResponse.json({ models: [], error: "Missing baseURL" }, { status: 400 });
       }
       models = await fetchOpenAICompatible(baseURL, apiKey);
     } else {
@@ -200,7 +189,7 @@ export async function POST(req: NextRequest) {
       } else {
         return NextResponse.json(
           { models: [], error: `Unsupported provider: ${sdkProvider}` },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
@@ -213,7 +202,9 @@ export async function POST(req: NextRequest) {
     try {
       const fallbackModels = await fetchFromOpenRouterPublic(sdkProvider, providerId);
       return NextResponse.json({ models: fallbackModels });
-    } catch {}
+    } catch {
+      /* fallback to error response below */
+    }
 
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ models: [], error: message });

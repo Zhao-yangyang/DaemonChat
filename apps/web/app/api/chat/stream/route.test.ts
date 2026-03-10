@@ -11,7 +11,7 @@ const createPostHandler = (opts: any) => {
     createdContainer = originalCreateContainer ? originalCreateContainer(...args) : null;
     return createdContainer;
   };
-  
+
   return originalCreatePostHandler({
     ...opts,
     createContainer: originalCreateContainer ? wrappedCreateContainer : undefined,
@@ -49,10 +49,12 @@ const ALLOWED_AGENT = {
   },
 };
 
-const createRequest = (input: {
-  body?: unknown;
-  headers?: Record<string, string>;
-} = {}) =>
+const createRequest = (
+  input: {
+    body?: unknown;
+    headers?: Record<string, string>;
+  } = {},
+) =>
   new Request("http://localhost/api/chat/stream", {
     method: "POST",
     headers: {
@@ -74,9 +76,7 @@ const parseSseEvents = async (response: Response): Promise<Array<Record<string, 
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => {
-      const line = block
-        .split("\n")
-        .find((entry) => entry.startsWith("data: "));
+      const line = block.split("\n").find((entry) => entry.startsWith("data: "));
       if (!line) return {};
       return JSON.parse(line.slice(6)) as Record<string, unknown>;
     })
@@ -103,7 +103,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(401);
@@ -145,7 +145,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(403);
@@ -181,7 +181,7 @@ describe("chat stream route", () => {
           userInput: "hello",
           idempotencyKey: "key-1",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(409);
@@ -222,7 +222,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -264,7 +264,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(500);
@@ -308,7 +308,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello world",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(413);
@@ -368,7 +368,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(429);
@@ -409,7 +409,7 @@ describe("chat stream route", () => {
               _agentId: string,
               _sessionKey: string,
               _userInput: string,
-              options: Record<string, unknown>
+              options: Record<string, unknown>,
             ) => {
               capturedOptions = options;
               return {
@@ -438,7 +438,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(200);
@@ -548,7 +548,7 @@ describe("chat stream route", () => {
           sessionKey: "main",
           userInput: "hello",
         },
-      })
+      }),
     );
 
     expect(response.status).toBe(429);

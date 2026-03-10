@@ -12,8 +12,7 @@
     "test:e2e:full": "playwright test",
     "test:e2e:local": "CI= playwright test --project=chromium",
     "loadtest:chat": "bun src/scripts/chatLoadtest.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint not configured\""
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@daemon/adapters-llm-vercel": "workspace:*",

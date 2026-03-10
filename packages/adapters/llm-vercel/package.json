@@ -8,8 +8,7 @@
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"lint not configured\""
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.54",

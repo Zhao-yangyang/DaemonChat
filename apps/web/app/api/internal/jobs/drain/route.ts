@@ -4,7 +4,11 @@ import {
   createTranscriptStore,
 } from "@daemon/adapters-supabase";
 import { createVercelLlmAdapter, createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
-import { createMemoryExtractionService, DEFAULT_AGENT_CONFIG, createCompactionService } from "@daemon/domain";
+import {
+  createMemoryExtractionService,
+  DEFAULT_AGENT_CONFIG,
+  createCompactionService,
+} from "@daemon/domain";
 import { logInfo, logWarn, logError } from "@/src/server/logger";
 
 const env = {
@@ -166,7 +170,7 @@ export async function GET(req: Request) {
         memoryStore,
         transcriptStore,
         job,
-        requestId
+        requestId,
       });
       if (result === "completed") summary.completed++;
       else if (result === "dead") summary.dead++;
@@ -219,8 +223,7 @@ async function processJob(args: {
       throw new Error(`Unsupported job type: ${job.type}`);
     }
 
-    const payload =
-      job.payload && typeof job.payload === "object" ? job.payload : {};
+    const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
 
     const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
     if (!agentId) {
@@ -265,11 +268,10 @@ async function processJob(args: {
         clock,
       });
 
-      const extracted = await memoryExtraction.extractMemoryFromSession(
-        agentId,
-        sessionId,
-        { scopeType, scopeId }
-      );
+      const extracted = await memoryExtraction.extractMemoryFromSession(agentId, sessionId, {
+        scopeType,
+        scopeId,
+      });
       logInfo("cron.job.memory_flushed", {
         request_id: requestId,
         route: "cron.drain",

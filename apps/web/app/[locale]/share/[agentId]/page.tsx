@@ -53,7 +53,7 @@ const ANONYMOUS_CHAT_ENABLED =
   process.env.ANONYMOUS_CHAT_ENABLED === "yes";
 const ANONYMOUS_CHAT_MAX_TURNS = Math.min(
   10,
-  Math.max(1, Number(process.env.ANONYMOUS_CHAT_MAX_TURNS) || 3)
+  Math.max(1, Number(process.env.ANONYMOUS_CHAT_MAX_TURNS) || 3),
 );
 
 export default async function ShareAgentPage({ params }: Props) {
@@ -68,7 +68,9 @@ export default async function ShareAgentPage({ params }: Props) {
 
   const systemPrompt = (agent.config?.systemPrompt as string) ?? "";
   const summary =
-    systemPrompt.length > 200 ? `${systemPrompt.slice(0, 200)}...` : systemPrompt || t("noSystemPrompt");
+    systemPrompt.length > 200
+      ? `${systemPrompt.slice(0, 200)}...`
+      : systemPrompt || t("noSystemPrompt");
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center gap-6 px-4 py-12">
@@ -78,9 +80,7 @@ export default async function ShareAgentPage({ params }: Props) {
           <CardDescription>{t("publicAgentDesc")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {summary ? (
-            <p className="text-sm text-muted-foreground">{summary}</p>
-          ) : null}
+          {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
           {ANONYMOUS_CHAT_ENABLED ? (
             <ShareChatEmbed
               agentId={agent.id}
@@ -101,7 +101,9 @@ export default async function ShareAgentPage({ params }: Props) {
         </CardContent>
       </Card>
       <Button variant="ghost" size="sm" asChild>
-        <Link href="/" data-testid="share-back">{t("backHome")}</Link>
+        <Link href="/" data-testid="share-back">
+          {t("backHome")}
+        </Link>
       </Button>
     </main>
   );
