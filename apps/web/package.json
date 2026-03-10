@@ -25,6 +25,7 @@
     "@daemon/sdk": "workspace:*",
     "@daemon/ui": "workspace:*",
     "@lobehub/icons": "^5.0.1",
+    "@sentry/nextjs": "^10.42.0",
     "@supabase/auth-ui-react": "^0.4.7",
     "@supabase/auth-ui-shared": "^0.1.8",
     "@supabase/supabase-js": "^2.49.1",

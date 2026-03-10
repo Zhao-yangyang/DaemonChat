@@ -13,6 +13,7 @@
     "@daemon/adapters-llm-vercel": "workspace:*",
     "@daemon/adapters-supabase": "workspace:*",
     "@daemon/domain": "workspace:*",
+    "@sentry/bun": "^10.42.0",
     "@supabase/supabase-js": "^2.49.1"
   }
 }

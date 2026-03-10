@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 type LogLevel = "info" | "warn" | "error";
 
 type LogFields = Record<string, unknown>;
@@ -95,14 +97,27 @@ const emit = (level: LogLevel, event: string, fields: LogFields) => {
   };
   const line = JSON.stringify(payload);
   void sendAlert(level, event, fields);
+
   if (level === "error") {
+    Sentry.captureEvent({
+      message: event,
+      level: "error",
+      extra: fields,
+      tags: {
+        source: "web",
+        event,
+        ...(typeof fields.error_code === "string" ? { error_code: fields.error_code } : {}),
+      },
+    });
     console.error(line);
     return;
   }
   if (level === "warn") {
+    Sentry.addBreadcrumb({ category: "logger", message: event, level: "warning", data: fields });
     console.warn(line);
     return;
   }
+  Sentry.addBreadcrumb({ category: "logger", message: event, level: "info", data: fields });
   console.info(line);
 };
 

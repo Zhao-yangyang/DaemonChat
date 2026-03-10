@@ -1,3 +1,5 @@
+import "./instrument";
+import * as Sentry from "@sentry/bun";
 import { createWorkerContainer } from "./container";
 import { runOnce } from "./runOnce";
 import { logError, logInfo, serializeError } from "./logger";
@@ -43,6 +45,7 @@ const options = {
 
 setInterval(() => {
   runOnce(deps, options).catch((err) => {
+    Sentry.captureException(err, { tags: { source: "worker", event: "worker.poll.error" } });
     const details = serializeError(err);
     logError("worker.poll.error", {
       request_id: crypto.randomUUID(),

@@ -240,6 +240,14 @@ Example scoped command:
   - `streamChat` now falls back to reading `result.text` (sync or promise) when `textStream` yields no chunks, preventing empty responses from providers that only populate the final text field.
   - chat usage metadata now includes both configured routing (`model_route_*`) and resolved execution (`model_route_selected`, `model_used`).
   - embedding supports `EMBEDDING_MODE=local` (deterministic local vector) when remote provider has no embedding endpoint.
+- Sentry error monitoring:
+  - `@sentry/nextjs` 集成到 `apps/web`：`instrumentation.ts`（server/edge init）、`instrumentation-client.ts`（client init + replay）、`global-error.tsx`（root error capture）、`ErrorBoundary` 组件内 `captureException`。
+  - `@sentry/bun` 集成到 `apps/worker`：`src/instrument.ts`（preload init）、`index.ts` 顶层 import。
+  - 两端 logger `emit()` 在 `error` 级别自动 `captureEvent` 到 Sentry，`warn/info` 记录为 breadcrumb。
+  - `next.config.mjs` 使用 `withSentryConfig` 包装，支持 source map 上传和 `/monitoring` tunnel route。
+  - Web 环境变量：`NEXT_PUBLIC_SENTRY_DSN`、`SENTRY_ORG`、`SENTRY_PROJECT`、`SENTRY_AUTH_TOKEN`、`SENTRY_TRACES_SAMPLE_RATE`（server）、`NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE`（client）。
+  - Worker 环境变量：`SENTRY_DSN`、`SENTRY_TRACES_SAMPLE_RATE`。
+  - DSN 未配置时 Sentry 不初始化，零影响。
 - Optional alert webhooks:
   - web: `ALERT_WEBHOOK_URL` + optional `ALERT_MIN_LEVEL` (`info|warn|error`, default `error`).
   - worker: `WORKER_ALERT_WEBHOOK_URL` + optional `WORKER_ALERT_MIN_LEVEL` (falls back to global alert vars).
