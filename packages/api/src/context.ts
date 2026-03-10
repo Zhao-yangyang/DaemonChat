@@ -20,7 +20,13 @@ export interface ApiRequestMeta {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase client returns dynamic row shapes; strict generic typing is impractical here
-export type SupabaseLike = { from(table: string): any; rpc?(fn: string, params?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown | null }> };
+export type SupabaseLike = {
+  from(table: string): any;
+  rpc?(
+    fn: string,
+    params?: Record<string, unknown>,
+  ): PromiseLike<{ data: unknown; error: unknown | null }>;
+};
 
 export interface ApiContext {
   user: ApiUser | null;

@@ -64,7 +64,7 @@ Example scoped command:
 - Avoid committing secrets. If environment variables are required, document them in the relevant app README.
 - Keep adapter-specific credentials isolated to their respective packages (e.g., `packages/adapters/*`).
 
-## Current Project Status (2026-03-09)
+## Current Project Status (2026-03-10)
 
 - Plan baseline is now `docs/plans/2026-02-03-ai-longterm-assistant-design.md` (V2), including gateway-aligned architecture constraints.
 - Phase 6 计划已完成：`docs/plans/2026-03-06-phase6-production-ready.md`（生产化就绪 + 产品差异化），含 E2E、错误边界、Toast、Landing、PDF 附件、Agent 可见性、Workspace 权限矩阵。
@@ -301,6 +301,9 @@ Example scoped command:
 - If you change memory retrieval filters, update both:
   - `match_memory_items` SQL signature/filters in `packages/adapters/supabase/sql/schema.sql`
   - adapter + domain filter wiring in `packages/adapters/supabase/src/stores/memory.ts` and `packages/domain/src/usecases/*`
+- If you change memory count logic, update:
+  - `count_memory_items_by_type` SQL function in `packages/adapters/supabase/sql/schema.sql`
+  - adapter implementation in `packages/adapters/supabase/src/stores/memory.ts`
 - Placeholder 模式（`apps/web/src/server/container.ts`）：
   - 当 `SUPABASE_URL` 含 `placeholder` 时，`AgentStore` 使用 mock（`getAgentById` 恒返回 null），避免 CI 占位 URL 触发真实 Supabase 请求；Share 页可正确返回 404。
 - If you change session fork behavior, update both:
@@ -478,7 +481,7 @@ Example scoped command:
     - 组件内部封装 `dynamicProviders`/`dynamicModels` 的 fetch 逻辑，对外只暴露 `value/onChange` props。
     - `agents/page.tsx` 已大幅精简，移除了冗余状态、注释掉的 console.log、重复的 model 赋值。
   - **OpenRouter 映射统一**：
-   - Provider ID 直接使用 OpenRouter 返回的 raw org ID，无硬编码映射。模型过滤使用 `providerId/` 前缀。
+  - Provider ID 直接使用 OpenRouter 返回的 raw org ID，无硬编码映射。模型过滤使用 `providerId/` 前缀。
   - **Providers API 缓存**：
     - `GET /api/providers` 新增 5 分钟内存缓存，避免每次打开配置 Dialog 都全量拉取 OpenRouter 模型列表。
   - **API Key 脱敏与写入剥离**（2026-03-05）：
@@ -555,7 +558,7 @@ Example scoped command:
     - Prettier（`.prettierrc`）：100 列、双引号、trailing commas。
     - CI `quality-gate` 新增 `lint` + `format:check` 步骤。
     - 移除了所有 14 个包的 `"lint": "echo ..."` stub 和 turbo `lint` task，统一从 root 运行。
-    - 当前 0 errors, ~72 warnings（主要 `no-explicit-any` 和未使用变量）。
+    - 当前 **0 errors, 0 warnings**（73 个 warning 已全部清零，见下方 lint 清零记录）。
   - **记忆体验升级**：
     - 新增 `memory.search` tRPC 路由：基于 `queryTopK` 向量相似度语义搜索，暴露给客户端使用。
     - 新增 `memory.count` tRPC 路由：返回 `{ total, byType }` 统计。
@@ -563,3 +566,19 @@ Example scoped command:
     - `MemoryStore` 接口扩展 `countMemoryItems`、`listMemoryItems` 新增 `offset/type/sensitivity` 参数。
     - Supabase adapter 和 InMemory 测试 mock 同步更新。
     - Memory 页 UI 重写：语义搜索切换（Sparkles 图标）、类型筛选下拉、敏感度筛选、彩色类型 badge、tags 列表直接可见、增强创建表单（类型/标签/敏感度/上下文注入选择器）、统计概览条（总数 + 按类型分布）、服务端分页（12/页）替代客户端 50 条限制、每条记忆显示创建日期。
+  - **Lint warnings 全部清零（73 → 0）**：
+    - 54 个 `no-explicit-any` 已全部替换为具体类型：
+      - 6 个 Supabase store 文件新增类型化 row 接口（`AgentRow`/`AuditEventRow`/`MemoryItemRow`/`SessionRow`/`TranscriptEventRow`/`UsageEventRow`）。
+      - `@daemon/adapters-llm-vercel` 新增 `StreamResultSubset`/`GenerateResultSubset`/`EmbedResultSubset`、`SdkContentPart`/`SdkContent`/`SdkMessage`、`AiProvider`/`CallableProvider`/`EmbeddingCapableProvider`、`StreamTextFn`/`GenerateTextFn`/`EmbedFn` 等类型定义。
+      - `apps/worker/src/runOnce.ts` 新增 `SupabaseQueryResult`/`SupabaseFilterChain`/`SupabaseTableRef`/`SupabaseRpcClient` 接口，`RunOnceDeps` 使用 domain 类型（`MemoryStore`/`TranscriptStore`/`LlmPort`/`Clock`）。
+      - `packages/api/src/context.ts` 的 `SupabaseLike` 保留 `from(): any` 并附 eslint-disable 注释（Supabase 客户端动态 row 类型不适合严格泛型化）。
+    - 12 个 `no-unused-vars` 已清理：移除死 import（`Link`/`useMemo`/`CardDescription`/`fs`/`createVercelLlmAdapter`/`AgentConfig`/`ChatContentPart`/`ChatMessageContent`），移除未使用函数（`requireWorkspacePermission`），未使用但必要的变量前缀 `_`。
+    - 4 个 `react-hooks/exhaustive-deps` 已修复：`messages` 用 `useMemo` 包裹、`items` 条件移入 `useMemo` 回调、chat 页和 `llm-provider-section` 中 intentionally narrow deps 加 eslint-disable + 原因注释。
+  - **Memory API 测试覆盖补齐**：
+    - 新增 7 个路由级测试：`memory.list`（默认参数 / filter 透传 / 权限拒绝）、`memory.search`（语义搜索 + 参数捕获 / 权限拒绝）、`memory.count`（总数+分类 breakdown / 权限拒绝）。
+    - 当前测试总量：**163 tests across 5 packages**（domain 52 + api 56 + web 34 + worker 14 + llm-vercel 7）。
+  - **countMemoryItems 性能优化**：
+    - Supabase adapter 从全表 `SELECT type` + JS 聚合改为 SQL RPC `count_memory_items_by_type`（`COUNT(*) GROUP BY type`），避免大数据量全表扫描。
+    - 新增 SQL 函数 `public.count_memory_items_by_type(p_agent_id uuid)` → `returns table (type text, cnt bigint)`。
+    - 迁移：`supabase/migrations/20260310000000_count_memory_items_by_type.sql`。
+    - Schema：`packages/adapters/supabase/sql/schema.sql` 同步更新。

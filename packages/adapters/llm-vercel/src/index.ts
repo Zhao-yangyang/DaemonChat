@@ -82,10 +82,7 @@ type GenerateTextFn = (input: {
   temperature?: number;
 }) => Promise<GenerateResultSubset>;
 
-type EmbedFn = (input: {
-  model: EmbeddingModel;
-  value: string;
-}) => Promise<EmbedResultSubset>;
+type EmbedFn = (input: { model: EmbeddingModel; value: string }) => Promise<EmbedResultSubset>;
 
 interface VercelLlmRuntimeDeps {
   streamTextImpl?: StreamTextFn;
@@ -187,7 +184,11 @@ function createProviderFromConfig(config: VercelLlmConfig) {
   }
 }
 
-function createChatModel(provider: AiProvider, modelId: string, sdkProvider?: string): LanguageModel {
+function createChatModel(
+  provider: AiProvider,
+  modelId: string,
+  sdkProvider?: string,
+): LanguageModel {
   const p = provider as CallableProvider;
   // For OpenAI and OpenAI-compatible providers, explicitly use .chat()
   // to avoid the v5+ default Responses API behavior

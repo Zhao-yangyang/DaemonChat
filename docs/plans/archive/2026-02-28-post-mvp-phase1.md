@@ -15,6 +15,7 @@
 ### Task 1: 安装 Markdown 依赖
 
 **Files:**
+
 - Modify: `apps/web/package.json`
 
 **Step 1: 安装依赖**
@@ -29,6 +30,7 @@ bun add react-markdown remark-gfm rehype-highlight highlight.js
 ```bash
 bun run typecheck --filter @daemon/web
 ```
+
 Expected: PASS
 
 **Step 3: Commit**
@@ -43,6 +45,7 @@ git commit -m "feat(web): add react-markdown and highlight.js dependencies"
 ### Task 2: 创建 Markdown 消息渲染组件
 
 **Files:**
+
 - Create: `apps/web/src/components/markdown-message.tsx`
 
 **Step 1: 创建组件**
@@ -69,10 +72,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
         components={{
           pre({ children, ...props }) {
             return (
-              <pre
-                className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs"
-                {...props}
-              >
+              <pre className="overflow-x-auto rounded-lg bg-secondary p-3 text-xs" {...props}>
                 {children}
               </pre>
             );
@@ -81,10 +81,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
             const isInline = !codeClassName;
             if (isInline) {
               return (
-                <code
-                  className="rounded bg-secondary px-1 py-0.5 text-xs"
-                  {...props}
-                >
+                <code className="rounded bg-secondary px-1 py-0.5 text-xs" {...props}>
                   {children}
                 </code>
               );
@@ -116,6 +113,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
 ```bash
 bun run typecheck --filter @daemon/web
 ```
+
 Expected: PASS
 
 **Step 3: Commit**
@@ -130,6 +128,7 @@ git commit -m "feat(web): add MarkdownMessage component with GFM and code highli
 ### Task 3: 添加 highlight.js 代码主题样式
 
 **Files:**
+
 - Modify: `apps/web/app/globals.css`
 
 **Step 1: 在 globals.css 末尾追加 highlight.js 最小主题**
@@ -144,17 +143,31 @@ git commit -m "feat(web): add MarkdownMessage component with GFM and code highli
 }
 .hljs-keyword,
 .hljs-selector-tag,
-.hljs-built_in { color: #7c3aed; }
+.hljs-built_in {
+  color: #7c3aed;
+}
 .hljs-string,
-.hljs-attr { color: #059669; }
+.hljs-attr {
+  color: #059669;
+}
 .hljs-comment,
-.hljs-quote { color: var(--muted-foreground); font-style: italic; }
+.hljs-quote {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
 .hljs-number,
-.hljs-literal { color: #d97706; }
+.hljs-literal {
+  color: #d97706;
+}
 .hljs-title,
-.hljs-section { color: #2563eb; font-weight: 600; }
+.hljs-section {
+  color: #2563eb;
+  font-weight: 600;
+}
 .hljs-type,
-.hljs-name { color: #0891b2; }
+.hljs-name {
+  color: #0891b2;
+}
 ```
 
 **Step 2: Commit**
@@ -169,6 +182,7 @@ git commit -m "style(web): add minimal highlight.js code theme tokens"
 ### Task 4: 添加 prose Tailwind 排版支持
 
 **Files:**
+
 - Modify: `apps/web/package.json`
 - Modify: `apps/web/app/globals.css`
 
@@ -205,16 +219,19 @@ git commit -m "feat(web): add tailwind typography plugin for prose classes"
 ### Task 5: 将 Chat 页面接入 MarkdownMessage
 
 **Files:**
+
 - Modify: `apps/web/app/chat/[agentId]/page.tsx`
 
 **Step 1: 替换 AI 消息的纯文本渲染为 MarkdownMessage**
 
 在 imports 区域添加：
+
 ```tsx
 import { MarkdownMessage } from "@/src/components/markdown-message";
 ```
 
 将消息气泡内的 `<p className="whitespace-pre-wrap">` 替换为条件渲染：
+
 - 用户消息：保持 `<p className="whitespace-pre-wrap">`（用户输入不需要 Markdown）
 - AI 消息：使用 `<MarkdownMessage content={msg.content} />`
 - pending 状态：保持 "思考中..." 纯文本
@@ -222,24 +239,23 @@ import { MarkdownMessage } from "@/src/components/markdown-message";
 具体替换位置（当前约第 358 行）：
 
 ```tsx
-{isUser ? (
-  <p className="whitespace-pre-wrap">{msg.content}</p>
-) : (
-  msg.content ? (
+{
+  isUser ? (
+    <p className="whitespace-pre-wrap">{msg.content}</p>
+  ) : msg.content ? (
     <MarkdownMessage content={msg.content} />
-  ) : (
-    isPendingAssistant ? <p className="text-muted-foreground">思考中...</p> : null
-  )
-)}
+  ) : isPendingAssistant ? (
+    <p className="text-muted-foreground">思考中...</p>
+  ) : null;
+}
 ```
 
 **Step 2: AI 消息气泡移除 `text-sm leading-relaxed`**（prose 自带排版），保留背景和圆角：
 
 将 AI 消息气泡 class 改为：
+
 ```tsx
-isUser
-  ? "bg-primary text-primary-foreground"
-  : "bg-muted text-foreground"
+isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground";
 ```
 
 **Step 3: 验证**
@@ -251,6 +267,7 @@ bun run typecheck --filter @daemon/web
 **Step 4: 手动验证**
 
 启动 `bun run dev --filter @daemon/web`，发送包含 Markdown 的消息验证渲染效果：
+
 - 发送：`请用代码示例解释 JavaScript 的 Promise`
 - 期望：代码块有语法高亮，正文有排版
 
@@ -268,6 +285,7 @@ git commit -m "feat(web): render AI chat messages with Markdown and code highlig
 ### Task 6: 添加 dark 模式 CSS tokens
 
 **Files:**
+
 - Modify: `apps/web/app/globals.css`
 
 **Step 1: 在 `:root` 块之后添加 `.dark` 选择器**
@@ -314,6 +332,7 @@ git commit -m "style(web): add dark mode CSS tokens"
 ### Task 7: 创建主题切换组件
 
 **Files:**
+
 - Create: `apps/web/src/components/theme-toggle.tsx`
 - Create: `apps/web/src/hooks/use-theme.ts`
 
@@ -423,11 +442,13 @@ git commit -m "feat(web): add theme toggle with light/dark/system support"
 ### Task 8: 将 ThemeToggle 集成到 DashboardShell
 
 **Files:**
+
 - Modify: `apps/web/src/components/dashboard-shell.tsx`
 
 **Step 1: 在 sidebar 底部退出按钮上方添加 ThemeToggle**
 
 import ThemeToggle：
+
 ```tsx
 import { ThemeToggle } from "@/src/components/theme-toggle";
 ```
@@ -458,6 +479,7 @@ git commit -m "feat(web): integrate ThemeToggle into sidebar navigation"
 ### Task 9: 修复暗色模式下 highlight.js 代码主题
 
 **Files:**
+
 - Modify: `apps/web/app/globals.css`
 
 **Step 1: 在 hljs 规则中追加 dark 变体覆盖**
@@ -465,15 +487,25 @@ git commit -m "feat(web): integrate ThemeToggle into sidebar navigation"
 ```css
 .dark .hljs-keyword,
 .dark .hljs-selector-tag,
-.dark .hljs-built_in { color: #a78bfa; }
+.dark .hljs-built_in {
+  color: #a78bfa;
+}
 .dark .hljs-string,
-.dark .hljs-attr { color: #34d399; }
+.dark .hljs-attr {
+  color: #34d399;
+}
 .dark .hljs-number,
-.dark .hljs-literal { color: #fbbf24; }
+.dark .hljs-literal {
+  color: #fbbf24;
+}
 .dark .hljs-title,
-.dark .hljs-section { color: #60a5fa; }
+.dark .hljs-section {
+  color: #60a5fa;
+}
 .dark .hljs-type,
-.dark .hljs-name { color: #22d3ee; }
+.dark .hljs-name {
+  color: #22d3ee;
+}
 ```
 
 **Step 2: Commit**
@@ -490,6 +522,7 @@ git commit -m "style(web): add dark mode highlight.js overrides"
 ### Task 10: 扩展 Agent domain 类型
 
 **Files:**
+
 - Modify: `packages/domain/src/types.ts`
 
 **Step 1: 在 `Agent` interface 中添加可选配置字段**
@@ -528,6 +561,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 ```bash
 bun run typecheck 2>&1 | head -30
 ```
+
 Expected: 类型错误
 
 **Step 3: Commit**
@@ -542,6 +576,7 @@ git commit -m "feat(domain): add AgentConfig type with systemPrompt/model/temper
 ### Task 11: 更新 AgentStore 接口与 agent usecase
 
 **Files:**
+
 - Modify: `packages/domain/src/container/types.ts`
 - Modify: `packages/domain/src/usecases/agent.ts`
 
@@ -608,6 +643,7 @@ git commit -m "feat(domain): add updateAgent usecase and AgentConfig to createAg
 ### Task 12: 更新 in-memory test stores
 
 **Files:**
+
 - Modify: `packages/domain/src/testing/memoryStores.ts`
 
 **Step 1: 更新 in-memory AgentStore**
@@ -633,6 +669,7 @@ git commit -m "feat(domain): update in-memory agent store with config and update
 ### Task 13: 更新 agent domain 测试
 
 **Files:**
+
 - Modify: `packages/domain/src/__tests__/agent.test.ts`
 
 **Step 1: 添加测试用例**
@@ -647,6 +684,7 @@ git commit -m "feat(domain): update in-memory agent store with config and update
 ```bash
 bun --cwd packages/domain test
 ```
+
 Expected: ALL PASS
 
 **Step 3: Commit**
@@ -661,6 +699,7 @@ git commit -m "test(domain): add agent config and updateAgent test cases"
 ### Task 14: 更新 Supabase schema 和 adapter
 
 **Files:**
+
 - Modify: `packages/adapters/supabase/sql/schema.sql`
 - Modify: `packages/adapters/supabase/src/stores/agents.ts`
 
@@ -742,6 +781,7 @@ git commit -m "feat(supabase): add agents.config column and updateAgent adapter"
 ### Task 15: 添加 tRPC agent.update 路由
 
 **Files:**
+
 - Modify: `packages/api/src/router.ts`
 
 **Step 1: 在 `agent` router 中添加 update mutation**
@@ -788,6 +828,7 @@ git commit -m "feat(api): add agent.update tRPC mutation for config changes"
 ### Task 16: Chat 路由读取 Agent config
 
 **Files:**
+
 - Modify: `apps/web/app/api/chat/stream/route.ts`
 - Modify: `packages/api/src/router.ts` (chat.turn 路径)
 
@@ -829,6 +870,7 @@ git commit -m "feat(web): chat stream uses agent-level config for system prompt 
 ### Task 17: Agent 配置编辑 UI
 
 **Files:**
+
 - Modify: `apps/web/app/agents/page.tsx`
 
 **Step 1: 在 Agent 列表卡片中添加"配置"按钮和内联编辑 Dialog**
@@ -836,6 +878,7 @@ git commit -m "feat(web): chat stream uses agent-level config for system prompt 
 使用已有的 `Dialog` / `Label` / `Input` / `Textarea` / `Select` 组件。
 
 Dialog 内表单字段：
+
 - System Prompt（Textarea）
 - 模型（Input，placeholder 显示当前 env 默认值）
 - Memory TopK（Input type=number）

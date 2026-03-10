@@ -169,7 +169,6 @@ supabase db push
    其中项目 REF 可在 Supabase Dashboard → Settings → General 中查看；密码在 Settings → Database → Database password。
 
 2. 若 CLI 仍无法连接，可在 Supabase Dashboard → SQL Editor 中**手动执行**未应用的迁移文件，例如：
-
    - `supabase/migrations/20260309000000_agents_public_read_policy.sql`
    - `supabase/migrations/20260309010000_session_fork.sql`
 

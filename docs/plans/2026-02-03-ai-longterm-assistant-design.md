@@ -1,9 +1,9 @@
 # AI 长期助手 SaaS 平台开发总计划（V2）
 
 > 状态：可执行基线（用于后续落地与验收）
-> 
+>
 > 更新时间：2026-02-26
-> 
+>
 > 目标：在你原始思路不变的前提下，补全安全、并发、成本、可观测、测试与发布闭环，避免“能跑但不可控”。
 
 ---
@@ -13,6 +13,7 @@
 这不是“灵感草稿”，而是后续开发与验收的执行规范。
 
 执行要求：
+
 - 每个里程碑必须有入口条件、出口条件、验收证据。
 - 所有“可能会做”的项必须改为“本期做/不做/延期到哪一期”。
 - 所有关键风险必须有明确兜底策略。
@@ -59,26 +60,32 @@
 本项目把 openclaw gateway 的核心思想收敛为 6 条工程约束，作为后续评审标准：
 
 1. `Provider Abstraction`
+
 - 统一模型接入接口（chat stream/complete/embed），业务层不可依赖厂商 SDK 细节。
 - 新增或替换模型提供商时，不改 domain usecase。
 
 2. `Policy Pipeline`
+
 - 每个请求在进入模型前后都经过策略链：鉴权、配额、敏感过滤、审计。
 - 策略链必须可观测（记录命中策略与拒绝原因）。
 
 3. `Routing & Fallback`
+
 - 保留模型路由与降级能力：主模型失败时可切备用模型或短答模式。
 - 路由/降级决策写入 `usage_events.meta`，用于复盘。
 
 4. `Idempotency`
+
 - Chat 请求支持幂等键（或等价去重键），防重试导致重复写 transcript 或重复计费。
 - 幂等冲突返回已存在结果或明确错误码。
 
 5. `Usage Ledger`
+
 - token、请求数、成本估算统一记账，且以 agent/user 维度可追踪。
 - 限流、hard cap、预算降级都基于同一账本执行。
 
 6. `Traceability`
+
 - 每轮请求必须可追踪 `request_id/user_id/agent_id/session_id/prompt_version`。
 - 关键路径异常（鉴权失败、预算超限、模型失败、job 失败）可从日志与审计反查。
 
@@ -122,6 +129,7 @@ packages/
 ```
 
 规则：
+
 - 业务逻辑只在 `domain`。
 - API 只做鉴权、输入校验、调用 domain。
 - adapter 负责外部系统细节与错误翻译。
@@ -187,6 +195,7 @@ packages/
 ## 5.4 幂等与去重（新增）
 
 新增一项（MVP 可选其一）：
+
 - 方案 A：`chat_requests` 表记录 `idempotency_key` + 状态。
 - 方案 B：`transcript_events` 增加 `request_id` 并建立去重唯一索引。
 
@@ -245,6 +254,7 @@ packages/
 ## 7.3 错误模型（新增）
 
 统一 domain error code：
+
 - `UNAUTHORIZED`
 - `FORBIDDEN`
 - `NOT_FOUND`
@@ -325,6 +335,7 @@ API 层负责映射到 HTTP/tRPC 错误。
 ## 10.2 原子 claim（必须）
 
 当前“先 select 再 update”会导致并发重复消费，必须改为原子方案：
+
 - 方案 A：SQL function + `for update skip locked`。
 - 方案 B：`update ... where id in (subquery) returning *`。
 
@@ -365,6 +376,7 @@ API 层负责映射到 HTTP/tRPC 错误。
 ## 12.1 结构化日志
 
 统一字段：
+
 - `request_id`
 - `user_id`
 - `agent_id`
@@ -417,6 +429,7 @@ API 层负责映射到 HTTP/tRPC 错误。
 - worker 多实例并发消费一致性。
 
 现状（2026-02-26）：
+
 - `packages/api` 已补充路由级测试：`agent.list` 未登录拦截、`usage.summary` day/month 窗口映射、`chat.turn` 幂等冲突映射。
 - API/stream 鉴权已改为服务端 access token 解析（不再信任 `x-user-id`）。
 - `chat.turn` 与 `/api/chat/stream` 已补充 agent 归属校验，越权访问返回 `FORBIDDEN/403`（已补测试）。
@@ -450,6 +463,7 @@ API 层负责映射到 HTTP/tRPC 错误。
 ## 14.3 配置管理
 
 必需环境变量：
+
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`（worker）
@@ -478,12 +492,14 @@ API 层负责映射到 HTTP/tRPC 错误。
 入口条件：monorepo 可安装并可运行基础测试。
 
 完成项：
+
 - Agent/Session/Transcript/Memory/Chat/Compaction domain 完成。
 - memory vector topK 可用。
 - Context Builder 预算裁剪可用。
 - transcript append-only 可验证。
 
 出口证据：
+
 - `packages/domain` 测试全绿。
 - 200 轮长会话回归通过。
 
@@ -492,16 +508,19 @@ API 层负责映射到 HTTP/tRPC 错误。
 入口条件：A 完成。
 
 完成项：
+
 - 登录、Agent 管理、Chat streaming、Memory 面板、Usage 面板。
 - tRPC + SSE API 闭环。
 - 基础审计与错误提示。
 
 现状（2026-02-26）：
+
 - Usage 面板已落地（`/usage`），支持 `agent` + `period(day|month)` 查询参数、token/cost 汇总与占比展示。
 - 首页与 Agent 列表已增加 Usage 入口（含按 agent 预填跳转）。
 - `memory.create` 已强制 `scopeType=user` 且 `scopeId===ctx.user.id`，前端 memory 页写入参数已对齐。
 
 出口证据：
+
 - 新用户注册到连续对话全链路演示通过。
 - API 集成测试通过。
 
@@ -510,11 +529,13 @@ API 层负责映射到 HTTP/tRPC 错误。
 入口条件：B 完成。
 
 完成项：
+
 - 限流、hard cap、超预算降级。
 - sensitivity 过滤与越权回归测试。
 - worker 原子 claim + retry/backoff + dead-letter。
 
 出口证据：
+
 - 压测 + 恶意输入回归通过。
 - 成本与错误指标可观测。
 
@@ -523,6 +544,7 @@ API 层负责映射到 HTTP/tRPC 错误。
 ## 17. 当前仓库差距清单（落地前先修）
 
 P0（必须先修）：
+
 - 根 `package.json` 缺少 `packageManager`，Turbo 无法运行（已完成 2026-02-26）。
 - `apps/web/package.json` JSON 语法错误（多余 `}`）（已完成 2026-02-26）。
 - 多个 `apps/*/tsconfig.json` 的 `extends` 指向错误（已完成 2026-02-26）。
@@ -531,9 +553,10 @@ P0（必须先修）：
 - worker job claim 非原子，存在重复消费风险（已完成 2026-02-26）。
 
 P1（尽快补齐）：
+
 - tokenizer 精确预算（已完成 2026-02-26：domain 支持可替换 tokenizer，web 已接入 `js-tiktoken`）。
 - 幂等键支持（已完成 2026-02-26：`chatTurn/chatTurnStream` + `transcript_events.request_id` 去重索引）。
-- usage cost_estimate 真实单价映射（已完成 2026-02-26：支持 `MODEL_PRICING_JSON`/`OPENAI_*_PRICE_PER_1M`）。
+- usage cost*estimate 真实单价映射（已完成 2026-02-26：支持 `MODEL_PRICING_JSON`/`OPENAI*\*\_PRICE_PER_1M`）。
 - 结构化日志与关键告警（部分完成 2026-02-26：web stream + tRPC chat.turn + worker 结构化日志，支持 webhook 告警钩子；仍缺指标系统级告警平台接入）。
 - 用户级限流（QPS/QPM）已完成 DB 原子计数基线；后续可按流量规模迁移到专用 Redis 限流。
 - 需确保部署迁移包含以下 SQL 变更：

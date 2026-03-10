@@ -42,6 +42,7 @@ bun add -D @playwright/test
 **Step 2: 创建 playwright.config.ts**
 
 配置要点：
+
 - `baseURL: "http://localhost:3333"`
 - `webServer` 启动 `bun run dev`
 - 单浏览器 chromium（CI 轻量）
@@ -112,9 +113,7 @@ bun run typecheck
 **Step 2: 在 layout.tsx 中包裹 children**
 
 ```tsx
-<ErrorBoundary>
-  {children}
-</ErrorBoundary>
+<ErrorBoundary>{children}</ErrorBoundary>
 ```
 
 **Step 3: 验证 typecheck**
@@ -138,6 +137,7 @@ bun run typecheck
 **Step 3: 在关键错误路径使用 toast 替代 console.error**
 
 重点改造：
+
 - `apps/web/app/agents/page.tsx` 的 create/update 失败
 - `apps/web/app/chat/[agentId]/page.tsx` 的 stream 错误
 
@@ -195,7 +195,7 @@ bun add pdf-parse
 **Step 2: 创建 PDF 文本提取工具**
 
 ```ts
-export async function extractTextFromPdf(buffer: Buffer): Promise<string>
+export async function extractTextFromPdf(buffer: Buffer): Promise<string>;
 ```
 
 **Step 3: 扩展 upload route 支持 PDF**
@@ -215,7 +215,7 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string>
 **Step 1: 扩展文件选择器接受 PDF**
 
 ```tsx
-accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+accept = "image/jpeg,image/png,image/gif,image/webp,application/pdf";
 ```
 
 **Step 2: PDF 预览显示文件名 + 图标（非缩略图）**
@@ -288,16 +288,16 @@ ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'private';
 
 **Step 1: 定义权限矩阵**
 
-| 操作 | owner | admin | member | viewer |
-|---|---|---|---|---|
-| 创建 Agent | ✅ | ✅ | ✅ | ❌ |
-| 编辑 Agent | ✅ | ✅ | own only | ❌ |
-| 删除 Agent | ✅ | ✅ | own only | ❌ |
-| 聊天 | ✅ | ✅ | ✅ | ✅ |
-| 查看 Memory | ✅ | ✅ | ✅ | ✅ |
-| 邀请成员 | ✅ | ✅ | ❌ | ❌ |
-| 移除成员 | ✅ | ✅ | ❌ | ❌ |
-| 删除 Workspace | ✅ | ❌ | ❌ | ❌ |
+| 操作           | owner | admin | member   | viewer |
+| -------------- | ----- | ----- | -------- | ------ |
+| 创建 Agent     | ✅    | ✅    | ✅       | ❌     |
+| 编辑 Agent     | ✅    | ✅    | own only | ❌     |
+| 删除 Agent     | ✅    | ✅    | own only | ❌     |
+| 聊天           | ✅    | ✅    | ✅       | ✅     |
+| 查看 Memory    | ✅    | ✅    | ✅       | ✅     |
+| 邀请成员       | ✅    | ✅    | ❌       | ❌     |
+| 移除成员       | ✅    | ✅    | ❌       | ❌     |
+| 删除 Workspace | ✅    | ❌    | ❌       | ❌     |
 
 **Step 2: 创建 workspace usecase 封装权限检查**
 

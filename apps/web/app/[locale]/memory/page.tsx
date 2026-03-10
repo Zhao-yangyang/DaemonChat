@@ -144,8 +144,7 @@ function MemoryPageContent() {
   const hasAgents = (agents.data?.length ?? 0) > 0;
 
   const displayItems = useMemo(() => {
-    const items =
-      searchMode === "semantic" ? (semanticSearch.data ?? []) : (memoryList.data ?? []);
+    const items = searchMode === "semantic" ? (semanticSearch.data ?? []) : (memoryList.data ?? []);
     if (searchMode === "semantic" || !query) return items;
     const q = query.toLowerCase();
     return items.filter(

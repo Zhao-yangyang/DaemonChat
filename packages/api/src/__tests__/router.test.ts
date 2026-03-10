@@ -1155,9 +1155,7 @@ describe("api router", () => {
         }),
       }),
     );
-    await expect(
-      caller.memory.search({ agentId: "agent-1", query: "test" }),
-    ).rejects.toThrow();
+    await expect(caller.memory.search({ agentId: "agent-1", query: "test" })).rejects.toThrow();
   });
 
   test("memory.count returns total and by-type breakdown", async () => {

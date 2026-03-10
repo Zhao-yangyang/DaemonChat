@@ -987,9 +987,7 @@ export const appRouter = t.router({
           .map((e) => ({
             role: e.type === "user_message" ? ("user" as const) : ("assistant" as const),
             content:
-              typeof e.content?.text === "string"
-                ? e.content.text
-                : JSON.stringify(e.content),
+              typeof e.content?.text === "string" ? e.content.text : JSON.stringify(e.content),
             createdAt: e.createdAt,
           }));
 

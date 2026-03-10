@@ -1,12 +1,7 @@
 import type { JobRecord } from "./claimJobs";
 import { claimNextJobsAtomic } from "./claimJobs";
 import { resolveRetryState } from "./retry";
-import type {
-  MemoryStore,
-  TranscriptStore,
-  LlmPort,
-  Clock,
-} from "@daemon/domain";
+import type { MemoryStore, TranscriptStore, LlmPort, Clock } from "@daemon/domain";
 import type { LlmProviderConfig } from "@daemon/domain";
 
 /* ------------------------------------------------------------------ */
@@ -325,10 +320,7 @@ async function processJob(
       if (itemRows.length > 0) {
         for (const item of itemRows) {
           const vector = await llm.embed({ text: String(item.content) });
-          await deps.client
-            .from("memory_items")
-            .update({ embedding: vector })
-            .eq("id", item.id);
+          await deps.client.from("memory_items").update({ embedding: vector }).eq("id", item.id);
         }
       }
 
