@@ -18,14 +18,19 @@ const authFile = path.join(process.cwd(), "playwright", ".auth", "user.json");
 setup("authenticate", async ({ page }) => {
   if (!e2eEmail || !e2ePassword || !supabaseUrl || !supabaseAnonKey) {
     throw new Error(
-      "E2E 认证需要配置环境变量: E2E_TEST_EMAIL, E2E_TEST_PASSWORD, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY。请参考 .env.local.example 并创建测试用户。"
+      "E2E 认证需要配置环境变量: E2E_TEST_EMAIL, E2E_TEST_PASSWORD, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY。请参考 .env.local.example 并创建测试用户。",
     );
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const { data, error } = await supabase.auth.signInWithPassword({ email: e2eEmail, password: e2ePassword });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: e2eEmail,
+    password: e2ePassword,
+  });
   if (error) {
-    throw new Error(`E2E 登录失败: ${error.message}。请确认 Supabase 中已创建测试用户 ${e2eEmail}。`);
+    throw new Error(
+      `E2E 登录失败: ${error.message}。请确认 Supabase 中已创建测试用户 ${e2eEmail}。`,
+    );
   }
   const session = data.session as Session;
   if (!session) {
@@ -44,7 +49,7 @@ setup("authenticate", async ({ page }) => {
     ({ key, value }) => {
       localStorage.setItem(key, value);
     },
-    { key: storageKey, value: storageValue }
+    { key: storageKey, value: storageValue },
   );
 
   await page.context().storageState({ path: authFile });
