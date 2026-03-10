@@ -20,7 +20,10 @@ Run from repo root:
 - `bun run typecheck`: runs TypeScript checks across workspaces.
 - `bun run db:push`: pushes Supabase migrations via CLI (requires `supabase link`; TLS 失败时可用 `SUPABASE_DB_URL=... bun run db:push:url` 或手动执行 `scripts/apply-migrations-manually.sql`)。
 - `bun run test`: runs Turbo tests across workspaces that define `test` (currently `@daemon/domain`, `@daemon/api`, `@daemon/web`, `@daemon/worker`, `@daemon/adapters-llm-vercel`).
-- `bun run lint`: runs Turbo lint tasks (many packages currently stub this).
+- `bun run lint`: runs ESLint across `apps/` and `packages/` (flat config at root).
+- `bun run lint:fix`: auto-fix ESLint issues.
+- `bun run format`: runs Prettier across the repo.
+- `bun run format:check`: checks Prettier formatting without writing.
 
 Example scoped command:
 
@@ -33,7 +36,10 @@ Example scoped command:
 - Use ES module syntax (`import`/`export`) and keep changes consistent with existing files.
 - Naming follows package scopes like `@daemon/<name>` and app names like `@daemon/web`.
 - Tests use `.test.ts` and `.typecheck.ts` suffixes (see `packages/domain/src/__tests__/`).
-- No formatter or lint rules are enforced yet; keep formatting consistent with nearby code.
+- ESLint 10 flat config (`eslint.config.mjs`) + Prettier (`.prettierrc`) are enforced from root and in CI.
+- ESLint: `typescript-eslint` recommended, `react-hooks`, `eslint-config-prettier`. `no-explicit-any` is warn-level; test files exempt.
+- Prettier: 100 cols, double quotes, trailing commas, 2-space indent.
+- CI runs `bun run lint` + `bun run format:check` before typecheck/test.
 
 ## Testing Guidelines
 
@@ -537,3 +543,23 @@ Example scoped command:
     - `WorkspaceStore` 扩展 `getMemberRole(workspaceId, userId)`，Supabase adapter 实现。
     - Agent tRPC：`agent.create` 带 `workspaceId` 时校验 create_agent 权限；`agent.update`/`agent.delete` 对 workspace Agent 校验 edit_agent/delete_agent（member 仅能操作自己的）。
     - 路由测试：`agent.create returns 403 when workspace viewer tries to create agent`。
+- 基础设施升级（2026-03-10）：
+  - **Desktop/Extension POC 已移除**：`apps/desktop`（Tauri）、`apps/extension`（WXT）、`packages/platform/tauri`、`packages/platform/wxt` 均已删除。iframe 包装方案不满足产品要求，待未来以原生集成方式重新实现。CI build step 已简化（移除 filter）。
+  - **Sentry 错误监控已集成**：
+    - `@sentry/nextjs`（web）：`instrumentation.ts`（server/edge init）、`instrumentation-client.ts`（client init + Session Replay）、`global-error.tsx`（root error capture）、`ErrorBoundary.componentDidCatch` 内 `captureException`。`next.config.mjs` 使用 `withSentryConfig` 包装（source map 上传 + `/monitoring` tunnel route）。
+    - `@sentry/bun`（worker）：`src/instrument.ts`（preload init）、`index.ts` 顶层导入 + poll 错误 `captureException`。
+    - 两端 logger `emit()` 在 `error` 级别自动 `captureEvent`，`warn/info` 记录为 breadcrumb。
+    - DSN 未配置时不初始化，零影响。
+  - **ESLint + Prettier 代码规范已建立**：
+    - ESLint 10 flat config（`eslint.config.mjs`）：`typescript-eslint` recommended + `react-hooks` + `eslint-config-prettier`。`no-explicit-any` 为 warn，测试文件豁免。
+    - Prettier（`.prettierrc`）：100 列、双引号、trailing commas。
+    - CI `quality-gate` 新增 `lint` + `format:check` 步骤。
+    - 移除了所有 14 个包的 `"lint": "echo ..."` stub 和 turbo `lint` task，统一从 root 运行。
+    - 当前 0 errors, ~72 warnings（主要 `no-explicit-any` 和未使用变量）。
+  - **记忆体验升级**：
+    - 新增 `memory.search` tRPC 路由：基于 `queryTopK` 向量相似度语义搜索，暴露给客户端使用。
+    - 新增 `memory.count` tRPC 路由：返回 `{ total, byType }` 统计。
+    - `memory.list` 增强：支持 `type`（fact/rule/preference/task）、`sensitivity` 服务端过滤 + `offset` 分页。
+    - `MemoryStore` 接口扩展 `countMemoryItems`、`listMemoryItems` 新增 `offset/type/sensitivity` 参数。
+    - Supabase adapter 和 InMemory 测试 mock 同步更新。
+    - Memory 页 UI 重写：语义搜索切换（Sparkles 图标）、类型筛选下拉、敏感度筛选、彩色类型 badge、tags 列表直接可见、增强创建表单（类型/标签/敏感度/上下文注入选择器）、统计概览条（总数 + 按类型分布）、服务端分页（12/页）替代客户端 50 条限制、每条记忆显示创建日期。
