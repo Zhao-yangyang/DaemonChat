@@ -2,7 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SessionStore } from "@daemon/domain";
 import type { Session } from "@daemon/domain";
 
-const mapSession = (row: any): Session => ({
+interface SessionRow {
+  id: string;
+  agent_id: string;
+  session_key: string;
+  display_name: string | null;
+  is_archived: boolean;
+  created_at: string;
+  last_active_at: string;
+  parent_session_id: string | null;
+  fork_from_event_id: string | null;
+}
+
+const mapSession = (row: SessionRow): Session => ({
   id: row.id,
   agentId: row.agent_id,
   sessionKey: row.session_key,

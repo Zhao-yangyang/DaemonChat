@@ -1,6 +1,5 @@
 import { createClient, type Session } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import * as fs from "node:fs";
 import * as path from "node:path";
 import { test as setup } from "@playwright/test";
 

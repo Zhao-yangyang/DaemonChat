@@ -1,7 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AuditStore, AuditEvent } from "@daemon/domain";
 
-const mapAudit = (row: any): AuditEvent => ({
+interface AuditEventRow {
+  id: string;
+  tenant_id: string;
+  agent_id: string;
+  event_type: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const mapAudit = (row: AuditEventRow): AuditEvent => ({
   id: row.id,
   tenantId: row.tenant_id,
   agentId: row.agent_id,

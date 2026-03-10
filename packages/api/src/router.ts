@@ -136,24 +136,6 @@ const ensureAgentAccess = async (ctx: ApiContext, agentId: string) => {
   return user;
 };
 
-const requireWorkspacePermission = async (
-  ctx: ApiContext,
-  workspaceId: string,
-  userId: string,
-  action: "create_agent" | "edit_agent" | "delete_agent",
-  opts?: { agentOwnerUserId?: string },
-) => {
-  if (!ctx.container.workspace) return;
-  try {
-    await ctx.container.workspace.requirePermission(workspaceId, userId, action, opts);
-  } catch (error) {
-    if (error instanceof ForbiddenError) {
-      throw new TRPCError({ code: "FORBIDDEN", message: error.message });
-    }
-    throw error;
-  }
-};
-
 const DEFAULT_BUDGET = {
   modelWindow: Number(process.env.MODEL_CONTEXT_WINDOW ?? 128000),
   reserveOutputTokens: Number(process.env.RESERVE_OUTPUT_TOKENS ?? 2048),
@@ -993,7 +975,7 @@ export const appRouter = t.router({
         }),
       )
       .query(async ({ ctx, input }) => {
-        const user = await ensureAgentAccess(ctx, input.agentId);
+        const _user = await ensureAgentAccess(ctx, input.agentId);
         const events = await ctx.container.ports.transcripts.listRecentEvents({
           agentId: input.agentId,
           sessionId: input.sessionId,
@@ -1005,8 +987,8 @@ export const appRouter = t.router({
           .map((e) => ({
             role: e.type === "user_message" ? ("user" as const) : ("assistant" as const),
             content:
-              typeof (e.content as any)?.text === "string"
-                ? (e.content as any).text
+              typeof e.content?.text === "string"
+                ? e.content.text
                 : JSON.stringify(e.content),
             createdAt: e.createdAt,
           }));
@@ -1563,7 +1545,14 @@ export const appRouter = t.router({
           .in("id", ids)
           .order("created_at", { ascending: false });
         if (wsErr) throw wsErr;
-        return (workspaces ?? []).map((ws: any) => ({
+        interface WorkspaceRow {
+          id: string;
+          name: string;
+          slug: string;
+          owner_user_id: string;
+          created_at: string;
+        }
+        return ((workspaces ?? []) as WorkspaceRow[]).map((ws) => ({
           id: ws.id,
           name: ws.name,
           slug: ws.slug,

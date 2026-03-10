@@ -211,7 +211,7 @@ export async function POST(req: Request) {
   if (req.signal.aborted) syncAbortFromRequest();
 
   const pseudoSessionId = `anon-${requestId}`;
-  let assistantText = "";
+  let _assistantText = "";
   let streamClosed = false;
 
   const stream = new ReadableStream({
@@ -227,7 +227,7 @@ export async function POST(req: Request) {
           model: llmProvider.model,
           abortSignal: abortController.signal,
         })) {
-          assistantText += chunk ?? "";
+          _assistantText += chunk ?? "";
           sendEvent(controller, { type: "chunk", value: chunk });
         }
         sendEvent(controller, { type: "done" });

@@ -1,13 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TranscriptStore } from "@daemon/domain";
-import type { TranscriptEvent } from "@daemon/domain";
+import type { TranscriptEvent, TranscriptEventType } from "@daemon/domain";
 
-const mapEvent = (row: any): TranscriptEvent => ({
+interface TranscriptEventRow {
+  id: string;
+  agent_id: string;
+  session_id: string;
+  request_id: string | null;
+  type: string;
+  content: Record<string, unknown>;
+  tokens_in: number;
+  tokens_out: number;
+  created_at: string;
+}
+
+const mapEvent = (row: TranscriptEventRow): TranscriptEvent => ({
   id: row.id,
   agentId: row.agent_id,
   sessionId: row.session_id,
   requestId: row.request_id ?? null,
-  type: row.type,
+  type: row.type as TranscriptEventType,
   content: row.content,
   tokensIn: row.tokens_in,
   tokensOut: row.tokens_out,

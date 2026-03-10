@@ -2,8 +2,6 @@ import { buildContextPack } from "../context/buildContextPack";
 import { IdempotencyConflictError } from "../errors";
 import type { ContextBudget, ContextPack, MemoryItem, TranscriptEvent } from "../types";
 import type {
-  ChatContentPart,
-  ChatMessageContent,
   Clock,
   JobQueue,
   AbortSignalLike,

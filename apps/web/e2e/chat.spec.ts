@@ -11,7 +11,7 @@ test.describe("Authenticated chat flow", () => {
         return route.continue();
       }
       const body = (await request.postDataJSON()) as { userInput?: string };
-      const userInput = body?.userInput ?? "";
+      const _userInput = body?.userInput ?? "";
       const sseBody = [
         `data: ${JSON.stringify({ type: "meta", requestId: "e2e-mock" })}\n\n`,
         `data: ${JSON.stringify({ type: "chunk", value: MOCK_ASSISTANT_RESPONSE })}\n\n`,

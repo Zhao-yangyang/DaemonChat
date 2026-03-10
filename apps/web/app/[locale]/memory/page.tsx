@@ -140,12 +140,12 @@ function MemoryPageContent() {
     }
   }, [agentId, pathname, router, searchParams]);
 
-  const items = searchMode === "semantic" ? (semanticSearch.data ?? []) : (memoryList.data ?? []);
   const isLoading = searchMode === "semantic" ? semanticSearch.isLoading : memoryList.isLoading;
   const hasAgents = (agents.data?.length ?? 0) > 0;
 
-  // Client-side text filter for list mode
   const displayItems = useMemo(() => {
+    const items =
+      searchMode === "semantic" ? (semanticSearch.data ?? []) : (memoryList.data ?? []);
     if (searchMode === "semantic" || !query) return items;
     const q = query.toLowerCase();
     return items.filter(
@@ -153,7 +153,7 @@ function MemoryPageContent() {
         item.content.toLowerCase().includes(q) ||
         item.tags.some((tag) => tag.toLowerCase().includes(q)),
     );
-  }, [items, query, searchMode]);
+  }, [searchMode, semanticSearch.data, memoryList.data, query]);
 
   const stats = memoryCount.data;
   const hasMore = searchMode === "list" && (memoryList.data?.length ?? 0) >= PAGE_SIZE;

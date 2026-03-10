@@ -1,6 +1,68 @@
 import type { JobRecord } from "./claimJobs";
 import { claimNextJobsAtomic } from "./claimJobs";
 import { resolveRetryState } from "./retry";
+import type {
+  MemoryStore,
+  TranscriptStore,
+  LlmPort,
+  Clock,
+} from "@daemon/domain";
+import type { LlmProviderConfig } from "@daemon/domain";
+
+/* ------------------------------------------------------------------ */
+/*  Supabase query-builder shapes (minimal subset used by worker)     */
+/* ------------------------------------------------------------------ */
+
+export interface SupabaseQueryResult<T = unknown> {
+  data: T;
+  error: { message: string; code?: string } | null;
+  count?: number | null;
+}
+
+export interface SupabaseFilterChain<T = unknown> extends PromiseLike<SupabaseQueryResult<T>> {
+  eq(col: string, val: string): SupabaseFilterChain<T>;
+  lt(col: string, val: string): SupabaseFilterChain<T>;
+  is(col: string, val: null): SupabaseFilterChain<T>;
+  order(col: string, opts?: Record<string, unknown>): SupabaseFilterChain<T>;
+  limit(n: number): SupabaseFilterChain<T>;
+  single(): PromiseLike<SupabaseQueryResult<T>>;
+  select(cols?: string): SupabaseFilterChain<T>;
+}
+
+export interface SupabaseTableRef {
+  select(cols?: string): SupabaseFilterChain;
+  update(values: Record<string, unknown>): SupabaseFilterChain;
+  insert(row: Record<string, unknown>): PromiseLike<SupabaseQueryResult>;
+}
+
+export interface SupabaseRpcClient {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<SupabaseQueryResult>;
+  from(table: string): SupabaseTableRef;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Row shapes returned by Supabase queries                           */
+/* ------------------------------------------------------------------ */
+
+interface AgentRow {
+  config?: {
+    llmProvider?: LlmProviderConfig;
+  };
+}
+
+interface TranscriptEventRow {
+  type: string;
+  content: { text?: string } | null;
+}
+
+interface MemoryItemRow {
+  id: string;
+  content: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  RunOnce dependency interface                                      */
+/* ------------------------------------------------------------------ */
 
 export interface RunOnceLogger {
   info: (event: string, fields?: Record<string, unknown>) => void;
@@ -8,35 +70,29 @@ export interface RunOnceLogger {
 }
 
 export interface RunOnceDeps {
-  client: {
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => PromiseLike<{ data: unknown; error: unknown | null }>;
-    from: (table: string) => {
-      update: (values: Record<string, unknown>) => {
-        eq: (col: string, val: string) => PromiseLike<{ error: unknown | null }>;
-        lt: (
-          col: string,
-          val: string,
-        ) => PromiseLike<{ data: unknown; error: unknown | null; count: number | null }>;
-      };
-      insert: (row: Record<string, unknown>) => PromiseLike<{ error: unknown | null }>;
-    };
-  };
-  memoryStore: any;
-  transcriptStore: any;
-  clock: { now: () => string };
+  client: SupabaseRpcClient;
+  memoryStore: MemoryStore;
+  transcriptStore: TranscriptStore;
+  clock: Clock;
   factories: {
-    createLlmFromAgentConfig: (config: any) => any;
-    createMemoryExtractionService: (deps: any) => {
+    createLlmFromAgentConfig: (config: LlmProviderConfig | undefined) => LlmPort;
+    createMemoryExtractionService: (deps: {
+      transcripts: TranscriptStore;
+      memory: MemoryStore;
+      llm: LlmPort;
+      clock: Clock;
+    }) => {
       extractMemoryFromSession: (
         agentId: string,
         sessionId: string,
         scope: { scopeType: "user" | "team" | "org"; scopeId: string },
       ) => Promise<unknown[]>;
     };
-    createCompactionService: (deps: any) => {
+    createCompactionService: (deps: {
+      transcripts: TranscriptStore;
+      llm: LlmPort;
+      clock: Clock;
+    }) => {
       compactIfNeeded: (
         agentId: string,
         sessionId: string,
@@ -139,7 +195,7 @@ export async function runOnce(
 async function recoverStaleJobs(deps: RunOnceDeps, requestId: string): Promise<number> {
   try {
     const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const result = await (deps.client as any)
+    const result = await deps.client
       .from("jobs")
       .update({ status: "queued", updated_at: new Date().toISOString() })
       .eq("status", "processing")
@@ -187,7 +243,7 @@ async function processJob(
       throw new Error(`Job ${job.type} missing agentId in payload`);
     }
 
-    const { data: agentData, error: agentError } = await (deps.client as any)
+    const { data: agentData, error: agentError } = await deps.client
       .from("agents")
       .select("config")
       .eq("id", agentId)
@@ -197,7 +253,8 @@ async function processJob(
       throw new Error(`Agent ${agentId} not found`);
     }
 
-    const agentConfig = agentData.config ?? {};
+    const agentRecord = agentData as AgentRow;
+    const agentConfig = agentRecord.config ?? {};
     const llmProvider = agentConfig.llmProvider;
     if (!llmProvider || !llmProvider.apiKey || !llmProvider.baseURL || !llmProvider.model) {
       throw new Error(`Agent ${agentId} 未配置 LLM Provider`);
@@ -213,7 +270,7 @@ async function processJob(
       }
 
       const maxMessages = typeof payload.maxMessages === "number" ? payload.maxMessages : 100;
-      const { data: events, error: eventsError } = await (deps.client as any)
+      const { data: events, error: eventsError } = await deps.client
         .from("transcript_events")
         .select("type, content")
         .eq("agent_id", agentId)
@@ -225,13 +282,14 @@ async function processJob(
         throw new Error(`Failed to fetch transcript events`);
       }
 
-      const messages = (events ?? [])
-        .filter((e: any) => e.type === "user_message" || e.type === "assistant_message")
-        .map((e: any) => ({
-          role: e.type === "user_message" ? "user" : "assistant",
+      const eventRows = (events as TranscriptEventRow[] | null) ?? [];
+      const messages = eventRows
+        .filter((e) => e.type === "user_message" || e.type === "assistant_message")
+        .map((e) => ({
+          role: (e.type === "user_message" ? "user" : "assistant") as "user" | "assistant",
           content: typeof e.content?.text === "string" ? e.content.text : "",
         }))
-        .filter((m: { content: string }) => m.content.length > 0);
+        .filter((m) => m.content.length > 0);
 
       const compaction = deps.factories.createCompactionService({
         transcripts: deps.transcriptStore,
@@ -252,7 +310,7 @@ async function processJob(
         session_id: sessionId,
       });
     } else if (job.type === "EMBEDDING_BACKFILL") {
-      const { data: items, error: fetchError } = await (deps.client as any)
+      const { data: items, error: fetchError } = await deps.client
         .from("memory_items")
         .select("id, content")
         .eq("agent_id", agentId)
@@ -263,10 +321,11 @@ async function processJob(
         throw new Error(`Failed to fetch memory items`);
       }
 
-      if (items && items.length > 0) {
-        for (const item of items) {
-          const vector = await llm.embed(String(item.content));
-          await (deps.client as any)
+      const itemRows = (items as MemoryItemRow[] | null) ?? [];
+      if (itemRows.length > 0) {
+        for (const item of itemRows) {
+          const vector = await llm.embed({ text: String(item.content) });
+          await deps.client
             .from("memory_items")
             .update({ embedding: vector })
             .eq("id", item.id);
@@ -278,7 +337,7 @@ async function processJob(
         route: "worker.processJob",
         job_id: job.id,
         agent_id: agentId,
-        count: items ? items.length : 0,
+        count: itemRows.length,
       });
     } else if (job.type === "MEMORY_FLUSH") {
       const sessionId = typeof payload.sessionId === "string" ? payload.sessionId : "";
@@ -293,7 +352,8 @@ async function processJob(
       }
 
       const memoryExtraction = deps.factories.createMemoryExtractionService({
-        memories: deps.memoryStore,
+        transcripts: deps.transcriptStore,
+        memory: deps.memoryStore,
         llm,
         clock,
       });

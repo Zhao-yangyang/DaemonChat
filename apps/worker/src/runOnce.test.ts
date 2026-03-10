@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { runOnce, type RunOnceDeps, type RunOnceOptions } from "./runOnce";
+import { runOnce, type RunOnceDeps, type RunOnceOptions, type SupabaseRpcClient } from "./runOnce";
+import type { MemoryStore, TranscriptStore, LlmPort } from "@daemon/domain";
 
 /* ------------------------------------------------------------------ */
 /*  helpers                                                           */
@@ -67,7 +68,7 @@ function createMockDeps(overrides: {
       }
       if (table === "transcript_events") {
         return {
-          update: (values: Record<string, unknown>) => ({
+          update: (_values: Record<string, unknown>) => ({
             eq: (_c: string, _v: string) => Promise.resolve({ error: null }),
             lt: () => Promise.resolve({ data: [], error: null, count: 0 }),
           }),
@@ -75,7 +76,7 @@ function createMockDeps(overrides: {
           select: (_cols: string) => ({
             eq: (_c1: string, _v1: string) => ({
               eq: (_c2: string, _v2: string) => ({
-                order: (_c3: string, _opts: any) => ({
+                order: (_c3: string, _opts: Record<string, unknown>) => ({
                   limit: (_n: number) => Promise.resolve({ data: transcriptEvents, error: null }),
                 }),
               }),
@@ -85,14 +86,14 @@ function createMockDeps(overrides: {
       }
       if (table === "memory_items") {
         return {
-          update: (values: Record<string, unknown>) => ({
+          update: (_values: Record<string, unknown>) => ({
             eq: (_c: string, _v: string) => Promise.resolve({ error: null }),
             lt: () => Promise.resolve({ data: [], error: null, count: 0 }),
           }),
           insert: () => Promise.resolve({ error: null }),
           select: (_cols: string) => ({
             eq: (_c1: string, _v1: string) => ({
-              is: (_c2: string, _v2: any) => ({
+              is: (_c2: string, _v2: null) => ({
                 limit: (_n: number) => Promise.resolve({ data: memoryItems, error: null }),
               }),
               eq: (_c2: string, _v2: string) => ({
@@ -161,17 +162,20 @@ function createMockDeps(overrides: {
         }),
       };
     },
-  } as any;
+  } as unknown as SupabaseRpcClient;
 
   return {
     client,
-    memoryStore: {},
-    transcriptStore: {},
+    memoryStore: {} as unknown as MemoryStore,
+    transcriptStore: {} as unknown as TranscriptStore,
     clock: { now: () => new Date().toISOString() },
     factories: {
-      createLlmFromAgentConfig: () => ({
-        embed: async () => embeddingResult,
-      }),
+      createLlmFromAgentConfig: () =>
+        ({
+          embed: async () => embeddingResult,
+          streamChat: async function* () {},
+          completeChat: async () => "",
+        }) as unknown as LlmPort,
       createMemoryExtractionService: () => ({
         extractMemoryFromSession: async () => [],
       }),

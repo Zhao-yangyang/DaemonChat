@@ -1,15 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { MemoryStore, MemoryItem } from "@daemon/domain";
+import type { MemoryStore, MemoryItem, MemoryScopeType, MemoryType, MemorySensitivity } from "@daemon/domain";
 
-const mapMemory = (row: any): MemoryItem => ({
+interface MemoryItemRow {
+  id: string;
+  agent_id: string;
+  scope_type: string;
+  scope_id: string;
+  type: string;
+  content: string;
+  tags: string[] | null;
+  sensitivity: string;
+  context_eligible: boolean;
+  embedding: number[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const mapMemory = (row: MemoryItemRow): MemoryItem => ({
   id: row.id,
   agentId: row.agent_id,
-  scopeType: row.scope_type,
+  scopeType: row.scope_type as MemoryScopeType,
   scopeId: row.scope_id,
-  type: row.type,
+  type: row.type as MemoryType,
   content: row.content,
   tags: row.tags ?? [],
-  sensitivity: row.sensitivity,
+  sensitivity: row.sensitivity as MemorySensitivity,
   contextEligible: row.context_eligible,
   embedding: row.embedding ?? null,
   createdAt: row.created_at,

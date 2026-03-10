@@ -5,6 +5,7 @@ import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createXai } from "@ai-sdk/xai";
 import { createMistral } from "@ai-sdk/mistral";
 import { streamText, generateText, embed } from "ai";
+import type { LanguageModel, EmbeddingModel } from "ai";
 import type {
   ChatMessageContent,
   LlmModelSelection,
@@ -26,10 +27,70 @@ export interface VercelLlmConfig {
   temperature?: number;
 }
 
+/** Subset of StreamTextResult properties used by this adapter */
+interface StreamResultSubset {
+  textStream: AsyncIterable<string>;
+  text?: string | PromiseLike<string>;
+}
+
+/** Subset of GenerateTextResult properties used by this adapter */
+interface GenerateResultSubset {
+  text: string;
+}
+
+/** Subset of EmbedResult properties used by this adapter */
+interface EmbedResultSubset {
+  embedding: number[];
+}
+
+/** SDK content part for multimodal messages */
+type SdkContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; image: URL; mimeType?: string };
+
+/** SDK message content (string or multimodal parts) */
+type SdkContent = string | SdkContentPart[];
+
+/** SDK message shape passed to streamText/generateText */
+type SdkMessage = { role: "system" | "user" | "assistant"; content: SdkContent };
+
+/** Provider union returned by createProviderFromConfig */
+type AiProvider = ReturnType<typeof createProviderFromConfig>;
+
+/** Callable provider interface for model creation */
+interface CallableProvider {
+  (modelId: string): LanguageModel;
+  chat?: (modelId: string) => LanguageModel;
+}
+
+/** Provider that may expose embedding model factories */
+interface EmbeddingCapableProvider {
+  textEmbeddingModel?: (modelId: string) => EmbeddingModel;
+  embedding?: (modelId: string) => EmbeddingModel;
+}
+
+type StreamTextFn = (input: {
+  model: LanguageModel;
+  messages: SdkMessage[];
+  abortSignal?: unknown;
+  temperature?: number;
+}) => StreamResultSubset;
+
+type GenerateTextFn = (input: {
+  model: LanguageModel;
+  messages: SdkMessage[];
+  temperature?: number;
+}) => Promise<GenerateResultSubset>;
+
+type EmbedFn = (input: {
+  model: EmbeddingModel;
+  value: string;
+}) => Promise<EmbedResultSubset>;
+
 interface VercelLlmRuntimeDeps {
-  streamTextImpl?: (input: any) => any;
-  generateTextImpl?: (input: any) => Promise<any>;
-  embedImpl?: (input: any) => Promise<any>;
+  streamTextImpl?: StreamTextFn;
+  generateTextImpl?: GenerateTextFn;
+  embedImpl?: EmbedFn;
 }
 
 const normalizeText = (text: string): string => text.trim().toLowerCase().replace(/\s+/g, " ");
@@ -49,12 +110,12 @@ const toPositiveInt = (value: number | undefined, fallback: number): number => {
   return normalized > 0 ? normalized : fallback;
 };
 
-const readStreamResultText = async (result: any): Promise<string> => {
+const readStreamResultText = async (result: StreamResultSubset): Promise<string> => {
   if (!result) return "";
   if (typeof result.text === "string") {
     return result.text;
   }
-  if (result.text && typeof result.text.then === "function") {
+  if (result.text && typeof (result.text as PromiseLike<string>).then === "function") {
     try {
       const resolved = await result.text;
       return typeof resolved === "string" ? resolved : "";
@@ -89,17 +150,17 @@ export const createDeterministicLocalEmbedding = (text: string, dimensions = 153
   return vector.map((value) => Number((value / norm).toFixed(8)));
 };
 
-const toSdkContent = (content: ChatMessageContent): any => {
+const toSdkContent = (content: ChatMessageContent): SdkContent => {
   if (typeof content === "string") return content;
-  return content.map((part) => {
-    if (part.type === "text") return { type: "text", text: part.text };
-    return { type: "image", image: new URL(part.url), mimeType: part.mimeType };
+  return content.map((part): SdkContentPart => {
+    if (part.type === "text") return { type: "text" as const, text: part.text };
+    return { type: "image" as const, image: new URL(part.url), mimeType: part.mimeType };
   });
 };
 
 const toSdkMessages = (
   messages: Array<{ role: "system" | "user" | "assistant"; content: ChatMessageContent }>,
-): any[] => messages.map((m) => ({ role: m.role, content: toSdkContent(m.content) }));
+): SdkMessage[] => messages.map((m) => ({ role: m.role, content: toSdkContent(m.content) }));
 
 function createProviderFromConfig(config: VercelLlmConfig) {
   const opts = {
@@ -126,41 +187,49 @@ function createProviderFromConfig(config: VercelLlmConfig) {
   }
 }
 
-function createChatModel(provider: any, modelId: string, sdkProvider?: string): any {
+function createChatModel(provider: AiProvider, modelId: string, sdkProvider?: string): LanguageModel {
+  const p = provider as CallableProvider;
   // For OpenAI and OpenAI-compatible providers, explicitly use .chat()
   // to avoid the v5+ default Responses API behavior
-  if (!sdkProvider || sdkProvider === "openai") {
-    return provider.chat(modelId);
+  if ((!sdkProvider || sdkProvider === "openai") && p.chat) {
+    return p.chat(modelId);
   }
-  return provider(modelId);
+  return p(modelId);
 }
 
 export function createVercelLlmAdapter(
   config: VercelLlmConfig,
   deps: VercelLlmRuntimeDeps = {},
 ): LlmPort {
-  const streamTextImpl = deps.streamTextImpl ?? streamText;
-  const generateTextImpl = deps.generateTextImpl ?? generateText;
-  const embedImpl = deps.embedImpl ?? embed;
+  const streamTextImpl = (deps.streamTextImpl ?? streamText) as StreamTextFn;
+  const generateTextImpl = (deps.generateTextImpl ?? generateText) as GenerateTextFn;
+  const embedImpl = (deps.embedImpl ?? embed) as EmbedFn;
   const provider = createProviderFromConfig(config);
 
-  const chatModel: any = createChatModel(provider, config.model, config.sdkProvider);
-  const fallbackChatModel: any = config.fallbackModel
+  const chatModel: LanguageModel = createChatModel(provider, config.model, config.sdkProvider);
+  const fallbackChatModel: LanguageModel | null = config.fallbackModel
     ? createChatModel(provider, config.fallbackModel, config.sdkProvider)
     : null;
   const embeddingDimensions = toPositiveInt(config.embeddingDimensions, 1536);
 
-  const resolveModel = (override?: string): { model: any; name: string } => {
+  const resolveModel = (override?: string): { model: LanguageModel; name: string } => {
     if (override && override !== config.model) {
       return { model: createChatModel(provider, override, config.sdkProvider), name: override };
     }
     return { model: chatModel, name: config.model };
   };
 
-  const resolveRemoteEmbedding = () =>
-    (provider as any).textEmbeddingModel?.(config.embeddingModel) ??
-    (provider as any).embedding?.(config.embeddingModel) ??
-    (provider as any)(config.embeddingModel);
+  const resolveRemoteEmbedding = (): EmbeddingModel => {
+    // Not all providers expose embedding factories on their type surface,
+    // so we cast through unknown to access them at runtime.
+    const p = provider as unknown as EmbeddingCapableProvider &
+      ((modelId: string) => EmbeddingModel);
+    return (
+      p.textEmbeddingModel?.(config.embeddingModel) ??
+      p.embedding?.(config.embeddingModel) ??
+      p(config.embeddingModel)
+    );
+  };
 
   return {
     async *streamChat({ messages, model: modelOverride, onModelResolved, abortSignal }) {
@@ -175,7 +244,7 @@ export function createVercelLlmAdapter(
 
       let yielded = false;
       try {
-        const primaryResult: any = streamTextImpl({
+        const primaryResult = streamTextImpl({
           model: primary.model,
           messages: sdkMessages,
           abortSignal,
@@ -207,7 +276,7 @@ export function createVercelLlmAdapter(
         }
       }
 
-      const fallbackResult: any = streamTextImpl({
+      const fallbackResult = streamTextImpl({
         model: fallbackChatModel,
         messages: sdkMessages,
         abortSignal,
@@ -236,7 +305,7 @@ export function createVercelLlmAdapter(
       const sdkMessages = toSdkMessages(messages);
       const primary = resolveModel(modelOverride);
       try {
-        const result: any = await generateTextImpl({
+        const result = await generateTextImpl({
           model: primary.model,
           messages: sdkMessages,
           ...(config.temperature != null ? { temperature: config.temperature } : {}),
@@ -249,7 +318,7 @@ export function createVercelLlmAdapter(
         }
       }
 
-      const fallbackResult: any = await generateTextImpl({
+      const fallbackResult = await generateTextImpl({
         model: fallbackChatModel,
         messages: sdkMessages,
         ...(config.temperature != null ? { temperature: config.temperature } : {}),
@@ -264,7 +333,7 @@ export function createVercelLlmAdapter(
       }
 
       try {
-        const result: any = await embedImpl({
+        const result = await embedImpl({
           model: resolveRemoteEmbedding(),
           value: text.trim(),
         });

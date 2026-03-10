@@ -105,6 +105,7 @@ export function LlmProviderSection({
         // Keep static fallback models on error
       })
       .finally(() => setModelsLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch models only when provider config fields change, not on every value/onChange ref change
   }, [value.presetId, value.apiKey, value.baseURL, value.sdkProvider]);
 
   const handleProviderChange = (val: string) => {

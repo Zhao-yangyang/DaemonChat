@@ -2,15 +2,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_AGENT_CONFIG, type Agent, type AgentConfig, type AgentVisibility } from "@daemon/domain";
 import type { AgentStore } from "@daemon/domain";
 
+interface AgentRow {
+  id: string;
+  owner_user_id: string;
+  name: string;
+  config: Record<string, unknown> | null;
+  workspace_id: string | null;
+  visibility: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const VISIBILITY_VALUES: AgentVisibility[] = ["private", "workspace", "public"];
 
-const mapAgent = (row: any): Agent => ({
+const mapAgent = (row: AgentRow): Agent => ({
   id: row.id,
   ownerUserId: row.owner_user_id,
   name: row.name,
   config: { ...DEFAULT_AGENT_CONFIG, ...(row.config ?? {}) } as AgentConfig,
   workspaceId: row.workspace_id ?? null,
-  visibility: VISIBILITY_VALUES.includes(row.visibility) ? row.visibility : "private",
+  visibility: VISIBILITY_VALUES.includes(row.visibility as AgentVisibility)
+    ? (row.visibility as AgentVisibility)
+    : "private",
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });

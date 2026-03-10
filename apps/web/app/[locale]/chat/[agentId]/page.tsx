@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/src/i18n/navigation";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
 import { useRouter } from "@/src/i18n/navigation";
@@ -188,7 +187,10 @@ export default function ChatPage() {
   );
 
   const currentSessionKey = sessionKey.trim();
-  const messages = messagesBySession[currentSessionKey] ?? [];
+  const messages = useMemo(
+    () => messagesBySession[currentSessionKey] ?? [],
+    [messagesBySession, currentSessionKey],
+  );
 
   const selectedSession = useMemo(
     () => (sessionList.data ?? []).find((item) => item.sessionKey === currentSessionKey) ?? null,
@@ -330,6 +332,7 @@ export default function ChatPage() {
     if (currentSessionKey !== lastForkedSession?.sessionKey) {
       setLastForkedSession(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reset on session switch, not on lastForkedSession change
   }, [currentSessionKey]);
 
   const updateMessagesForSession = (

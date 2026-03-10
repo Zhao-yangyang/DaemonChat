@@ -1,13 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { UsageStore, UsageEvent, UsageSummary } from "@daemon/domain";
+import type { UsageStore, UsageEvent, UsageSummary, UsageEventType } from "@daemon/domain";
 
-const mapUsage = (row: any): UsageEvent => ({
+interface UsageEventRow {
+  id: string;
+  agent_id: string;
+  event_type: string;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_estimate: number | string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+const mapUsage = (row: UsageEventRow): UsageEvent => ({
   id: row.id,
   agentId: row.agent_id,
-  eventType: row.event_type,
+  eventType: row.event_type as UsageEventType,
   tokensIn: row.tokens_in,
   tokensOut: row.tokens_out,
-  costEstimate: row.cost_estimate,
+  costEstimate: row.cost_estimate != null ? Number(row.cost_estimate) : null,
   meta: row.meta ?? {},
   createdAt: row.created_at,
 });

@@ -1,6 +1,5 @@
 import type {
   Agent,
-  AgentConfig,
   AuditEvent,
   MemoryItem,
   Session,

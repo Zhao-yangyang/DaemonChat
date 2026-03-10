@@ -3,12 +3,14 @@ import {
   createMemoryStore,
   createTranscriptStore,
 } from "@daemon/adapters-supabase";
-import { createVercelLlmAdapter, createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 import {
   createMemoryExtractionService,
   DEFAULT_AGENT_CONFIG,
   createCompactionService,
 } from "@daemon/domain";
+import type { MemoryStore, TranscriptStore } from "@daemon/domain";
 import { logInfo, logWarn, logError } from "@/src/server/logger";
 
 const env = {
@@ -16,6 +18,14 @@ const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
 };
+
+interface JobRow {
+  id: string;
+  type: string;
+  payload: Record<string, unknown> | null;
+  attempts: number;
+  [key: string]: unknown;
+}
 
 const CLAIM_BATCH_SIZE = 5;
 const MAX_JOBS_PER_RUN = 20;
@@ -92,7 +102,7 @@ export async function GET(req: Request) {
   const deadline = startedAt + MAX_DURATION_MS;
 
   try {
-    const depthResult = await (client as any)
+    const depthResult = await client
       .from("jobs")
       .select("created_at", { count: "exact", head: false })
       .eq("status", "queued")
@@ -121,7 +131,7 @@ export async function GET(req: Request) {
 
   try {
     const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MS).toISOString();
-    const staleResult = await (client as any)
+    const staleResult = await client
       .from("jobs")
       .update({ status: "queued", updated_at: new Date().toISOString() })
       .eq("status", "processing")
@@ -153,12 +163,12 @@ export async function GET(req: Request) {
       logError("cron.drain.claim_error", {
         request_id: requestId,
         route: "cron.drain",
-        error_message: String((claimError as any).message ?? claimError),
+        error_message: String(claimError.message ?? claimError),
       });
       break;
     }
 
-    const jobs = Array.isArray(data) ? (data as Array<Record<string, any>>) : [];
+    const jobs = Array.isArray(data) ? (data as JobRow[]) : [];
     if (jobs.length === 0) break;
     summary.claimed += jobs.length;
 
@@ -208,10 +218,10 @@ export async function GET(req: Request) {
 type ProcessResult = "completed" | "requeued" | "dead";
 
 async function processJob(args: {
-  client: any;
-  memoryStore: any;
-  transcriptStore: any;
-  job: Record<string, any>;
+  client: SupabaseClient;
+  memoryStore: MemoryStore;
+  transcriptStore: TranscriptStore;
+  job: JobRow;
   requestId: string;
 }): Promise<ProcessResult> {
   const { client, memoryStore, transcriptStore, job, requestId } = args;
@@ -223,7 +233,7 @@ async function processJob(args: {
       throw new Error(`Unsupported job type: ${job.type}`);
     }
 
-    const payload = job.payload && typeof job.payload === "object" ? job.payload : {};
+    const payload: Record<string, unknown> = job.payload ?? {};
 
     const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
     if (!agentId) {

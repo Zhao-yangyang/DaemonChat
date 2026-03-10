@@ -1146,7 +1146,7 @@ describe("api router", () => {
       const mockSupabase = {
         from: () => ({
           select: () => ({
-            eq: (col: string, val: string) => ({
+            eq: (col: string, _val: string) => ({
               eq: (_col2: string, _val2: string) => ({
                 maybeSingle: () =>
                   Promise.resolve({

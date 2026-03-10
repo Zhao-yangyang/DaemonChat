@@ -5,6 +5,7 @@ import { runOnce } from "./runOnce";
 import { logError, logInfo, serializeError } from "./logger";
 import { createLlmFromAgentConfig } from "@daemon/adapters-llm-vercel";
 import { createCompactionService, createMemoryExtractionService } from "@daemon/domain";
+import type { RunOnceDeps } from "./runOnce";
 
 const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? "",
@@ -23,7 +24,7 @@ const RETRY_BASE_DELAY_MS = Number(process.env.JOB_RETRY_BASE_MS ?? 5000);
 const RETRY_MAX_DELAY_MS = Number(process.env.JOB_RETRY_MAX_MS ?? 300000);
 
 const deps = {
-  client: client as any,
+  client: client as unknown as RunOnceDeps["client"],
   memoryStore,
   transcriptStore,
   clock,
