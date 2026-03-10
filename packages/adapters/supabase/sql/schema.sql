@@ -292,6 +292,18 @@ language sql stable as $$
   limit match_count;
 $$;
 
+-- Efficient count of memory items grouped by type
+create or replace function public.count_memory_items_by_type(
+  p_agent_id uuid
+)
+returns table (type text, cnt bigint)
+language sql stable as $$
+  select m.type, count(*) as cnt
+  from public.memory_items m
+  where m.agent_id = p_agent_id
+  group by m.type;
+$$;
+
 -- Agent templates (marketplace MVP)
 create table if not exists public.agent_templates (
   id uuid primary key default gen_random_uuid(),

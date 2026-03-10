@@ -74,18 +74,19 @@ export function createMemoryStore(client: SupabaseClient): MemoryStore {
     },
 
     async countMemoryItems({ agentId }) {
-      const { data, error } = await client
-        .from("memory_items")
-        .select("type")
-        .eq("agent_id", agentId);
+      const { data, error } = await client.rpc("count_memory_items_by_type", {
+        p_agent_id: agentId,
+      });
 
       if (error) throw error;
-      const rows = data ?? [];
+      const rows = (data ?? []) as Array<{ type: string; cnt: number }>;
       const byType: Record<string, number> = {};
+      let total = 0;
       for (const row of rows) {
-        byType[row.type] = (byType[row.type] ?? 0) + 1;
+        byType[row.type] = row.cnt;
+        total += row.cnt;
       }
-      return { total: rows.length, byType };
+      return { total, byType };
     },
 
     async queryTopK({

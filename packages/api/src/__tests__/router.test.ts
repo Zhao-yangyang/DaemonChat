@@ -38,6 +38,9 @@ const buildContainer = (overrides?: {
   writeMemoryItem?: Services["memory"]["writeMemoryItem"];
   updateMemoryItem?: Services["memory"]["updateMemoryItem"];
   deleteMemoryItem?: Services["memory"]["deleteMemoryItem"];
+  listMemoryItems?: Services["memory"]["listMemoryItems"];
+  searchMemoryItems?: Services["memory"]["searchMemoryItems"];
+  countMemoryItems?: Services["memory"]["countMemoryItems"];
   listSessions?: Services["session"]["listRecentSessions"];
   deleteSession?: Services["session"]["deleteSession"];
   renameSession?: Services["session"]["renameSession"];
@@ -124,6 +127,9 @@ const buildContainer = (overrides?: {
           updatedAt: "2026-02-03T00:00:00.000Z",
         })),
       deleteMemoryItem: overrides?.deleteMemoryItem ?? (async () => {}),
+      listMemoryItems: overrides?.listMemoryItems ?? (async () => []),
+      searchMemoryItems: overrides?.searchMemoryItems ?? (async () => []),
+      countMemoryItems: overrides?.countMemoryItems ?? (async () => ({ total: 0, byType: {} })),
     },
     session: {
       listRecentSessions: overrides?.listSessions ?? (async () => []),
@@ -1031,6 +1037,156 @@ describe("api router", () => {
     expect(captured).toBeTruthy();
     expect(captured.agentId).toBe("agent-1");
     expect(captured.memoryId).toBe("memory-1");
+  });
+
+  test("memory.list returns items with default parameters", async () => {
+    const mockItems = [
+      {
+        id: "m-1",
+        agentId: "agent-1",
+        scopeType: "user" as const,
+        scopeId: "user-1",
+        type: "fact" as const,
+        content: "user likes coffee",
+        tags: ["preference"],
+        sensitivity: "public" as const,
+        contextEligible: true,
+        embedding: [1, 0, 0],
+        createdAt: "2026-02-03T00:00:00.000Z",
+        updatedAt: "2026-02-03T00:00:00.000Z",
+      },
+    ];
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          listMemoryItems: async () => mockItems,
+        }),
+      }),
+    );
+    const result = await caller.memory.list({ agentId: "agent-1" });
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toBe("user likes coffee");
+  });
+
+  test("memory.list passes type and sensitivity filters", async () => {
+    let captured: { agentId: string; limit: number; opts: Record<string, unknown> } | null = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          listMemoryItems: async (agentId, limit, opts) => {
+            captured = { agentId, limit, opts: opts as Record<string, unknown> };
+            return [];
+          },
+        }),
+      }),
+    );
+    await caller.memory.list({
+      agentId: "agent-1",
+      limit: 10,
+      offset: 5,
+      type: "rule",
+      sensitivity: "private",
+    });
+    expect(captured).toBeTruthy();
+    expect(captured!.agentId).toBe("agent-1");
+    expect(captured!.limit).toBe(10);
+    expect(captured!.opts).toMatchObject({ offset: 5, type: "rule", sensitivity: "private" });
+  });
+
+  test("memory.list rejects when agent access is forbidden", async () => {
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          getAgent: async () => {
+            throw new ForbiddenError("forbidden");
+          },
+        }),
+      }),
+    );
+    await expect(caller.memory.list({ agentId: "agent-1" })).rejects.toThrow();
+  });
+
+  test("memory.search returns semantically similar items", async () => {
+    const mockResults = [
+      {
+        id: "m-2",
+        agentId: "agent-1",
+        scopeType: "user" as const,
+        scopeId: "user-1",
+        type: "preference" as const,
+        content: "prefers dark mode",
+        tags: [] as string[],
+        sensitivity: "public" as const,
+        contextEligible: true,
+        embedding: [0, 1, 0],
+        createdAt: "2026-02-03T00:00:00.000Z",
+        updatedAt: "2026-02-03T00:00:00.000Z",
+      },
+    ];
+    let captured: { query: string; topK: number } | null = null;
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          searchMemoryItems: async (_agentId, query, topK) => {
+            captured = { query, topK };
+            return mockResults;
+          },
+        }),
+      }),
+    );
+    const result = await caller.memory.search({
+      agentId: "agent-1",
+      query: "what does user prefer",
+      topK: 5,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toBe("prefers dark mode");
+    expect(captured!.query).toBe("what does user prefer");
+    expect(captured!.topK).toBe(5);
+  });
+
+  test("memory.search rejects when agent access is forbidden", async () => {
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          getAgent: async () => {
+            throw new ForbiddenError("forbidden");
+          },
+        }),
+      }),
+    );
+    await expect(
+      caller.memory.search({ agentId: "agent-1", query: "test" }),
+    ).rejects.toThrow();
+  });
+
+  test("memory.count returns total and by-type breakdown", async () => {
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          countMemoryItems: async () => ({
+            total: 15,
+            byType: { fact: 8, rule: 3, preference: 2, task: 2 },
+          }),
+        }),
+      }),
+    );
+    const result = await caller.memory.count({ agentId: "agent-1" });
+    expect(result.total).toBe(15);
+    expect(result.byType).toEqual({ fact: 8, rule: 3, preference: 2, task: 2 });
+  });
+
+  test("memory.count rejects when agent access is forbidden", async () => {
+    const caller = appRouter.createCaller(
+      buildContext({
+        container: buildContainer({
+          getAgent: async () => {
+            throw new ForbiddenError("forbidden");
+          },
+        }),
+      }),
+    );
+    await expect(caller.memory.count({ agentId: "agent-1" })).rejects.toThrow();
   });
 
   describe("template", () => {
