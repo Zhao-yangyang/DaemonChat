@@ -101,7 +101,16 @@ export interface MemoryStore {
       now: Timestamp;
     },
   ): Promise<MemoryItem>;
-  listMemoryItems(input: { agentId: UUID; limit: number }): Promise<MemoryItem[]>;
+  listMemoryItems(input: {
+    agentId: UUID;
+    limit: number;
+    offset?: number;
+    type?: MemoryItem["type"];
+    sensitivity?: MemoryItem["sensitivity"];
+  }): Promise<MemoryItem[]>;
+  countMemoryItems(input: {
+    agentId: UUID;
+  }): Promise<{ total: number; byType: Record<string, number> }>;
   queryTopK(input: {
     agentId: UUID;
     embedding: number[];

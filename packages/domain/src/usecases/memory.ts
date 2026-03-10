@@ -61,8 +61,35 @@ export function createMemoryService(ports: { memory: MemoryStore; llm: LlmPort; 
       });
     },
 
-    async listMemoryItems(agentId: string, limit: number): Promise<MemoryItem[]> {
-      return ports.memory.listMemoryItems({ agentId, limit });
+    async listMemoryItems(
+      agentId: string,
+      limit: number,
+      filters?: {
+        offset?: number;
+        type?: MemoryItem["type"];
+        sensitivity?: MemoryItem["sensitivity"];
+      },
+    ): Promise<MemoryItem[]> {
+      return ports.memory.listMemoryItems({
+        agentId,
+        limit,
+        offset: filters?.offset,
+        type: filters?.type,
+        sensitivity: filters?.sensitivity,
+      });
+    },
+
+    async countMemoryItems(agentId: string) {
+      return ports.memory.countMemoryItems({ agentId });
+    },
+
+    async searchMemoryItems(agentId: string, query: string, topK: number): Promise<MemoryItem[]> {
+      const embedding = await ports.llm.embed({ text: query });
+      return ports.memory.queryTopK({
+        agentId,
+        embedding,
+        topK,
+      });
     },
 
     async updateMemoryItem(

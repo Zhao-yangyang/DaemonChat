@@ -332,11 +332,22 @@ export function createInMemoryStores(): {
       return item;
     },
 
-    async listMemoryItems({ agentId, limit }) {
-      return memoryItems
-        .filter((item) => item.agentId === agentId)
-        .sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt))
-        .slice(0, limit);
+    async listMemoryItems({ agentId, limit, offset, type, sensitivity }) {
+      let filtered = memoryItems.filter((item) => item.agentId === agentId);
+      if (type) filtered = filtered.filter((item) => item.type === type);
+      if (sensitivity) filtered = filtered.filter((item) => item.sensitivity === sensitivity);
+      const sorted = filtered.sort((a, b) => toMillis(b.createdAt) - toMillis(a.createdAt));
+      const start = offset ?? 0;
+      return sorted.slice(start, start + limit);
+    },
+
+    async countMemoryItems({ agentId }) {
+      const filtered = memoryItems.filter((item) => item.agentId === agentId);
+      const byType: Record<string, number> = {};
+      for (const item of filtered) {
+        byType[item.type] = (byType[item.type] ?? 0) + 1;
+      }
+      return { total: filtered.length, byType };
     },
 
     async queryTopK({

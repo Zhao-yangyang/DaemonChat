@@ -511,11 +511,40 @@ export const appRouter = t.router({
         z.object({
           agentId: z.string().min(1),
           limit: z.number().int().min(1).max(200).default(50),
+          offset: z.number().int().min(0).default(0),
+          type: z.enum(["fact", "rule", "preference", "task"]).optional(),
+          sensitivity: z.enum(["public", "private", "secret"]).optional(),
         }),
       )
       .query(async ({ ctx, input }) => {
         await ensureAgentAccess(ctx, input.agentId);
-        return ctx.container.memory.listMemoryItems(input.agentId, input.limit);
+        return ctx.container.memory.listMemoryItems(input.agentId, input.limit, {
+          offset: input.offset || undefined,
+          type: input.type,
+          sensitivity: input.sensitivity,
+        });
+      }),
+    search: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+          query: z.string().min(1),
+          topK: z.number().int().min(1).max(50).default(20),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        await ensureAgentAccess(ctx, input.agentId);
+        return ctx.container.memory.searchMemoryItems(input.agentId, input.query, input.topK);
+      }),
+    count: t.procedure
+      .input(
+        z.object({
+          agentId: z.string().min(1),
+        }),
+      )
+      .query(async ({ ctx, input }) => {
+        await ensureAgentAccess(ctx, input.agentId);
+        return ctx.container.memory.countMemoryItems(input.agentId);
       }),
     create: t.procedure
       .input(

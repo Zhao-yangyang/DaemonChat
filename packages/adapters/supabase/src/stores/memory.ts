@@ -41,16 +41,36 @@ export function createMemoryStore(client: SupabaseClient): MemoryStore {
       return mapMemory(data);
     },
 
-    async listMemoryItems({ agentId, limit }) {
-      const { data, error } = await client
+    async listMemoryItems({ agentId, limit, offset, type, sensitivity }) {
+      let query = client
         .from("memory_items")
         .select("*")
         .eq("agent_id", agentId)
         .order("created_at", { ascending: false })
         .limit(limit);
 
+      if (offset) query = query.range(offset, offset + limit - 1);
+      if (type) query = query.eq("type", type);
+      if (sensitivity) query = query.eq("sensitivity", sensitivity);
+
+      const { data, error } = await query;
       if (error) throw error;
       return (data ?? []).map(mapMemory);
+    },
+
+    async countMemoryItems({ agentId }) {
+      const { data, error } = await client
+        .from("memory_items")
+        .select("type")
+        .eq("agent_id", agentId);
+
+      if (error) throw error;
+      const rows = data ?? [];
+      const byType: Record<string, number> = {};
+      for (const row of rows) {
+        byType[row.type] = (byType[row.type] ?? 0) + 1;
+      }
+      return { total: rows.length, byType };
     },
 
     async queryTopK({

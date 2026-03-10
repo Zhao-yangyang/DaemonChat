@@ -23,105 +23,106 @@ import {
   Skeleton,
   Textarea,
 } from "@daemon/ui";
+import { Search, Sparkles, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { DashboardShell } from "@/src/components/dashboard-shell";
-import { filterMemoryItems, paginateItems } from "@/src/features/historyFilters";
-import { parseMemoryQueryState, toMemorySearchParams } from "@/src/features/historyQueryState";
 import { useSession } from "@/src/hooks/use-session";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 12;
+const MEMORY_TYPES = ["fact", "rule", "preference", "task"] as const;
+const SENSITIVITY_OPTIONS = ["public", "private", "secret"] as const;
+
+type MemoryType = (typeof MEMORY_TYPES)[number];
+type Sensitivity = (typeof SENSITIVITY_OPTIONS)[number];
+
+const TYPE_LABELS: Record<MemoryType, string> = {
+  fact: "事实",
+  rule: "规则",
+  preference: "偏好",
+  task: "任务",
+};
+
+const TYPE_COLORS: Record<MemoryType, string> = {
+  fact: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  rule: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  preference: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  task: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+};
 
 function MemoryPageContent() {
   const t = useTranslations("memory");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const parsedState = useMemo(() => parseMemoryQueryState(searchParams), [searchParams]);
   const { user } = useSession();
+  const userId = user?.id ?? "";
+
+  const [agentId, setAgentId] = useState(searchParams.get("agent") ?? "");
+  const [searchMode, setSearchMode] = useState<"list" | "semantic">("list");
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<MemoryType | "all">("all");
+  const [sensitivityFilter, setSensitivityFilter] = useState<Sensitivity | "all">("all");
+  const [page, setPage] = useState(1);
+
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [createContent, setCreateContent] = useState("");
+  const [createType, setCreateType] = useState<MemoryType>("fact");
+  const [createTags, setCreateTags] = useState("");
+  const [createSensitivity, setCreateSensitivity] = useState<Sensitivity>("public");
+  const [createEligible, setCreateEligible] = useState(true);
+
+  // Edit state
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [editSensitivity, setEditSensitivity] = useState<Sensitivity>("public");
+  const [editEligible, setEditEligible] = useState(true);
 
   const agents = trpc.agent.list.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
   });
 
-  const [agentId, setAgentId] = useState(parsedState.agentId);
-  const [content, setContent] = useState("");
-  const [query, setQuery] = useState(parsedState.query);
-  const [sensitivityFilter, setSensitivityFilter] = useState<
-    "all" | "public" | "private" | "secret"
-  >(parsedState.sensitivityFilter);
-  const [eligibilityFilter, setEligibilityFilter] = useState<"all" | "eligible" | "ineligible">(
-    parsedState.eligibilityFilter,
-  );
-  const [page, setPage] = useState(parsedState.page);
-  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
-  const [editingContent, setEditingContent] = useState("");
-  const [editingTags, setEditingTags] = useState("");
-  const [editingSensitivity, setEditingSensitivity] = useState<"public" | "private" | "secret">(
-    "public",
-  );
-  const [editingEligibility, setEditingEligibility] = useState<"eligible" | "ineligible">(
-    "eligible",
-  );
-
-  const userId = user?.id ?? "";
-
+  const offset = (page - 1) * PAGE_SIZE;
   const memoryList = trpc.memory.list.useQuery(
-    { agentId, limit: 50 },
-    { enabled: Boolean(agentId) },
+    {
+      agentId,
+      limit: PAGE_SIZE,
+      offset,
+      type: typeFilter === "all" ? undefined : typeFilter,
+      sensitivity: sensitivityFilter === "all" ? undefined : sensitivityFilter,
+    },
+    { enabled: Boolean(agentId) && searchMode === "list" },
   );
+
+  const semanticSearch = trpc.memory.search.useQuery(
+    { agentId, query, topK: 20 },
+    { enabled: Boolean(agentId) && searchMode === "semantic" && query.length >= 2 },
+  );
+
+  const memoryCount = trpc.memory.count.useQuery({ agentId }, { enabled: Boolean(agentId) });
 
   const createMemory = trpc.memory.create.useMutation({
     onSuccess: () => {
-      setContent("");
+      setCreateContent("");
+      setCreateTags("");
+      setShowCreate(false);
       memoryList.refetch();
+      memoryCount.refetch();
     },
   });
   const updateMemory = trpc.memory.update.useMutation({
     onSuccess: () => {
-      setEditingMemoryId(null);
-      setEditingContent("");
-      setEditingTags("");
+      setEditId(null);
       memoryList.refetch();
     },
   });
   const deleteMemory = trpc.memory.delete.useMutation({
     onSuccess: () => {
       memoryList.refetch();
+      memoryCount.refetch();
     },
   });
-
-  const filteredItems = useMemo(
-    () =>
-      filterMemoryItems(memoryList.data ?? [], {
-        query,
-        sensitivity: sensitivityFilter,
-        contextEligible: eligibilityFilter,
-      }),
-    [memoryList.data, query, sensitivityFilter, eligibilityFilter],
-  );
-
-  const paged = useMemo(
-    () =>
-      paginateItems(filteredItems, {
-        page,
-        pageSize: PAGE_SIZE,
-      }),
-    [filteredItems, page],
-  );
-
-  useEffect(() => {
-    if (parsedState.agentId) {
-      setAgentId((prev) => (prev === parsedState.agentId ? prev : parsedState.agentId));
-    }
-    setQuery((prev) => (prev === parsedState.query ? prev : parsedState.query));
-    setSensitivityFilter((prev) =>
-      prev === parsedState.sensitivityFilter ? prev : parsedState.sensitivityFilter,
-    );
-    setEligibilityFilter((prev) =>
-      prev === parsedState.eligibilityFilter ? prev : parsedState.eligibilityFilter,
-    );
-    setPage((prev) => (prev === parsedState.page ? prev : parsedState.page));
-  }, [parsedState]);
 
   useEffect(() => {
     if (!agentId && (agents.data?.length ?? 0) > 0) {
@@ -130,77 +131,61 @@ function MemoryPageContent() {
   }, [agentId, agents.data]);
 
   useEffect(() => {
-    if (page !== paged.page) {
-      setPage(paged.page);
+    const next = new URLSearchParams();
+    if (agentId) next.set("agent", agentId);
+    const nextStr = next.toString();
+    const currentStr = searchParams.toString();
+    if (nextStr !== currentStr) {
+      router.replace(nextStr ? `${pathname}?${nextStr}` : pathname, { scroll: false });
     }
-  }, [page, paged.page]);
+  }, [agentId, pathname, router, searchParams]);
 
-  useEffect(() => {
-    const next = toMemorySearchParams({
-      agentId,
-      query,
-      sensitivityFilter,
-      eligibilityFilter,
-      page,
-    }).toString();
-    const current = searchParams.toString();
-    if (next !== current) {
-      router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
-    }
-  }, [agentId, query, sensitivityFilter, eligibilityFilter, page, pathname, router, searchParams]);
-
+  const items = searchMode === "semantic" ? (semanticSearch.data ?? []) : (memoryList.data ?? []);
+  const isLoading = searchMode === "semantic" ? semanticSearch.isLoading : memoryList.isLoading;
   const hasAgents = (agents.data?.length ?? 0) > 0;
+
+  // Client-side text filter for list mode
+  const displayItems = useMemo(() => {
+    if (searchMode === "semantic" || !query) return items;
+    const q = query.toLowerCase();
+    return items.filter(
+      (item) =>
+        item.content.toLowerCase().includes(q) ||
+        item.tags.some((tag) => tag.toLowerCase().includes(q)),
+    );
+  }, [items, query, searchMode]);
+
+  const stats = memoryCount.data;
+  const hasMore = searchMode === "list" && (memoryList.data?.length ?? 0) >= PAGE_SIZE;
 
   const beginEdit = (item: {
     id: string;
     content: string;
     tags: string[];
-    sensitivity: "public" | "private" | "secret";
+    sensitivity: Sensitivity;
     contextEligible: boolean;
   }) => {
-    setEditingMemoryId(item.id);
-    setEditingContent(item.content);
-    setEditingTags(item.tags.join(", "));
-    setEditingSensitivity(item.sensitivity);
-    setEditingEligibility(item.contextEligible ? "eligible" : "ineligible");
-  };
-
-  const cancelEdit = () => {
-    setEditingMemoryId(null);
-    setEditingContent("");
-    setEditingTags("");
-  };
-
-  const saveEdit = async () => {
-    if (!agentId || !editingMemoryId || !editingContent.trim()) return;
-    await updateMemory.mutateAsync({
-      agentId,
-      memoryId: editingMemoryId,
-      content: editingContent.trim(),
-      tags: editingTags
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      sensitivity: editingSensitivity,
-      contextEligible: editingEligibility === "eligible",
-    });
-  };
-
-  const removeMemory = async (memoryId: string) => {
-    if (!agentId) return;
-    const confirmed = window.confirm("确认删除这条记忆吗？");
-    if (!confirmed) return;
-    await deleteMemory.mutateAsync({ agentId, memoryId });
+    setEditId(item.id);
+    setEditContent(item.content);
+    setEditTags(item.tags.join(", "));
+    setEditSensitivity(item.sensitivity);
+    setEditEligible(item.contextEligible);
   };
 
   return (
     <DashboardShell title={t("title")} description={t("description")}>
-      <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
-        {/* Filters */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
+      <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        {/* Agent selector + stats */}
+        <div className="flex items-end gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             <Label>Agent</Label>
-            <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
+            <Select
+              value={agentId || undefined}
+              onValueChange={(v) => {
+                setAgentId(v);
+                setPage(1);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
               </SelectTrigger>
@@ -213,182 +198,292 @@ function MemoryPageContent() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="memory-search">搜索</Label>
-            <Input
-              id="memory-search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="按内容或标签搜索"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>敏感级别</Label>
-            <Select
-              value={sensitivityFilter}
-              onValueChange={(value) => {
-                setSensitivityFilter(value as "all" | "public" | "private" | "secret");
-                setPage(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="敏感级别" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部敏感级别</SelectItem>
-                <SelectItem value="public">public</SelectItem>
-                <SelectItem value="private">private</SelectItem>
-                <SelectItem value="secret">secret</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>上下文可用性</Label>
-            <Select
-              value={eligibilityFilter}
-              onValueChange={(value) => {
-                setEligibilityFilter(value as "all" | "eligible" | "ineligible");
-                setPage(1);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="上下文可用性" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="eligible">eligible</SelectItem>
-                <SelectItem value="ineligible">ineligible</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {stats && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              <Badge variant="secondary" className="text-xs font-normal">
+                共 {stats.total}
+              </Badge>
+              {MEMORY_TYPES.map((mt) =>
+                (stats.byType[mt] ?? 0) > 0 ? (
+                  <Badge
+                    key={mt}
+                    variant="secondary"
+                    className={`text-xs font-normal ${TYPE_COLORS[mt]}`}
+                  >
+                    {TYPE_LABELS[mt]} {stats.byType[mt]}
+                  </Badge>
+                ) : null,
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Create memory */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">新增记忆</CardTitle>
-            <CardDescription>写入当前 Agent 可复用的事实。</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="memory-content">记忆内容</Label>
+        {/* Search bar + filters */}
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              {searchMode === "semantic" ? (
+                <Sparkles className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              ) : (
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              )}
               <Input
-                id="memory-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="记录一条可复用事实，例如：偏好英文输出"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder={searchMode === "semantic" ? "语义搜索记忆..." : "文本搜索记忆..."}
+                className="pl-9"
               />
             </div>
             <Button
-              onClick={() =>
-                createMemory.mutate({
-                  agentId,
-                  scopeType: "user",
-                  scopeId: userId,
-                  type: "fact",
-                  content,
-                  tags: [],
-                  sensitivity: "public",
-                  contextEligible: true,
-                })
-              }
-              disabled={!agentId || !content || !userId || createMemory.isPending}
+              variant={searchMode === "semantic" ? "default" : "outline"}
+              size="sm"
+              className="shrink-0"
+              onClick={() => setSearchMode(searchMode === "semantic" ? "list" : "semantic")}
+              title="切换语义搜索"
             >
-              {createMemory.isPending ? "保存中..." : "保存"}
+              <Sparkles className="mr-1 size-4" />
+              语义
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Stats bar */}
-        {agentId ? (
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>共 {filteredItems.length} 条</span>
-            <span>
-              第 {paged.page}/{paged.totalPages || 1} 页
-            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setShowCreate(!showCreate)}
+            >
+              <Plus className="mr-1 size-4" />
+              新增
+            </Button>
           </div>
-        ) : null}
+
+          {searchMode === "list" && (
+            <div className="flex flex-wrap gap-2">
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => {
+                  setTypeFilter(v as MemoryType | "all");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue placeholder="类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类型</SelectItem>
+                  {MEMORY_TYPES.map((mt) => (
+                    <SelectItem key={mt} value={mt}>
+                      {TYPE_LABELS[mt]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={sensitivityFilter}
+                onValueChange={(v) => {
+                  setSensitivityFilter(v as Sensitivity | "all");
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue placeholder="敏感度" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部级别</SelectItem>
+                  {SENSITIVITY_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Create form */}
+        {showCreate && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">新增记忆</CardTitle>
+              <CardDescription>为当前 Agent 添加一条结构化记忆。</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                value={createContent}
+                onChange={(e) => setCreateContent(e.target.value)}
+                placeholder="记忆内容，例如：用户偏好 TypeScript 和函数式风格"
+                className="min-h-16"
+              />
+              <div className="grid gap-3 sm:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label>类型</Label>
+                  <Select value={createType} onValueChange={(v) => setCreateType(v as MemoryType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MEMORY_TYPES.map((mt) => (
+                        <SelectItem key={mt} value={mt}>
+                          {TYPE_LABELS[mt]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>敏感度</Label>
+                  <Select
+                    value={createSensitivity}
+                    onValueChange={(v) => setCreateSensitivity(v as Sensitivity)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SENSITIVITY_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>标签（逗号分隔）</Label>
+                  <Input
+                    value={createTags}
+                    onChange={(e) => setCreateTags(e.target.value)}
+                    placeholder="偏好, 编程"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>上下文注入</Label>
+                  <Select
+                    value={createEligible ? "yes" : "no"}
+                    onValueChange={(v) => setCreateEligible(v === "yes")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">启用</SelectItem>
+                      <SelectItem value="no">禁用</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    createMemory.mutate({
+                      agentId,
+                      scopeType: "user",
+                      scopeId: userId,
+                      type: createType,
+                      content: createContent,
+                      tags: createTags
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                      sensitivity: createSensitivity,
+                      contextEligible: createEligible,
+                    })
+                  }
+                  disabled={!agentId || !createContent.trim() || !userId || createMemory.isPending}
+                >
+                  {createMemory.isPending ? "保存中..." : "保存"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Memory list */}
-        <div className="space-y-3">
-          {memoryList.isLoading
+        <div className="space-y-2">
+          {isLoading
             ? Array.from({ length: 3 }).map((_, idx) => (
-                <Card key={`loading-${idx}`}>
-                  <CardContent className="py-4">
-                    <Skeleton className="h-12 w-full" />
+                <Card key={`skel-${idx}`}>
+                  <CardContent className="py-3">
+                    <Skeleton className="h-10 w-full" />
                   </CardContent>
                 </Card>
               ))
-            : paged.items.map((item) => (
-                <Card key={item.id} className="transition-shadow hover:shadow-md">
-                  <CardContent className="py-4">
-                    {editingMemoryId === item.id ? (
+            : displayItems.map((item) => (
+                <Card key={item.id} className="transition-shadow hover:shadow-sm">
+                  <CardContent className="py-3">
+                    {editId === item.id ? (
                       <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <Label>内容</Label>
-                          <Textarea
-                            value={editingContent}
-                            onChange={(e) => setEditingContent(e.target.value)}
-                            className="min-h-20"
-                          />
-                        </div>
+                        <Textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          className="min-h-16"
+                        />
                         <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="space-y-1.5">
-                            <Label>标签（逗号分隔）</Label>
+                          <div className="space-y-1">
+                            <Label className="text-xs">标签</Label>
                             <Input
-                              value={editingTags}
-                              onChange={(e) => setEditingTags(e.target.value)}
-                              placeholder="例如：偏好, 输出"
+                              value={editTags}
+                              onChange={(e) => setEditTags(e.target.value)}
+                              placeholder="逗号分隔"
                             />
                           </div>
-                          <div className="space-y-1.5">
-                            <Label>敏感级别</Label>
+                          <div className="space-y-1">
+                            <Label className="text-xs">敏感度</Label>
                             <Select
-                              value={editingSensitivity}
-                              onValueChange={(value) =>
-                                setEditingSensitivity(value as "public" | "private" | "secret")
-                              }
+                              value={editSensitivity}
+                              onValueChange={(v) => setEditSensitivity(v as Sensitivity)}
                             >
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="public">public</SelectItem>
-                                <SelectItem value="private">private</SelectItem>
-                                <SelectItem value="secret">secret</SelectItem>
+                                {SENSITIVITY_OPTIONS.map((s) => (
+                                  <SelectItem key={s} value={s}>
+                                    {s}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="space-y-1.5">
-                            <Label>上下文可用性</Label>
+                          <div className="space-y-1">
+                            <Label className="text-xs">上下文注入</Label>
                             <Select
-                              value={editingEligibility}
-                              onValueChange={(value) =>
-                                setEditingEligibility(value as "eligible" | "ineligible")
-                              }
+                              value={editEligible ? "yes" : "no"}
+                              onValueChange={(v) => setEditEligible(v === "yes")}
                             >
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="eligible">eligible</SelectItem>
-                                <SelectItem value="ineligible">ineligible</SelectItem>
+                                <SelectItem value="yes">启用</SelectItem>
+                                <SelectItem value="no">禁用</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
                         <div className="flex justify-end gap-2">
-                          <Button size="xs" variant="secondary" onClick={cancelEdit}>
+                          <Button size="xs" variant="ghost" onClick={() => setEditId(null)}>
                             取消
                           </Button>
                           <Button
                             size="xs"
-                            variant="outline"
-                            onClick={() => void saveEdit()}
-                            disabled={updateMemory.isPending || !editingContent.trim()}
+                            disabled={updateMemory.isPending || !editContent.trim()}
+                            onClick={() =>
+                              updateMemory.mutate({
+                                agentId,
+                                memoryId: item.id,
+                                content: editContent.trim(),
+                                tags: editTags
+                                  .split(",")
+                                  .map((s) => s.trim())
+                                  .filter(Boolean),
+                                sensitivity: editSensitivity,
+                                contextEligible: editEligible,
+                              })
+                            }
                           >
                             {updateMemory.isPending ? "保存中..." : "保存"}
                           </Button>
@@ -398,20 +493,26 @@ function MemoryPageContent() {
                       <>
                         <p className="text-sm leading-relaxed">{item.content}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge variant="secondary" className="text-xs">
-                            {item.type}
-                          </Badge>
+                          <span
+                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[item.type as MemoryType] ?? ""}`}
+                          >
+                            {TYPE_LABELS[item.type as MemoryType] ?? item.type}
+                          </span>
                           <Badge variant="secondary" className="text-xs">
                             {item.sensitivity}
                           </Badge>
-                          <Badge
-                            variant={item.contextEligible ? "default" : "secondary"}
-                            className="text-xs"
-                          >
-                            {item.contextEligible ? "eligible" : "ineligible"}
-                          </Badge>
+                          {!item.contextEligible && (
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                              不注入
+                            </Badge>
+                          )}
+                          {item.tags.map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
                         </div>
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-2 flex items-center gap-2">
                           <Button
                             size="xs"
                             variant="ghost"
@@ -420,7 +521,7 @@ function MemoryPageContent() {
                                 id: item.id,
                                 content: item.content,
                                 tags: item.tags,
-                                sensitivity: item.sensitivity,
+                                sensitivity: item.sensitivity as Sensitivity,
                                 contextEligible: item.contextEligible,
                               })
                             }
@@ -430,11 +531,19 @@ function MemoryPageContent() {
                           <Button
                             size="xs"
                             variant="ghost"
+                            className="text-destructive"
                             disabled={deleteMemory.isPending}
-                            onClick={() => void removeMemory(item.id)}
+                            onClick={() => {
+                              if (window.confirm("确认删除这条记忆？")) {
+                                deleteMemory.mutate({ agentId, memoryId: item.id });
+                              }
+                            }}
                           >
                             删除
                           </Button>
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {new Date(item.createdAt).toLocaleDateString("zh-CN")}
+                          </span>
                         </div>
                       </>
                     )}
@@ -442,13 +551,15 @@ function MemoryPageContent() {
                 </Card>
               ))}
 
-          {!memoryList.isLoading && agentId && paged.items.length === 0 ? (
+          {!isLoading && agentId && displayItems.length === 0 && (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              没有符合筛选条件的记忆。
+              {searchMode === "semantic" && query.length >= 2
+                ? "没有找到语义相关的记忆。"
+                : "没有符合条件的记忆。"}
             </div>
-          ) : null}
+          )}
 
-          {!memoryList.isLoading && !hasAgents ? (
+          {!isLoading && !hasAgents && (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               你还没有 Agent。先去{" "}
               <Link href="/agents" className="text-primary underline underline-offset-4">
@@ -456,30 +567,33 @@ function MemoryPageContent() {
               </Link>{" "}
               创建一个。
             </div>
-          ) : null}
+          )}
         </div>
 
-        {/* Pagination */}
-        {paged.totalPages > 1 ? (
+        {/* Pagination (list mode only) */}
+        {searchMode === "list" && (page > 1 || hasMore) && (
           <div className="flex items-center justify-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={paged.page <= 1}
+              disabled={page <= 1}
               onClick={() => setPage((p) => p - 1)}
             >
+              <ChevronLeft className="mr-1 size-4" />
               上一页
             </Button>
+            <span className="text-xs text-muted-foreground">第 {page} 页</span>
             <Button
               variant="outline"
               size="sm"
-              disabled={paged.page >= paged.totalPages}
+              disabled={!hasMore}
               onClick={() => setPage((p) => p + 1)}
             >
               下一页
+              <ChevronRight className="ml-1 size-4" />
             </Button>
           </div>
-        ) : null}
+        )}
       </div>
     </DashboardShell>
   );
@@ -493,9 +607,9 @@ export default function MemoryPage() {
         <DashboardShell title={t("title")} description={t("description")}>
           <div className="mx-auto w-full max-w-3xl space-y-3 px-4 py-6 sm:px-6">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <Card key={`memory-page-fallback-${idx}`}>
-                <CardContent className="py-4">
-                  <Skeleton className="h-12 w-full" />
+              <Card key={`fallback-${idx}`}>
+                <CardContent className="py-3">
+                  <Skeleton className="h-10 w-full" />
                 </CardContent>
               </Card>
             ))}
