@@ -27,9 +27,8 @@ jobs:
       - name: Test
         run: bun run test
 
-      # 排除 desktop（Tauri 需 Linux glib/GTK 等系统库）、extension（WXT），仅构建 web/worker 等
       - name: Build
-        run: bun run build -- --filter='!@daemon/desktop' --filter='!@daemon/extension'
+        run: bun run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: "https://placeholder.supabase.co"
           NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-key"

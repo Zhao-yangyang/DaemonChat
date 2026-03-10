@@ -4,7 +4,7 @@
 
 This is a Bun + Turborepo monorepo. Key locations:
 
-- `apps/`: product surfaces (e.g., `apps/web`, `apps/desktop`, `apps/mobile`, `apps/worker`, `apps/extension`).
+- `apps/`: product surfaces (e.g., `apps/web`, `apps/mobile`, `apps/worker`).
 - `packages/`: shared libraries and platform adapters (e.g., `packages/domain`, `packages/api`, `packages/ui`, `packages/sdk`, `packages/adapters/*`, `packages/platform/*`).
 - `docs/plans/`: design notes and technical plans referenced by the repo README.
 - `docs/runbooks/`: practical setup/run guides (for example local experience walkthrough).
@@ -70,11 +70,11 @@ Example scoped command:
   - **Phase E**：i18n 完善与 data-testid 基线。share/agents/chat/home/memory/transcripts/usage/templates/workspaces 文案迁移至 `messages/zh.json`/`en.json`；关键交互元素添加 `data-testid`（auth-form、chat-input/chat-send/chat-messages/chat-fork、agents-create/agents-list、share-try/share-back、lang-switcher）；E2E 改用 `getByTestId` 选择器。
   - **Phase F**：E2E 扩展与 CI 集成。`apps/web/e2e/share.spec.ts` 覆盖 Share 页 404 与有效 agent 校验；`.github/workflows/ci.yml` 新增 `e2e` job（依赖 quality-gate、安装 Playwright Chromium、运行 `bun run test:e2e`）。
   - **Phase G**：Share 页 SEO/OG。`generateMetadata` 输出 `title`、`description`、`openGraph.title`/`openGraph.description`。
-  - **Phase H**：Extension POC（WXT）。`apps/extension` 使用 WXT 构建 Chrome 侧边栏扩展，iframe 加载 `http://localhost:3333/zh/chat`（可配置 `VITE_CHAT_URL`）；`bun run dev`/`bun run build`；产物 `.output/chrome-mv3/` 可加载到 Chrome 扩展页。
+  - **Phase H**：~~Extension POC（WXT）~~ — 已移除（iframe POC 不满足产品要求）。
   - **Phase I**：E2E 完整流程与 CI 强化。`.github/workflows/ci.yml` 新增 `e2e-full` job（当 `E2E_TEST_EMAIL`、`E2E_TEST_PASSWORD`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` 配置时运行 `test:e2e:full`）；`E2E_PUBLIC_AGENT_ID` 用法文档化（`.env.local.example`、`docs/runbooks/local-experience.md`）。
   - **Phase J**：Share 匿名试用（方案 B）。`/api/chat/stream/anonymous` 对 `visibility=public` Agent 提供有限轮次流式对话，无 token；限流按 IP、轮次上限可配置（`ANONYMOUS_CHAT_ENABLED`、`ANONYMOUS_CHAT_MAX_TURNS`、`ANONYMOUS_CHAT_RATE_LIMIT_PER_IP`）；Share 页嵌入 `ShareChatEmbed` 组件，达上限后展示登录 CTA。
-  - **Phase K**：Extension 增强。`apps/extension/public/icon-16.png`、`icon-48.png`、`icon-128.png`；README 生产构建示例（`VITE_CHAT_URL`、`bun run zip`）。
-  - **Phase L**：Desktop POC（Tauri）。`apps/desktop` Tauri + WebView 加载 DaemonChat 聊天页；`scripts/inject-url.js` 构建前注入 `CHAT_URL`；`bun run dev`/`bun run build`。
+  - **Phase K**：~~Extension 增强~~ — 已移除（同 Phase H）。
+  - **Phase L**：~~Desktop POC（Tauri）~~ — 已移除（iframe POC 不满足产品要求）。
 - 历史计划已归档至 `docs/plans/archive/`。
 - Root workspace baseline has been fixed:
   - `package.json` now includes `packageManager`.
@@ -292,19 +292,13 @@ Example scoped command:
 - If you change session fork behavior, update both:
   - `supabase/migrations/` 和 `packages/adapters/supabase/sql/schema.sql` 中的 sessions/transcript_events 相关列
   - `SessionStore.createForkedSession`、`TranscriptStore.listRecentEventsWithFork`、`buildContextForSession` 分叉逻辑
-- Extension POC（`apps/extension`）：
-  - WXT 构建，`bun run dev` 开发、`bun run build` 产出 `.output/chrome-mv3/`。
-  - 侧边栏 iframe 默认加载 `http://localhost:3333/zh/chat`；生产环境可设 `VITE_CHAT_URL` 指向部署 URL。
-  - 需先启动 `bun run dev --filter @daemon/web`，扩展才能正常加载聊天页。
-  - 图标：`public/icon-16.png`、`icon-48.png`、`icon-128.png`，由 `apps/web/app/icon.png` 缩放生成。
+- ~~Extension POC~~ — 已移除（iframe POC 不满足产品要求，待未来以原生方式重新实现）。
 - 匿名试用（`/api/chat/stream/anonymous`）：
   - 需显式开启 `ANONYMOUS_CHAT_ENABLED=1`；默认关闭。
   - 仅对 `visibility=public` Agent 可用；客户端传 `messages`、`userInput`，服务端不持久化 transcript/usage/memory。
   - Share 页 `ShareChatEmbed` 在启用时嵌入聊天 UI，轮次达 `ANONYMOUS_CHAT_MAX_TURNS` 后展示登录 CTA。
   - 路由测试 `route.test.ts` 覆盖 403（关闭）、400（无效 body）、404（Agent 不存在）、429（轮次超限）、500（缺 SUPABASE_URL）。
-- Desktop POC（`apps/desktop`）：
-  - Tauri + WebView 加载 DaemonChat 聊天页；`beforeDevCommand`/`beforeBuildCommand` 运行 `inject-url` 注入 `CHAT_URL`。
-  - 生产构建：`CHAT_URL=https://your-domain.com bun run build`。
+- ~~Desktop POC~~ — 已移除（iframe POC 不满足产品要求，待未来以 Tauri 原生集成方式重新实现）。
 - Keep validating with:
   - `bun run typecheck`
   - `bun run test`
