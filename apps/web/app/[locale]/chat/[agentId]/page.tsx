@@ -9,6 +9,12 @@ import { trpc } from "@daemon/hooks";
 import {
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -16,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Input,
+  Label,
   ScrollArea,
   Select,
   SelectContent,
@@ -162,6 +169,17 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
+  // Dialog state: replaces window.confirm / window.prompt
+  const [sessionDialog, setSessionDialog] = useState<{
+    type: "archive" | "unarchive" | "delete";
+    sessionKey: string;
+    sessionId: string;
+  } | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{
+    sessionKey: string;
+    currentName: string;
+  } | null>(null);
+  const [renameInput, setRenameInput] = useState("");
   const [lastForkedSession, setLastForkedSession] = useState<{
     sessionKey: string;
     sessionId: string;
@@ -384,43 +402,56 @@ export default function ChatPage() {
     setSessionKey(fallback);
   };
 
-  const archiveCurrentSession = async () => {
-    const key = currentSessionKey;
-    if (!key) return;
-    const confirmed = window.confirm(`确认归档会话「${getSessionLabel(key)}」吗？`);
-    if (!confirmed) return;
-    if (!currentSessionId) {
-      removeSessionLocally(key);
-      return;
-    }
-    await archiveSessionMutation.mutateAsync({ agentId, sessionId: currentSessionId });
-    removeSessionLocally(key);
-  };
-
-  const unarchiveCurrentSession = async () => {
-    const key = currentSessionKey;
-    if (!key) return;
-    const confirmed = window.confirm(`确认恢复会话「${getSessionLabel(key)}」吗？`);
-    if (!confirmed) return;
-    if (!currentSessionId) return;
-    await unarchiveSessionMutation.mutateAsync({ agentId, sessionId: currentSessionId });
-    setShowArchived(false);
-  };
-
-  const deleteCurrentSession = async () => {
-    const key = currentSessionKey;
-    if (!key) return;
-    const confirmed = window.confirm(`确认删除会话「${key}」吗？`);
-    if (!confirmed) return;
-    if (!currentSessionId) {
-      removeSessionLocally(key);
-      return;
-    }
-    await deleteSessionMutation.mutateAsync({
-      agentId,
+  const archiveCurrentSession = () => {
+    if (!currentSessionKey) return;
+    setSessionDialog({
+      type: "archive",
+      sessionKey: currentSessionKey,
       sessionId: currentSessionId,
     });
-    removeSessionLocally(key);
+  };
+
+  const unarchiveCurrentSession = () => {
+    if (!currentSessionKey) return;
+    setSessionDialog({
+      type: "unarchive",
+      sessionKey: currentSessionKey,
+      sessionId: currentSessionId,
+    });
+  };
+
+  const deleteCurrentSession = () => {
+    if (!currentSessionKey) return;
+    setSessionDialog({
+      type: "delete",
+      sessionKey: currentSessionKey,
+      sessionId: currentSessionId,
+    });
+  };
+
+  const executeSessionDialogAction = async () => {
+    if (!sessionDialog) return;
+    const { type, sessionKey, sessionId } = sessionDialog;
+    setSessionDialog(null);
+    if (type === "archive") {
+      if (!sessionId) {
+        removeSessionLocally(sessionKey);
+        return;
+      }
+      await archiveSessionMutation.mutateAsync({ agentId, sessionId });
+      removeSessionLocally(sessionKey);
+    } else if (type === "unarchive") {
+      if (!sessionId) return;
+      await unarchiveSessionMutation.mutateAsync({ agentId, sessionId });
+      setShowArchived(false);
+    } else if (type === "delete") {
+      if (!sessionId) {
+        removeSessionLocally(sessionKey);
+        return;
+      }
+      await deleteSessionMutation.mutateAsync({ agentId, sessionId });
+      removeSessionLocally(sessionKey);
+    }
   };
 
   const runTurn = async (input: {
@@ -616,8 +647,8 @@ export default function ChatPage() {
           pdfTexts = result.pdfTexts;
         }
       } catch {
-        setUploadError("附件上传失败，请重试");
-        toast.error("附件上传失败，请重试");
+        setUploadError(t("uploadError"));
+        toast.error(t("uploadError"));
       } finally {
         setIsUploading(false);
       }
@@ -702,14 +733,21 @@ export default function ChatPage() {
     return label || targetKey;
   };
 
-  const renameCurrentSession = async () => {
-    const key = currentSessionKey;
-    if (!key) return;
-    const currentName = getSessionLabel(key);
-    const nextName = window.prompt("请输入会话名称", currentName)?.trim();
+  const renameCurrentSession = () => {
+    if (!currentSessionKey) return;
+    const currentName = getSessionLabel(currentSessionKey);
+    setRenameInput(currentName);
+    setRenameDialog({ sessionKey: currentSessionKey, currentName });
+  };
+
+  const executeRename = async () => {
+    if (!renameDialog) return;
+    const { sessionKey, currentName } = renameDialog;
+    const nextName = renameInput.trim();
+    setRenameDialog(null);
     if (!nextName || nextName === currentName) return;
     if (!currentSessionId) {
-      setLocalSessionNames((prev) => ({ ...prev, [key]: nextName }));
+      setLocalSessionNames((prev) => ({ ...prev, [sessionKey]: nextName }));
       return;
     }
     await renameSessionMutation.mutateAsync({
@@ -769,7 +807,7 @@ export default function ChatPage() {
                 </SelectContent>
               </Select>
             ) : (
-              <span className="px-1 text-xs text-muted-foreground">无会话</span>
+              <span className="px-1 text-xs text-muted-foreground">{t("noSession")}</span>
             )}
           </div>
 
@@ -788,7 +826,7 @@ export default function ChatPage() {
             <DropdownMenuTrigger asChild>
               <Button size="icon-sm" variant="ghost" className="size-8">
                 <MoreVertical className="size-4" />
-                <span className="sr-only">会话操作</span>
+                <span className="sr-only">{t("sessionActionsLabel")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
@@ -797,7 +835,7 @@ export default function ChatPage() {
                 onCheckedChange={(v) => setShowArchived(!!v)}
               >
                 <Archive className="size-3.5" />
-                显示归档
+                {t("showArchived")}
               </DropdownMenuCheckboxItem>
               {currentSessionKey ? (
                 <>
@@ -806,7 +844,7 @@ export default function ChatPage() {
                     onClick={() => void renameCurrentSession()}
                     disabled={renameSessionMutation.isPending || isStreaming}
                   >
-                    {renameSessionMutation.isPending ? "重命名中..." : "重命名会话"}
+                    {renameSessionMutation.isPending ? t("renaming") : t("renameSession")}
                   </DropdownMenuItem>
                   {currentSessionId && selectedSession?.isArchived ? (
                     <DropdownMenuItem
@@ -814,7 +852,7 @@ export default function ChatPage() {
                       disabled={unarchiveSessionMutation.isPending || isStreaming}
                     >
                       <ArchiveRestore className="size-3.5" />
-                      取档
+                      {t("unarchive")}
                     </DropdownMenuItem>
                   ) : (
                     <DropdownMenuItem
@@ -822,7 +860,7 @@ export default function ChatPage() {
                       disabled={archiveSessionMutation.isPending || isStreaming}
                     >
                       <Archive className="size-3.5" />
-                      归档
+                      {t("archive")}
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem
@@ -830,7 +868,7 @@ export default function ChatPage() {
                     onClick={() => void deleteCurrentSession()}
                     disabled={deleteSessionMutation.isPending || isStreaming}
                   >
-                    {deleteSessionMutation.isPending ? "删除中..." : "删除会话"}
+                    {deleteSessionMutation.isPending ? t("deleting") : t("deleteSession")}
                   </DropdownMenuItem>
                 </>
               ) : null}
@@ -844,7 +882,7 @@ export default function ChatPage() {
                   }}
                 >
                   <RefreshCw className={cn("size-3.5", transcript.isFetching && "animate-spin")} />
-                  {transcript.isFetching ? "同步中..." : "同步历史"}
+                  {transcript.isFetching ? t("syncing") : t("syncHistory")}
                 </DropdownMenuItem>
               ) : null}
               {messages.length > 0 && (
@@ -1230,6 +1268,96 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* Session action confirm dialog (archive / unarchive / delete) */}
+      <Dialog
+        open={Boolean(sessionDialog)}
+        onOpenChange={(open) => {
+          if (!open) setSessionDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {sessionDialog?.type === "archive"
+                ? t("archive")
+                : sessionDialog?.type === "unarchive"
+                  ? t("unarchive")
+                  : t("deleteSession")}
+            </DialogTitle>
+            <DialogDescription>
+              {sessionDialog?.type === "archive"
+                ? t("confirmArchive", { name: getSessionLabel(sessionDialog.sessionKey) })
+                : sessionDialog?.type === "unarchive"
+                  ? t("confirmUnarchive", {
+                      name: getSessionLabel(sessionDialog?.sessionKey ?? ""),
+                    })
+                  : t("confirmDeleteSession", {
+                      name: getSessionLabel(sessionDialog?.sessionKey ?? ""),
+                    })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setSessionDialog(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              size="sm"
+              variant={sessionDialog?.type === "delete" ? "destructive" : "default"}
+              onClick={() => void executeSessionDialogAction()}
+              disabled={
+                archiveSessionMutation.isPending ||
+                unarchiveSessionMutation.isPending ||
+                deleteSessionMutation.isPending
+              }
+            >
+              {sessionDialog?.type === "archive"
+                ? t("archive")
+                : sessionDialog?.type === "unarchive"
+                  ? t("unarchive")
+                  : t("deleteSession")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename session dialog */}
+      <Dialog
+        open={Boolean(renameDialog)}
+        onOpenChange={(open) => {
+          if (!open) setRenameDialog(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("renameSession")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-1">
+            <Label htmlFor="rename-session-input">{t("sessionNameLabel")}</Label>
+            <Input
+              id="rename-session-input"
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void executeRename();
+              }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setRenameDialog(null)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void executeRename()}
+              disabled={!renameInput.trim() || renameSessionMutation.isPending}
+            >
+              {renameSessionMutation.isPending ? t("renaming") : t("save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardShell>
   );
 }

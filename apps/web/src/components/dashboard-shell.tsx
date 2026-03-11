@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import {
   Button,
@@ -59,6 +59,8 @@ type DashboardShellProps = {
 function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const t = useTranslations("nav");
   const tCommon = useTranslations("common");
+  const tShell = useTranslations("shell");
+  const locale = useLocale();
   const { session, user } = useSession();
   const email = user?.email;
   const displayName = email ? email.split("@")[0] : null;
@@ -116,12 +118,12 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
             onClick={async () => {
               onNavigate?.();
               await supabaseBrowserClient.auth.signOut();
-              window.location.href = pathname.startsWith("/en") ? "/en" : "/zh";
+              window.location.href = `/${locale}`;
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
           >
             <LogOut className="size-4" />
-            退出登录
+            {tShell("logout")}
           </button>
         ) : null}
       </div>
@@ -131,6 +133,7 @@ function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: (
 
 export function DashboardShell({ title, description, actions, children }: DashboardShellProps) {
   const pathname = usePathname();
+  const tShell = useTranslations("shell");
   const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
@@ -148,12 +151,12 @@ export function DashboardShell({ title, description, actions, children }: Dashbo
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon-sm" className="md:hidden">
                 <Menu className="size-5" />
-                <span className="sr-only">打开菜单</span>
+                <span className="sr-only">{tShell("openMenu")}</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-[260px] bg-sidebar p-0">
               <SheetHeader className="sr-only">
-                <SheetTitle>导航</SheetTitle>
+                <SheetTitle>{tShell("navTitle")}</SheetTitle>
               </SheetHeader>
               <SidebarNav pathname={pathname} onNavigate={() => setSheetOpen(false)} />
             </SheetContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -13,6 +13,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Input,
   Label,
   Select,
@@ -34,13 +40,6 @@ const SENSITIVITY_OPTIONS = ["public", "private", "secret"] as const;
 type MemoryType = (typeof MEMORY_TYPES)[number];
 type Sensitivity = (typeof SENSITIVITY_OPTIONS)[number];
 
-const TYPE_LABELS: Record<MemoryType, string> = {
-  fact: "事实",
-  rule: "规则",
-  preference: "偏好",
-  task: "任务",
-};
-
 const TYPE_COLORS: Record<MemoryType, string> = {
   fact: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
   rule: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
@@ -50,6 +49,7 @@ const TYPE_COLORS: Record<MemoryType, string> = {
 
 function MemoryPageContent() {
   const t = useTranslations("memory");
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -77,6 +77,28 @@ function MemoryPageContent() {
   const [editTags, setEditTags] = useState("");
   const [editSensitivity, setEditSensitivity] = useState<Sensitivity>("public");
   const [editEligible, setEditEligible] = useState(true);
+  // Delete confirm dialog
+  const [deleteMemoryId, setDeleteMemoryId] = useState<string | null>(null);
+
+  // i18n label helpers (inside component to access t())
+  const getTypeLabel = (type: MemoryType): string => {
+    const map: Record<MemoryType, string> = {
+      fact: t("typeFact"),
+      rule: t("typeRule"),
+      preference: t("typePreference"),
+      task: t("typeTask"),
+    };
+    return map[type] ?? type;
+  };
+
+  const getSensitivityLabel = (s: Sensitivity): string => {
+    const map: Record<Sensitivity, string> = {
+      public: t("sensitivityPublic"),
+      private: t("sensitivityPrivate"),
+      secret: t("sensitivitySecret"),
+    };
+    return map[s] ?? s;
+  };
 
   const agents = trpc.agent.list.useQuery(undefined, {
     retry: false,
@@ -186,7 +208,7 @@ function MemoryPageContent() {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+                <SelectValue placeholder={agents.isLoading ? t("loading") : t("selectAgent")} />
               </SelectTrigger>
               <SelectContent>
                 {(agents.data ?? []).map((agent) => (
@@ -200,7 +222,7 @@ function MemoryPageContent() {
           {stats && (
             <div className="flex flex-wrap gap-1.5 pb-1">
               <Badge variant="secondary" className="text-xs font-normal">
-                共 {stats.total}
+                {t("statsTotal", { total: stats.total })}
               </Badge>
               {MEMORY_TYPES.map((mt) =>
                 (stats.byType[mt] ?? 0) > 0 ? (
@@ -209,7 +231,7 @@ function MemoryPageContent() {
                     variant="secondary"
                     className={`text-xs font-normal ${TYPE_COLORS[mt]}`}
                   >
-                    {TYPE_LABELS[mt]} {stats.byType[mt]}
+                    {getTypeLabel(mt)} {stats.byType[mt]}
                   </Badge>
                 ) : null,
               )}
@@ -232,7 +254,11 @@ function MemoryPageContent() {
                   setQuery(e.target.value);
                   setPage(1);
                 }}
-                placeholder={searchMode === "semantic" ? "语义搜索记忆..." : "文本搜索记忆..."}
+                placeholder={
+                  searchMode === "semantic"
+                    ? t("semanticSearchPlaceholder")
+                    : t("textSearchPlaceholder")
+                }
                 className="pl-9"
               />
             </div>
@@ -241,10 +267,10 @@ function MemoryPageContent() {
               size="sm"
               className="shrink-0"
               onClick={() => setSearchMode(searchMode === "semantic" ? "list" : "semantic")}
-              title="切换语义搜索"
+              title={t("toggleSemantic")}
             >
               <Sparkles className="mr-1 size-4" />
-              语义
+              {t("semanticBtn")}
             </Button>
             <Button
               variant="outline"
@@ -253,7 +279,7 @@ function MemoryPageContent() {
               onClick={() => setShowCreate(!showCreate)}
             >
               <Plus className="mr-1 size-4" />
-              新增
+              {t("addBtn")}
             </Button>
           </div>
 
@@ -267,13 +293,13 @@ function MemoryPageContent() {
                 }}
               >
                 <SelectTrigger className="w-28">
-                  <SelectValue placeholder="类型" />
+                  <SelectValue placeholder={t("typeLabel")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部类型</SelectItem>
+                  <SelectItem value="all">{t("allTypes")}</SelectItem>
                   {MEMORY_TYPES.map((mt) => (
                     <SelectItem key={mt} value={mt}>
-                      {TYPE_LABELS[mt]}
+                      {getTypeLabel(mt)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -286,13 +312,13 @@ function MemoryPageContent() {
                 }}
               >
                 <SelectTrigger className="w-28">
-                  <SelectValue placeholder="敏感度" />
+                  <SelectValue placeholder={t("sensitivityLabel")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部级别</SelectItem>
+                  <SelectItem value="all">{t("allSensitivity")}</SelectItem>
                   {SENSITIVITY_OPTIONS.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {getSensitivityLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -305,19 +331,19 @@ function MemoryPageContent() {
         {showCreate && (
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">新增记忆</CardTitle>
-              <CardDescription>为当前 Agent 添加一条结构化记忆。</CardDescription>
+              <CardTitle className="text-sm">{t("createTitle")}</CardTitle>
+              <CardDescription>{t("createDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea
                 value={createContent}
                 onChange={(e) => setCreateContent(e.target.value)}
-                placeholder="记忆内容，例如：用户偏好 TypeScript 和函数式风格"
+                placeholder={t("createContentPlaceholder")}
                 className="min-h-16"
               />
               <div className="grid gap-3 sm:grid-cols-4">
                 <div className="space-y-1.5">
-                  <Label>类型</Label>
+                  <Label>{t("typeLabel")}</Label>
                   <Select value={createType} onValueChange={(v) => setCreateType(v as MemoryType)}>
                     <SelectTrigger>
                       <SelectValue />
@@ -325,14 +351,14 @@ function MemoryPageContent() {
                     <SelectContent>
                       {MEMORY_TYPES.map((mt) => (
                         <SelectItem key={mt} value={mt}>
-                          {TYPE_LABELS[mt]}
+                          {getTypeLabel(mt)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>敏感度</Label>
+                  <Label>{t("sensitivityLabel")}</Label>
                   <Select
                     value={createSensitivity}
                     onValueChange={(v) => setCreateSensitivity(v as Sensitivity)}
@@ -343,22 +369,22 @@ function MemoryPageContent() {
                     <SelectContent>
                       {SENSITIVITY_OPTIONS.map((s) => (
                         <SelectItem key={s} value={s}>
-                          {s}
+                          {getSensitivityLabel(s)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label>标签（逗号分隔）</Label>
+                  <Label>{t("tagsLabel")}</Label>
                   <Input
                     value={createTags}
                     onChange={(e) => setCreateTags(e.target.value)}
-                    placeholder="偏好, 编程"
+                    placeholder={t("tagsPlaceholder")}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>上下文注入</Label>
+                  <Label>{t("contextEligibleLabel")}</Label>
                   <Select
                     value={createEligible ? "yes" : "no"}
                     onValueChange={(v) => setCreateEligible(v === "yes")}
@@ -367,8 +393,8 @@ function MemoryPageContent() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="yes">启用</SelectItem>
-                      <SelectItem value="no">禁用</SelectItem>
+                      <SelectItem value="yes">{t("contextEligibleYes")}</SelectItem>
+                      <SelectItem value="no">{t("contextEligibleNo")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -393,7 +419,7 @@ function MemoryPageContent() {
                   }
                   disabled={!agentId || !createContent.trim() || !userId || createMemory.isPending}
                 >
-                  {createMemory.isPending ? "保存中..." : "保存"}
+                  {createMemory.isPending ? t("saving") : t("save")}
                 </Button>
               </div>
             </CardContent>
@@ -422,15 +448,15 @@ function MemoryPageContent() {
                         />
                         <div className="grid gap-3 sm:grid-cols-3">
                           <div className="space-y-1">
-                            <Label className="text-xs">标签</Label>
+                            <Label className="text-xs">{t("editTagsLabel")}</Label>
                             <Input
                               value={editTags}
                               onChange={(e) => setEditTags(e.target.value)}
-                              placeholder="逗号分隔"
+                              placeholder={t("editTagsPlaceholder")}
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">敏感度</Label>
+                            <Label className="text-xs">{t("sensitivityLabel")}</Label>
                             <Select
                               value={editSensitivity}
                               onValueChange={(v) => setEditSensitivity(v as Sensitivity)}
@@ -441,14 +467,14 @@ function MemoryPageContent() {
                               <SelectContent>
                                 {SENSITIVITY_OPTIONS.map((s) => (
                                   <SelectItem key={s} value={s}>
-                                    {s}
+                                    {getSensitivityLabel(s)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">上下文注入</Label>
+                            <Label className="text-xs">{t("contextEligibleLabel")}</Label>
                             <Select
                               value={editEligible ? "yes" : "no"}
                               onValueChange={(v) => setEditEligible(v === "yes")}
@@ -457,15 +483,15 @@ function MemoryPageContent() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="yes">启用</SelectItem>
-                                <SelectItem value="no">禁用</SelectItem>
+                                <SelectItem value="yes">{t("contextEligibleYes")}</SelectItem>
+                                <SelectItem value="no">{t("contextEligibleNo")}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
                         <div className="flex justify-end gap-2">
                           <Button size="xs" variant="ghost" onClick={() => setEditId(null)}>
-                            取消
+                            {t("cancel")}
                           </Button>
                           <Button
                             size="xs"
@@ -484,7 +510,7 @@ function MemoryPageContent() {
                               })
                             }
                           >
-                            {updateMemory.isPending ? "保存中..." : "保存"}
+                            {updateMemory.isPending ? t("saving") : t("save")}
                           </Button>
                         </div>
                       </div>
@@ -495,14 +521,14 @@ function MemoryPageContent() {
                           <span
                             className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[item.type as MemoryType] ?? ""}`}
                           >
-                            {TYPE_LABELS[item.type as MemoryType] ?? item.type}
+                            {getTypeLabel(item.type as MemoryType) ?? item.type}
                           </span>
                           <Badge variant="secondary" className="text-xs">
-                            {item.sensitivity}
+                            {getSensitivityLabel(item.sensitivity as Sensitivity)}
                           </Badge>
                           {!item.contextEligible && (
                             <Badge variant="outline" className="text-xs text-muted-foreground">
-                              不注入
+                              {t("notInjected")}
                             </Badge>
                           )}
                           {item.tags.map((tag) => (
@@ -525,23 +551,19 @@ function MemoryPageContent() {
                               })
                             }
                           >
-                            编辑
+                            {t("edit")}
                           </Button>
                           <Button
                             size="xs"
                             variant="ghost"
                             className="text-destructive"
                             disabled={deleteMemory.isPending}
-                            onClick={() => {
-                              if (window.confirm("确认删除这条记忆？")) {
-                                deleteMemory.mutate({ agentId, memoryId: item.id });
-                              }
-                            }}
+                            onClick={() => setDeleteMemoryId(item.id)}
                           >
-                            删除
+                            {t("delete")}
                           </Button>
                           <span className="ml-auto text-xs text-muted-foreground">
-                            {new Date(item.createdAt).toLocaleDateString("zh-CN")}
+                            {new Date(item.createdAt).toLocaleDateString(locale)}
                           </span>
                         </div>
                       </>
@@ -553,21 +575,56 @@ function MemoryPageContent() {
           {!isLoading && agentId && displayItems.length === 0 && (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
               {searchMode === "semantic" && query.length >= 2
-                ? "没有找到语义相关的记忆。"
-                : "没有符合条件的记忆。"}
+                ? t("noSemanticResults")
+                : t("noResults")}
             </div>
           )}
 
           {!isLoading && !hasAgents && (
             <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-              你还没有 Agent。先去{" "}
+              {t("noAgentsHint")}{" "}
               <Link href="/agents" className="text-primary underline underline-offset-4">
                 Agents
               </Link>{" "}
-              创建一个。
+              {t("noAgentsSuffix")}
             </div>
           )}
         </div>
+
+        {/* Delete memory confirm dialog */}
+        <Dialog
+          open={Boolean(deleteMemoryId)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteMemoryId(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("delete")}</DialogTitle>
+              <DialogDescription>{t("confirmDelete")}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setDeleteMemoryId(null)}>
+                {t("cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleteMemory.isPending}
+                onClick={() => {
+                  if (deleteMemoryId) {
+                    deleteMemory.mutate(
+                      { agentId, memoryId: deleteMemoryId },
+                      { onSettled: () => setDeleteMemoryId(null) },
+                    );
+                  }
+                }}
+              >
+                {deleteMemory.isPending ? t("saving") : t("delete")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Pagination (list mode only) */}
         {searchMode === "list" && (page > 1 || hasMore) && (
@@ -579,16 +636,16 @@ function MemoryPageContent() {
               onClick={() => setPage((p) => p - 1)}
             >
               <ChevronLeft className="mr-1 size-4" />
-              上一页
+              {t("prevPage")}
             </Button>
-            <span className="text-xs text-muted-foreground">第 {page} 页</span>
+            <span className="text-xs text-muted-foreground">{t("pageInfo", { page })}</span>
             <Button
               variant="outline"
               size="sm"
               disabled={!hasMore}
               onClick={() => setPage((p) => p + 1)}
             >
-              下一页
+              {t("nextPage")}
               <ChevronRight className="ml-1 size-4" />
             </Button>
           </div>

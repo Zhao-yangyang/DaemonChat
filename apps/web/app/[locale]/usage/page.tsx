@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@daemon/hooks";
@@ -26,9 +26,10 @@ import { parseUsageQueryState, toUsageSearchParams } from "@/src/features/histor
 
 type UsagePeriod = "day" | "month";
 
-const formatNumber = (value: number) => new Intl.NumberFormat("zh-CN").format(Math.round(value));
-const formatUsd = (value: number) =>
-  new Intl.NumberFormat("zh-CN", {
+const formatNumber = (value: number, locale: string) =>
+  new Intl.NumberFormat(locale).format(Math.round(value));
+const formatUsd = (value: number, locale: string) =>
+  new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "USD",
     minimumFractionDigits: 4,
@@ -46,6 +47,7 @@ const formatBucketLabel = (value: string, period: UsagePeriod): string => {
 
 function UsagePageContent() {
   const t = useTranslations("usage");
+  const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -136,7 +138,7 @@ function UsagePageContent() {
             <Label>Agent</Label>
             <Select value={agentId || undefined} onValueChange={(value) => setAgentId(value)}>
               <SelectTrigger>
-                <SelectValue placeholder={agents.isLoading ? "加载中..." : "选择 Agent"} />
+                <SelectValue placeholder={agents.isLoading ? t("loading") : t("selectAgent")} />
               </SelectTrigger>
               <SelectContent>
                 {(agents.data ?? []).map((agent) => (
@@ -148,14 +150,14 @@ function UsagePageContent() {
             </Select>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>统计周期</Label>
+            <Label>{t("periodLabel")}</Label>
             <Select value={period} onValueChange={(value) => setPeriod(value as UsagePeriod)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="day">今日</SelectItem>
-                <SelectItem value="month">本月</SelectItem>
+                <SelectItem value="day">{t("periodDay")}</SelectItem>
+                <SelectItem value="month">{t("periodMonth")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -169,7 +171,7 @@ function UsagePageContent() {
               }}
               disabled={!agentId}
             >
-              刷新
+              {t("refresh")}
             </Button>
           </div>
         </div>
@@ -193,7 +195,7 @@ function UsagePageContent() {
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Tokens In</p>
                 <p className="mt-1 text-2xl font-semibold">
-                  {formatNumber(usage.data?.tokensIn ?? 0)}
+                  {formatNumber(usage.data?.tokensIn ?? 0, locale)}
                 </p>
               </CardContent>
             </Card>
@@ -201,7 +203,7 @@ function UsagePageContent() {
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Tokens Out</p>
                 <p className="mt-1 text-2xl font-semibold">
-                  {formatNumber(usage.data?.tokensOut ?? 0)}
+                  {formatNumber(usage.data?.tokensOut ?? 0, locale)}
                 </p>
               </CardContent>
             </Card>
@@ -209,7 +211,7 @@ function UsagePageContent() {
               <CardContent className="py-4">
                 <p className="text-xs text-muted-foreground">Cost Estimate</p>
                 <p className="mt-1 text-2xl font-semibold">
-                  {formatUsd(usage.data?.costEstimate ?? 0)}
+                  {formatUsd(usage.data?.costEstimate ?? 0, locale)}
                 </p>
               </CardContent>
             </Card>
@@ -240,7 +242,9 @@ function UsagePageContent() {
                   className="[&>div]:bg-(--accent-green)"
                 />
               </div>
-              <p className="text-xs text-muted-foreground">总 token：{formatNumber(totalTokens)}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("totalTokens", { count: formatNumber(totalTokens, locale) })}
+              </p>
             </CardContent>
           </Card>
         ) : null}
@@ -252,7 +256,7 @@ function UsagePageContent() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm">Token Trend</CardTitle>
                 <Badge variant="secondary" className="text-xs">
-                  {period === "day" ? "按小时" : "按天"}
+                  {period === "day" ? t("byHour") : t("byDay")}
                 </Badge>
               </div>
             </CardHeader>
@@ -309,12 +313,12 @@ function UsagePageContent() {
                       style={{ fill: "var(--muted-foreground)" }}
                       className="text-[11px]"
                     >
-                      峰值 {formatNumber(trendChart.maxValue)}
+                      {t("peak")} {formatNumber(trendChart.maxValue, locale)}
                     </text>
                   </svg>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">当前周期暂无数据。</p>
+                <p className="text-sm text-muted-foreground">{t("empty")}</p>
               )}
             </CardContent>
           </Card>
