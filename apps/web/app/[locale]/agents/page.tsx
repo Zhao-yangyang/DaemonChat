@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/src/i18n/navigation";
 import { trpc } from "@daemon/hooks";
 import {
@@ -21,29 +21,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Skeleton,
   Textarea,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
 } from "@daemon/ui";
 import { API_KEY_REDACTED, detectPresetFromConfig, CUSTOM_PROVIDER_ID } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
-import { formatId } from "@/src/lib/format";
-import { ProviderIcon } from "@/src/components/provider-icon";
-import {
-  LlmProviderSection,
-  EMPTY_LLM_PROVIDER_STATE,
-} from "@/src/components/llm-provider-section";
-import type { LlmProviderFormState } from "@/src/components/llm-provider-section";
+import { EMPTY_LLM_PROVIDER_STATE } from "@/src/components/llm-provider-section";
+
+import { AgentCard } from "@/src/components/agents/agent-card";
+import type { AgentCardAgent } from "@/src/components/agents/agent-card";
+import { AgentConfigDialog } from "@/src/components/agents/agent-config-dialog";
+import type { AgentConfigForm } from "@/src/components/agents/agent-config-dialog";
+import { CreateAgentDialog } from "@/src/components/agents/create-agent-dialog";
+import type { CreateAgentForm } from "@/src/components/agents/create-agent-dialog";
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === "object") {
@@ -53,19 +45,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
     }
   }
   return fallback;
-};
-
-type AgentVisibility = "private" | "workspace" | "public";
-
-type AgentConfigForm = {
-  systemPrompt: string;
-  memoryTopK: string;
-  recentMessages: string;
-  temperature: string;
-  visibility: AgentVisibility;
-  llmProvider: LlmProviderFormState;
-  /** 打开对话框时 API Key 已配置（后端返回 REDACTED），保存时空字符串应发回 REDACTED 以保留 */
-  apiKeyConfigured: boolean;
 };
 
 const EMPTY_CONFIG_FORM: AgentConfigForm = {
@@ -78,23 +57,22 @@ const EMPTY_CONFIG_FORM: AgentConfigForm = {
   apiKeyConfigured: false,
 };
 
+const EMPTY_CREATE_FORM: CreateAgentForm = {
+  ...EMPTY_CONFIG_FORM,
+  name: "",
+  workspaceId: undefined,
+};
+
 export default function AgentsPage() {
   const t = useTranslations("agents");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<
-    AgentConfigForm & { name: string; workspaceId?: string }
-  >({
-    ...EMPTY_CONFIG_FORM,
-    name: "",
-    workspaceId: undefined,
-  });
+  const [createForm, setCreateForm] = useState<CreateAgentForm>(EMPTY_CREATE_FORM);
   const [createFormError, setCreateFormError] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState<AgentConfigForm>(EMPTY_CONFIG_FORM);
   const [configFormError, setConfigFormError] = useState<string | null>(null);
   const router = useRouter();
-  const locale = useLocale();
   const { session, isResolved } = useSession();
 
   const agents = trpc.agent.list.useQuery(undefined, {
@@ -197,7 +175,7 @@ export default function AgentsPage() {
 
   const closeCreateDialog = () => {
     setCreateDialogOpen(false);
-    setCreateForm({ ...EMPTY_CONFIG_FORM, name: "", workspaceId: undefined });
+    setCreateForm(EMPTY_CREATE_FORM);
     setCreateFormError(null);
     createAgent.reset();
   };
@@ -212,23 +190,7 @@ export default function AgentsPage() {
     deleteAgent.reset();
   };
 
-  const openConfigDialog = (agent: {
-    id: string;
-    visibility?: AgentVisibility;
-    config: {
-      systemPrompt: string;
-      memoryTopK: number;
-      recentMessages: number;
-      temperature: number;
-      llmProvider?: {
-        model?: string;
-        baseURL?: string;
-        apiKey?: string;
-        presetId?: string;
-        sdkProvider?: "openai" | "anthropic" | "google" | "deepseek" | "xai" | "mistral";
-      } | null;
-    };
-  }) => {
+  const openConfigDialog = (agent: AgentCardAgent) => {
     setEditingAgentId(agent.id);
 
     const detected = detectPresetFromConfig({
@@ -440,80 +402,20 @@ export default function AgentsPage() {
                 </Card>
               ))
             : (agents.data ?? []).map((agent) => (
-                <Card key={agent.id} className="transition-shadow hover:shadow-md">
-                  <CardContent className="flex items-center justify-between gap-4 py-4">
-                    <div className="min-w-0">
-                      <p className="font-medium flex items-center gap-2 flex-wrap">
-                        {agent.name}
-                        {publishedAgentIds.has(agent.id) ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {t("published")}
-                          </Badge>
-                        ) : null}
-                        <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted/50">
-                          <ProviderIcon
-                            providerId={
-                              agent.config.llmProvider?.presetId &&
-                              agent.config.llmProvider.presetId !== "__custom__"
-                                ? agent.config.llmProvider.presetId
-                                : (agent.config.llmProvider?.sdkProvider ?? "")
-                            }
-                            size={14}
-                          />
-                          {agent.config.llmProvider?.model || t("notConfigured")}
-                        </span>
-                      </p>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <p className="cursor-default text-xs text-muted-foreground">
-                            {formatId(agent.id)}
-                          </p>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="font-mono text-xs">{agent.id}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button asChild size="sm">
-                        <Link href={`/chat/${agent.id}`}>{t("chat")}</Link>
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => openConfigDialog(agent)}>
-                        {t("config")}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDeletingAgentId(agent.id)}
-                        disabled={deleteAgent.isPending}
-                      >
-                        {t("delete")}
-                      </Button>
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/usage?agent=${encodeURIComponent(agent.id)}`}>
-                          {t("usage")}
-                        </Link>
-                      </Button>
-                      <Button asChild variant="ghost" size="sm">
-                        <Link href={`/memory?agent=${encodeURIComponent(agent.id)}`}>
-                          {t("memory")}
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setPublishAgentId(agent.id);
-                          setPublishDesc("");
-                          setPublishPublic(true);
-                          publishTemplate.reset();
-                        }}
-                      >
-                        {publishedAgentIds.has(agent.id) ? t("updatePublish") : t("publish")}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  isPublished={publishedAgentIds.has(agent.id)}
+                  isDeletePending={deleteAgent.isPending}
+                  onConfigOpen={openConfigDialog}
+                  onDeleteOpen={setDeletingAgentId}
+                  onPublishOpen={(id) => {
+                    setPublishAgentId(id);
+                    setPublishDesc("");
+                    setPublishPublic(true);
+                    publishTemplate.reset();
+                  }}
+                />
               ))}
 
           {!agents.isLoading && !listErrorMessage && (agents.data?.length ?? 0) === 0 ? (
@@ -525,287 +427,32 @@ export default function AgentsPage() {
         </div>
 
         {/* Create Agent Dialog */}
-        <Dialog
+        <CreateAgentDialog
           open={createDialogOpen}
-          onOpenChange={(open) => (!open ? closeCreateDialog() : undefined)}
-        >
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t("createDialogTitle")}</DialogTitle>
-              <DialogDescription>{t("createDialogDesc")}</DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="create-agent-name">{t("agentNameLabel")}</Label>
-                <Input
-                  id="create-agent-name"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder={t("agentNamePlaceholder")}
-                />
-              </div>
-
-              {(workspaces.data ?? []).length > 0 && (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-workspace">{t("workspaceLabel")}</Label>
-                  <Select
-                    value={createForm.workspaceId ?? ""}
-                    onValueChange={(v) =>
-                      setCreateForm((prev) => ({ ...prev, workspaceId: v || undefined }))
-                    }
-                  >
-                    <SelectTrigger id="create-agent-workspace">
-                      <SelectValue placeholder={t("workspacePersonalPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">{t("workspacePersonal")}</SelectItem>
-                      {(workspaces.data ?? []).map((ws: { id: string; name: string }) => (
-                        <SelectItem key={ws.id} value={ws.id}>
-                          {ws.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              <div className="grid gap-1.5">
-                <Label htmlFor="create-agent-system-prompt">{t("systemPromptLabel")}</Label>
-                <Textarea
-                  id="create-agent-system-prompt"
-                  rows={4}
-                  value={createForm.systemPrompt}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, systemPrompt: e.target.value }))
-                  }
-                  placeholder={t("systemPromptPlaceholder")}
-                />
-              </div>
-
-              <LlmProviderSection
-                value={createForm.llmProvider}
-                onChange={(lp) => setCreateForm((prev) => ({ ...prev, llmProvider: lp }))}
-              />
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-memory-topk">{t("memoryTopKLabel")}</Label>
-                  <Input
-                    id="create-agent-memory-topk"
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={createForm.memoryTopK}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, memoryTopK: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-recent-messages">{t("recentMessagesLabel")}</Label>
-                  <Input
-                    id="create-agent-recent-messages"
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={createForm.recentMessages}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, recentMessages: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="create-agent-temperature">{t("temperatureLabel")}</Label>
-                  <Input
-                    id="create-agent-temperature"
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.1}
-                    value={createForm.temperature}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, temperature: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {createFormError ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{createFormError}</AlertDescription>
-                </Alert>
-              ) : null}
-              {createErrorMessage ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{createErrorMessage}</AlertDescription>
-                </Alert>
-              ) : null}
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={closeCreateDialog}
-                disabled={createAgent.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button onClick={doCreateAgent} disabled={createAgent.isPending}>
-                {createAgent.isPending ? t("creating") : t("createAndChat")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          form={createForm}
+          formError={createFormError}
+          mutationError={createErrorMessage}
+          isPending={createAgent.isPending}
+          workspaces={(workspaces.data ?? []).map((ws: { id: string; name: string }) => ws)}
+          onFormChange={setCreateForm}
+          onCreate={doCreateAgent}
+          onClose={closeCreateDialog}
+        />
 
         {/* Agent Config Dialog */}
-        <Dialog
+        <AgentConfigDialog
           open={Boolean(editingAgentId)}
-          onOpenChange={(open) => (!open ? closeConfigDialog() : undefined)}
-        >
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t("configDialogTitle")}</DialogTitle>
-              <DialogDescription>
-                {selectedAgent
-                  ? t("configDialogDescEditing", { name: selectedAgent.name })
-                  : t("configDialogDescDefault")}
-              </DialogDescription>
-            </DialogHeader>
+          agentId={editingAgentId}
+          agentName={selectedAgent?.name}
+          form={configForm}
+          formError={configFormError ?? updateErrorMessage ?? null}
+          isPending={updateAgent.isPending}
+          onFormChange={setConfigForm}
+          onSave={saveConfig}
+          onClose={closeConfigDialog}
+        />
 
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="agent-system-prompt">{t("systemPromptLabel")}</Label>
-                <Textarea
-                  id="agent-system-prompt"
-                  rows={4}
-                  value={configForm.systemPrompt}
-                  onChange={(e) =>
-                    setConfigForm((prev) => ({ ...prev, systemPrompt: e.target.value }))
-                  }
-                  placeholder={t("systemPromptPlaceholder")}
-                />
-              </div>
-
-              <LlmProviderSection
-                value={configForm.llmProvider}
-                onChange={(lp) => setConfigForm((prev) => ({ ...prev, llmProvider: lp }))}
-                apiKeyPlaceholder={configForm.apiKeyConfigured ? t("apiKeyPlaceholder") : undefined}
-              />
-
-              <div className="grid gap-1.5">
-                <Label>可见性</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={configForm.visibility}
-                    onValueChange={(v) =>
-                      setConfigForm((prev) => ({ ...prev, visibility: v as AgentVisibility }))
-                    }
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="private">{t("visibilityPrivate")}</SelectItem>
-                      <SelectItem value="workspace">{t("visibilityWorkspace")}</SelectItem>
-                      <SelectItem value="public">{t("visibilityPublic")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {configForm.visibility === "public" && editingAgentId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const url = `${typeof window !== "undefined" ? window.location.origin : ""}/${locale}/share/${editingAgentId}`;
-                        try {
-                          await navigator.clipboard.writeText(url);
-                          toast.success(t("shareLinkCopied"));
-                        } catch {
-                          toast.error(t("copyFailed"));
-                        }
-                      }}
-                    >
-                      {t("copyShareLink")}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="agent-memory-topk">{t("memoryTopKLabel")}</Label>
-                  <Input
-                    id="agent-memory-topk"
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={configForm.memoryTopK}
-                    onChange={(e) =>
-                      setConfigForm((prev) => ({ ...prev, memoryTopK: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="agent-recent-messages">{t("recentMessagesLabel")}</Label>
-                  <Input
-                    id="agent-recent-messages"
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={configForm.recentMessages}
-                    onChange={(e) =>
-                      setConfigForm((prev) => ({ ...prev, recentMessages: e.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label htmlFor="agent-temperature">{t("temperatureLabel")}</Label>
-                  <Input
-                    id="agent-temperature"
-                    type="number"
-                    min={0}
-                    max={2}
-                    step={0.1}
-                    value={configForm.temperature}
-                    onChange={(e) =>
-                      setConfigForm((prev) => ({ ...prev, temperature: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {configFormError ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{configFormError}</AlertDescription>
-                </Alert>
-              ) : null}
-              {updateErrorMessage ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{updateErrorMessage}</AlertDescription>
-                </Alert>
-              ) : null}
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={closeConfigDialog}
-                disabled={updateAgent.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button onClick={saveConfig} disabled={updateAgent.isPending || !editingAgentId}>
-                {updateAgent.isPending ? t("saving") : t("saveConfig")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
+        {/* ——— Keep the remaining dialogs (delete + publish) ——— */}
         {/* Delete Confirmation Dialog */}
         <Dialog
           open={Boolean(deletingAgentId)}

@@ -79,6 +79,7 @@
     "memoryTopKLabel": "Memory TopK",
     "recentMessagesLabel": "Recent Messages",
     "temperatureLabel": "Temperature",
+    "visibilityLabel": "Visibility",
     "visibilityPrivate": "Private",
     "visibilityWorkspace": "Workspace members",
     "visibilityPublic": "Public",
@@ -258,7 +259,15 @@
     "removeSuccess": "Member removed",
     "removeError": "Remove failed",
     "memberJoinedAt": "Joined {date}",
-    "memberIdTooltip": "User ID: {id}"
+    "memberIdTooltip": "User ID: {id}",
+    "deleteWorkspace": "Delete workspace",
+    "deleteDialogTitle": "Delete workspace",
+    "deleteDialogDesc": "Delete workspace \"{name}\"? All members will be removed. This cannot be undone.",
+    "deleting": "Deleting...",
+    "confirmDelete": "Confirm delete",
+    "deleteSuccess": "Workspace deleted",
+    "deleteError": "Delete failed",
+    "memberShortId": "Member {id}"
   },
   "nav": {
     "chat": "Chat",

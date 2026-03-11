@@ -29,45 +29,29 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
   cn,
 } from "@daemon/ui";
 import { DashboardShell } from "@/src/components/dashboard-shell";
-import { MarkdownMessage } from "@/src/components/markdown-message";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 import {
-  Send,
-  Search,
-  X,
-  Loader2,
-  ImagePlus,
   Archive,
   ArchiveRestore,
-  MoreVertical,
   FileDown,
+  Loader2,
+  MoreVertical,
   RefreshCw,
-  FileText,
+  Search,
+  X,
 } from "lucide-react";
+import { MessageBubble } from "@/src/components/chat/message-bubble";
+import type { ChatMessage } from "@/src/components/chat/message-bubble";
+import { ChatComposer } from "@/src/components/chat/chat-composer";
+import type { PendingAttachment } from "@/src/components/chat/chat-composer";
 
-const formatMsgTime = (iso?: string): string => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
-};
-
-type ChatMessage = {
-  role: "user" | "assistant";
-  content: string;
-  timestamp?: string;
-  eventId?: string;
-};
-
-const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
 const hasVisibleText = (value: string | null | undefined): boolean =>
   typeof value === "string" && value.trim().length > 0;
+
+const newSessionKey = () => `s-${Math.random().toString(36).slice(2, 10)}`;
 
 const extractTextFragments = (value: unknown, depth = 0): string[] => {
   if (depth > 5) return [];
@@ -97,10 +81,7 @@ const toMessageText = (content: unknown): string => {
   const extracted = extractTextFragments(content)
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
-  if (extracted.length > 0) {
-    return extracted.join("\n");
-  }
-
+  if (extracted.length > 0) return extracted.join("\n");
   try {
     return JSON.stringify(content);
   } catch {
@@ -119,13 +100,9 @@ const toChatMessagesFromEvents = (
 ): ChatMessage[] => {
   const items: ChatMessage[] = [];
   for (const event of events) {
-    if (event.type !== "user_message" && event.type !== "assistant_message") {
-      continue;
-    }
+    if (event.type !== "user_message" && event.type !== "assistant_message") continue;
     const text = toMessageText(event.content).trim();
-    if (!text) {
-      continue;
-    }
+    if (!text) continue;
     items.push({
       role: event.type === "user_message" ? "user" : "assistant",
       content: text,
@@ -164,7 +141,6 @@ export default function ChatPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
-  type PendingAttachment = { file: File; preview: string; type: "image" | "pdf" };
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -186,7 +162,6 @@ export default function ChatPage() {
     parentSessionId: string;
     forkFromEventId: string;
   } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const activeStreamControllerRef = useRef<AbortController | null>(null);
 
@@ -232,6 +207,7 @@ export default function ChatPage() {
           forkFromEventId: lastForkedSession.forkFromEventId,
         }
       : null);
+
   const transcript = trpc.transcript.list.useQuery(
     {
       agentId,
@@ -244,6 +220,7 @@ export default function ChatPage() {
       refetchOnWindowFocus: false,
     },
   );
+
   const deleteSessionMutation = trpc.session.delete.useMutation({
     onSuccess: async () => {
       await sessionList.refetch();
@@ -323,23 +300,13 @@ export default function ChatPage() {
   }, [messages, currentSessionKey, isStreaming]);
 
   useEffect(() => {
-    if (!currentSessionKey || !transcript.data) {
-      return;
-    }
+    if (!currentSessionKey || !transcript.data) return;
     const restored = toChatMessagesFromEvents(transcript.data);
-    if (restored.length === 0) {
-      return;
-    }
-
+    if (restored.length === 0) return;
     setMessagesBySession((prev) => {
       const existing = prev[currentSessionKey] ?? [];
-      if (existing.length > 0) {
-        return prev;
-      }
-      return {
-        ...prev,
-        [currentSessionKey]: restored,
-      };
+      if (existing.length > 0) return prev;
+      return { ...prev, [currentSessionKey]: restored };
     });
   }, [currentSessionKey, transcript.data]);
 
@@ -350,7 +317,7 @@ export default function ChatPage() {
     if (currentSessionKey !== lastForkedSession?.sessionKey) {
       setLastForkedSession(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reset on session switch, not on lastForkedSession change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only reset on session switch
   }, [currentSessionKey]);
 
   const updateMessagesForSession = (
@@ -431,26 +398,26 @@ export default function ChatPage() {
 
   const executeSessionDialogAction = async () => {
     if (!sessionDialog) return;
-    const { type, sessionKey, sessionId } = sessionDialog;
+    const { type, sessionKey: sk, sessionId } = sessionDialog;
     setSessionDialog(null);
     if (type === "archive") {
       if (!sessionId) {
-        removeSessionLocally(sessionKey);
+        removeSessionLocally(sk);
         return;
       }
       await archiveSessionMutation.mutateAsync({ agentId, sessionId });
-      removeSessionLocally(sessionKey);
+      removeSessionLocally(sk);
     } else if (type === "unarchive") {
       if (!sessionId) return;
       await unarchiveSessionMutation.mutateAsync({ agentId, sessionId });
       setShowArchived(false);
     } else if (type === "delete") {
       if (!sessionId) {
-        removeSessionLocally(sessionKey);
+        removeSessionLocally(sk);
         return;
       }
       await deleteSessionMutation.mutateAsync({ agentId, sessionId });
-      removeSessionLocally(sessionKey);
+      removeSessionLocally(sk);
     }
   };
 
@@ -465,9 +432,7 @@ export default function ChatPage() {
     try {
       const session = await supabaseBrowserClient.auth.getSession();
       const accessToken = session.data.session?.access_token;
-      if (!accessToken) {
-        throw new Error("未登录");
-      }
+      if (!accessToken) throw new Error("未登录");
 
       const idempotencyKey = crypto.randomUUID();
       const res = await fetch("/api/chat/stream", {
@@ -488,9 +453,7 @@ export default function ChatPage() {
         }),
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error(`请求失败: ${res.status}`);
-      }
+      if (!res.ok || !res.body) throw new Error(`请求失败: ${res.status}`);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -499,21 +462,15 @@ export default function ChatPage() {
 
       const handleBlock = (block: string) => {
         const line = block.split("\n").find((entry) => entry.startsWith("data: "));
-        if (!line) {
-          return;
-        }
-
+        if (!line) return;
         try {
           const payload = JSON.parse(line.slice(6)) as {
             type: string;
             value?: string;
             message?: string;
           };
-
           if (payload.type === "chunk") {
-            if (hasVisibleText(payload.value)) {
-              receivedAssistantChunk = true;
-            }
+            if (hasVisibleText(payload.value)) receivedAssistantChunk = true;
             appendAssistant(input.targetSessionKey, payload.value ?? "");
           } else if (payload.type === "error") {
             appendAssistant(input.targetSessionKey, `\n错误: ${payload.message ?? "未知错误"}`);
@@ -526,7 +483,6 @@ export default function ChatPage() {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const blocks = buffer.split("\n\n");
         buffer = blocks.pop() ?? "";
@@ -545,13 +501,9 @@ export default function ChatPage() {
       }
 
       sessionList.refetch();
-      if (currentSessionId) {
-        transcript.refetch();
-      }
+      if (currentSessionId) transcript.refetch();
     } catch (error) {
-      if (controller.signal.aborted) {
-        return;
-      }
+      if (controller.signal.aborted) return;
       const message = error instanceof Error ? error.message : "未知错误";
       toast.error(message);
       appendAssistant(input.targetSessionKey, `\n错误: ${message}`);
@@ -597,9 +549,7 @@ export default function ChatPage() {
   };
 
   const send = async () => {
-    if ((!input.trim() && pendingAttachments.length === 0) || isStreaming || isUploading) {
-      return;
-    }
+    if ((!input.trim() && pendingAttachments.length === 0) || isStreaming || isUploading) return;
 
     setUploadError(null);
 
@@ -659,11 +609,7 @@ export default function ChatPage() {
         ? `${baseUserMessage}\n\n[文档内容]\n${pdfTexts.join("\n\n")}`
         : baseUserMessage;
 
-    await runTurn({
-      targetSessionKey: activeSessionKey,
-      userMessage,
-      imageUrls,
-    });
+    await runTurn({ targetSessionKey: activeSessionKey, userMessage, imageUrls });
   };
 
   const regenerate = async () => {
@@ -674,9 +620,7 @@ export default function ChatPage() {
       .find(({ item }) => item.role === "assistant" && hasVisibleText(item.content))?.idx;
     if (lastAssistantIndex === undefined || lastAssistantIndex <= 0) return;
     const previous = messages[lastAssistantIndex - 1];
-    if (!previous || previous.role !== "user" || !hasVisibleText(previous.content)) {
-      return;
-    }
+    if (!previous || previous.role !== "user" || !hasVisibleText(previous.content)) return;
 
     updateMessagesForSession(currentSessionKey, (items) => {
       const next = [...items];
@@ -685,10 +629,7 @@ export default function ChatPage() {
       return next;
     });
 
-    await runTurn({
-      targetSessionKey: currentSessionKey,
-      userMessage: previous.content,
-    });
+    await runTurn({ targetSessionKey: currentSessionKey, userMessage: previous.content });
   };
 
   const startEdit = (idx: number, content: string) => {
@@ -717,10 +658,7 @@ export default function ChatPage() {
       { role: "user", content: edited },
       { role: "assistant", content: "" },
     ]);
-    await runTurn({
-      targetSessionKey: currentSessionKey,
-      userMessage: edited,
-    });
+    await runTurn({ targetSessionKey: currentSessionKey, userMessage: edited });
   };
 
   const stopStreaming = () => {
@@ -742,12 +680,12 @@ export default function ChatPage() {
 
   const executeRename = async () => {
     if (!renameDialog) return;
-    const { sessionKey, currentName } = renameDialog;
+    const { sessionKey: sk, currentName } = renameDialog;
     const nextName = renameInput.trim();
     setRenameDialog(null);
     if (!nextName || nextName === currentName) return;
     if (!currentSessionId) {
-      setLocalSessionNames((prev) => ({ ...prev, [sessionKey]: nextName }));
+      setLocalSessionNames((prev) => ({ ...prev, [sk]: nextName }));
       return;
     }
     await renameSessionMutation.mutateAsync({
@@ -772,13 +710,22 @@ export default function ChatPage() {
     URL.revokeObjectURL(href);
   };
 
+  const toggleExpand = (idx: number) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
   return (
     <DashboardShell
       title={currentAgent ? currentAgent.name : t("title")}
       description={t("description")}
       actions={
         <div className="flex items-center gap-2">
-          {/* Agent + Session + 新会话 */}
+          {/* Agent + Session selectors */}
           <div className="flex min-w-0 shrink items-center gap-1.5 rounded-lg border bg-muted/30 px-1.5 py-0.5">
             <Select value={agentId} onValueChange={(id) => router.push(`/chat/${id}`)}>
               <SelectTrigger className="h-7 min-w-0 shrink border-0 bg-transparent text-xs shadow-none focus:ring-0 sm:w-[110px]">
@@ -821,7 +768,7 @@ export default function ChatPage() {
             </Badge>
           )}
 
-          {/* 会话操作菜单 */}
+          {/* Session actions menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="icon-sm" variant="ghost" className="size-8">
@@ -963,310 +910,58 @@ export default function ChatPage() {
 
             <div className="space-y-6">
               {messages.map((msg, idx) => {
-                const isUser = msg.role === "user";
                 const hasVisibleContent = hasVisibleText(msg.content);
-                const isPendingAssistant =
-                  msg.role === "assistant" && !hasVisibleContent && isStreaming;
                 const isLastAssistant =
                   msg.role === "assistant" && idx === messages.length - 1 && hasVisibleContent;
-                if (!isUser && !hasVisibleContent && !isPendingAssistant) {
-                  return null;
-                }
-
-                const matchesSearch =
-                  !searchQuery.trim() ||
-                  msg.content.toLowerCase().includes(searchQuery.trim().toLowerCase());
-
-                if (searchQuery.trim() && !matchesSearch) {
-                  return null;
-                }
-
-                const timeLabel = formatMsgTime(msg.timestamp);
-
                 return (
-                  <div
+                  <MessageBubble
                     key={`${msg.role}-${idx}`}
-                    className={cn("space-y-1", isUser && "items-end")}
-                  >
-                    <div className={cn("flex gap-3", isUser && "flex-row-reverse")}>
-                      <div
-                        className={cn(
-                          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-medium",
-                          isUser
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {isUser ? t("userLabel") : t("aiLabel")}
-                      </div>
-                      <div
-                        className={cn(
-                          "min-w-0 flex-1 flex flex-col",
-                          isUser ? "items-end" : "items-start",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "inline-block max-w-[min(85%,42rem)] rounded-2xl px-4 py-3",
-                            isUser
-                              ? "bg-primary text-primary-foreground text-sm leading-relaxed"
-                              : "bg-muted text-foreground",
-                          )}
-                        >
-                          {isUser ? (
-                            editingIndex === idx ? (
-                              <div className="space-y-2">
-                                <Textarea
-                                  value={editingContent}
-                                  onChange={(event) => setEditingContent(event.target.value)}
-                                  className="min-h-20 resize-y bg-background text-foreground"
-                                  aria-label={t("editAriaLabel")}
-                                />
-                                <div className="flex justify-end gap-2">
-                                  <Button size="xs" variant="secondary" onClick={cancelEdit}>
-                                    {t("cancel")}
-                                  </Button>
-                                  <Button
-                                    size="xs"
-                                    variant="outline"
-                                    onClick={() => void saveEditAndResend()}
-                                    disabled={!editingContent.trim()}
-                                  >
-                                    {t("saveResend")}
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="whitespace-pre-wrap">{msg.content}</p>
-                            )
-                          ) : hasVisibleContent ? (
-                            (() => {
-                              const isLong = !isUser && msg.content.length > 2000;
-                              const isExpanded = expandedMessages.has(idx);
-                              const shouldCollapse = isLong && !isExpanded;
-                              return (
-                                <>
-                                  <div
-                                    className={
-                                      shouldCollapse ? "max-h-96 overflow-hidden" : undefined
-                                    }
-                                  >
-                                    <MarkdownMessage content={msg.content} />
-                                  </div>
-                                  {isLong ? (
-                                    <button
-                                      className="mt-2 text-xs text-primary hover:underline"
-                                      onClick={() =>
-                                        setExpandedMessages((prev) => {
-                                          const next = new Set(prev);
-                                          if (isExpanded) next.delete(idx);
-                                          else next.add(idx);
-                                          return next;
-                                        })
-                                      }
-                                    >
-                                      {isExpanded ? t("collapse") : t("expand")}
-                                    </button>
-                                  ) : null}
-                                </>
-                              );
-                            })()
-                          ) : isPendingAssistant ? (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Loader2 className="size-4 animate-spin" />
-                              <span>{t("thinking")}</span>
-                            </div>
-                          ) : null}
-                        </div>
-                        {/* Timestamp + actions row */}
-                        <div
-                          className={cn(
-                            "mt-1 flex items-center gap-2 text-[11px] text-muted-foreground",
-                            isUser && "flex-row-reverse",
-                          )}
-                        >
-                          {timeLabel ? <span>{timeLabel}</span> : null}
-                          {isUser && editingIndex !== idx && !isStreaming ? (
-                            <button
-                              className="hover:text-foreground transition-colors"
-                              onClick={() => startEdit(idx, msg.content)}
-                            >
-                              {t("edit")}
-                            </button>
-                          ) : null}
-                          {!isUser && hasVisibleContent && !isStreaming ? (
-                            <button
-                              className="hover:text-foreground transition-colors"
-                              onClick={() => {
-                                void navigator.clipboard.writeText(msg.content);
-                              }}
-                            >
-                              {t("copy")}
-                            </button>
-                          ) : null}
-                          {!isUser && isLastAssistant && !isStreaming ? (
-                            <button
-                              className="hover:text-foreground transition-colors"
-                              onClick={() => void regenerate()}
-                            >
-                              {t("regenerate")}
-                            </button>
-                          ) : null}
-                          {msg.eventId && currentSessionId && !isStreaming ? (
-                            <button
-                              className="hover:text-foreground transition-colors"
-                              data-testid="chat-fork"
-                              onClick={() => {
-                                forkSessionMutation.mutate({
-                                  agentId,
-                                  parentSessionId: currentSessionId,
-                                  forkFromEventId: msg.eventId!,
-                                });
-                              }}
-                              disabled={forkSessionMutation.isPending}
-                            >
-                              {t("forkFromHere")}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    msg={msg}
+                    idx={idx}
+                    isStreaming={isStreaming}
+                    isLastAssistant={isLastAssistant}
+                    searchQuery={searchQuery}
+                    editingIndex={editingIndex}
+                    editingContent={editingContent}
+                    isExpanded={expandedMessages.has(idx)}
+                    currentSessionId={currentSessionId}
+                    isForkPending={forkSessionMutation.isPending}
+                    onStartEdit={startEdit}
+                    onCancelEdit={cancelEdit}
+                    onSaveEditAndResend={saveEditAndResend}
+                    onEditContentChange={setEditingContent}
+                    onToggleExpand={toggleExpand}
+                    onRegenerate={regenerate}
+                    onFork={(eventId) =>
+                      forkSessionMutation.mutate({
+                        agentId,
+                        parentSessionId: currentSessionId,
+                        forkFromEventId: eventId,
+                      })
+                    }
+                  />
                 );
               })}
             </div>
           </div>
         </ScrollArea>
 
-        {/* Input area — fixed at bottom, centered */}
-        <div className="shrink-0 border-t bg-card px-4 py-4 sm:px-6">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-2 flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs">
-                {currentAgent?.config.llmProvider?.model || t("notConfigured")}
-              </Badge>
-            </div>
-            {uploadError ? (
-              <div className="px-1 pb-1 text-xs text-destructive">{uploadError}</div>
-            ) : null}
-            {pendingAttachments.length > 0 ? (
-              <div className="flex flex-wrap gap-2 px-1">
-                {pendingAttachments.map((att, i) => (
-                  <div key={i} className="group relative">
-                    {att.type === "image" ? (
-                      <img
-                        src={att.preview}
-                        alt={att.file.name}
-                        className="size-16 rounded-lg border object-cover"
-                      />
-                    ) : (
-                      <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border bg-muted/50 px-2">
-                        <FileText className="size-6 text-muted-foreground" />
-                        <span
-                          className="truncate text-xs text-muted-foreground"
-                          title={att.file.name}
-                        >
-                          {att.file.name}
-                        </span>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                      onClick={() =>
-                        setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i))
-                      }
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <div className="flex items-end gap-2 rounded-xl border bg-background p-2 shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  const MAX = 10 * 1024 * 1024;
-                  const imageRe = /^image\/(jpeg|png|gif|webp)$/;
-                  const newAttachments: PendingAttachment[] = files
-                    .filter(
-                      (f) =>
-                        f.size <= MAX && (imageRe.test(f.type) || f.type === "application/pdf"),
-                    )
-                    .map((file) =>
-                      imageRe.test(file.type)
-                        ? { file, preview: URL.createObjectURL(file), type: "image" as const }
-                        : { file, preview: "", type: "pdf" as const },
-                    );
-                  if (newAttachments.length > 0) {
-                    setPendingAttachments((prev) => [...prev, ...newAttachments]);
-                  }
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="shrink-0 rounded-lg"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isStreaming || isUploading}
-                title={t("addImagePdf")}
-              >
-                {isUploading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ImagePlus className="size-4" />
-                )}
-              </Button>
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t("inputPlaceholder")}
-                aria-label={t("inputPlaceholder")}
-                className="min-h-10 max-h-40 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0"
-                data-testid="chat-input"
-                onKeyDown={(event) => {
-                  if ((event.nativeEvent as KeyboardEvent).isComposing) {
-                    return;
-                  }
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              {isStreaming ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-9 shrink-0 rounded-lg px-3 text-xs"
-                  onClick={stopStreaming}
-                >
-                  {t("stopGenerating")}
-                </Button>
-              ) : (
-                <Button
-                  size="icon-sm"
-                  className="shrink-0 rounded-lg"
-                  onClick={send}
-                  disabled={(!input.trim() && pendingAttachments.length === 0) || isUploading}
-                  data-testid="chat-send"
-                >
-                  <Send className="size-4" />
-                  <span className="sr-only">{t("send")}</span>
-                </Button>
-              )}
-            </div>
-            <p className="mt-2 text-center text-xs text-muted-foreground">{t("inputHint")}</p>
-          </div>
-        </div>
+        {/* Bottom composer */}
+        <ChatComposer
+          input={input}
+          isStreaming={isStreaming}
+          isUploading={isUploading}
+          uploadError={uploadError}
+          pendingAttachments={pendingAttachments}
+          modelLabel={currentAgent?.config.llmProvider?.model || undefined}
+          onInputChange={setInput}
+          onSend={send}
+          onStop={stopStreaming}
+          onAttachmentsChange={setPendingAttachments}
+          onRemoveAttachment={(i) =>
+            setPendingAttachments((prev) => prev.filter((_, idx) => idx !== i))
+          }
+        />
       </div>
 
       {/* Session action confirm dialog (archive / unarchive / delete) */}

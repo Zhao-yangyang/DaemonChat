@@ -33,10 +33,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@daemon/ui";
-import { UserPlus, X } from "lucide-react";
+import { Trash2, UserPlus, X } from "lucide-react";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
-import { formatTime } from "@/src/lib/format";
+import { formatId, formatTime } from "@/src/lib/format";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
 
@@ -68,6 +68,10 @@ export default function WorkspacesPage() {
 
   // — Remove member dialog state —
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
+
+  // — Delete workspace dialog state —
+  const [deleteWsId, setDeleteWsId] = useState<string | null>(null);
+  const [deleteWsName, setDeleteWsName] = useState("");
 
   // ——— tRPC queries / mutations ———
   const workspaces = trpc.workspace.list.useQuery(undefined, {
@@ -111,6 +115,19 @@ export default function WorkspacesPage() {
     },
     onError: (err) => {
       toast.error(err.message || t("removeError"));
+    },
+  });
+
+  const deleteWorkspace = trpc.workspace.delete.useMutation({
+    onSuccess: () => {
+      setDeleteWsId(null);
+      setDeleteWsName("");
+      if (selectedWs?.id === deleteWsId) setSelectedWs(null);
+      workspaces.refetch();
+      toast.success(t("deleteSuccess"));
+    },
+    onError: (err) => {
+      toast.error(err.message || t("deleteError"));
     },
   });
 
@@ -196,15 +213,32 @@ export default function WorkspacesPage() {
                             /{ws.slug} · {t("createdAt")} {formatTime(ws.createdAt)}
                           </p>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setSelectedWs(isSelected ? null : { id: ws.id, role: ws.role })
-                          }
-                        >
-                          {isSelected ? t("collapse") : t("members")}
-                        </Button>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setSelectedWs(isSelected ? null : { id: ws.id, role: ws.role })
+                            }
+                          >
+                            {isSelected ? t("collapse") : t("members")}
+                          </Button>
+                          {ws.role === "owner" ? (
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="size-8 text-muted-foreground hover:text-destructive"
+                              title={t("deleteWorkspace")}
+                              onClick={() => {
+                                setDeleteWsId(ws.id);
+                                setDeleteWsName(ws.name);
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                              <span className="sr-only">{t("deleteWorkspace")}</span>
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {/* Members panel */}
@@ -248,7 +282,7 @@ export default function WorkspacesPage() {
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className="cursor-default truncate font-mono text-xs text-foreground">
-                                          {m.user_id}
+                                          {formatId(m.user_id)}
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent>
@@ -427,6 +461,47 @@ export default function WorkspacesPage() {
                 disabled={!inviteUserId.trim() || inviteMember.isPending}
               >
                 {inviteMember.isPending ? t("inviting") : t("invite")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ——— Delete workspace confirm dialog ——— */}
+        <Dialog
+          open={Boolean(deleteWsId)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteWsId(null);
+              setDeleteWsName("");
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
+              <DialogDescription>{t("deleteDialogDesc", { name: deleteWsName })}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDeleteWsId(null);
+                  setDeleteWsName("");
+                }}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={deleteWorkspace.isPending}
+                onClick={() => {
+                  if (!deleteWsId) return;
+                  deleteWorkspace.mutate({ workspaceId: deleteWsId });
+                }}
+              >
+                {deleteWorkspace.isPending ? t("deleting") : t("confirmDelete")}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -79,6 +79,7 @@
     "memoryTopKLabel": "Memory TopK",
     "recentMessagesLabel": "Recent Messages",
     "temperatureLabel": "Temperature",
+    "visibilityLabel": "可见性",
     "visibilityPrivate": "仅自己可见",
     "visibilityWorkspace": "工作空间成员可见",
     "visibilityPublic": "所有人可见",
@@ -258,7 +259,15 @@
     "removeSuccess": "成员已移除",
     "removeError": "移除失败",
     "memberJoinedAt": "加入于 {date}",
-    "memberIdTooltip": "用户 ID：{id}"
+    "memberIdTooltip": "用户 ID：{id}",
+    "deleteWorkspace": "删除空间",
+    "deleteDialogTitle": "删除工作空间",
+    "deleteDialogDesc": "确认删除工作空间「{name}」吗？所有成员将被移除，此操作不可撤销。",
+    "deleting": "删除中...",
+    "confirmDelete": "确认删除",
+    "deleteSuccess": "工作空间已删除",
+    "deleteError": "删除失败",
+    "memberShortId": "成员 {id}"
   },
   "nav": {
     "chat": "聊天",

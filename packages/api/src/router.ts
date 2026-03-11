@@ -1687,6 +1687,35 @@ export const appRouter = t.router({
           return { removed: true };
         });
       }),
+
+    delete: t.procedure
+      .input(z.object({ workspaceId: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const user = requireUser(ctx);
+        return withInfrastructureErrorMapping(async () => {
+          const supabase = ctx.supabase;
+          if (!supabase?.from) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Store unavailable" });
+          }
+          const { data: membership } = await supabase
+            .from("workspace_members")
+            .select("role")
+            .eq("workspace_id", input.workspaceId)
+            .eq("user_id", user.id)
+            .single();
+          if (!membership || membership.role !== "owner") {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: "Only the workspace owner can delete the workspace",
+            });
+          }
+          // Remove all members first, then the workspace row
+          await supabase.from("workspace_members").delete().eq("workspace_id", input.workspaceId);
+          const { error } = await supabase.from("workspaces").delete().eq("id", input.workspaceId);
+          if (error) throw error;
+          return { deleted: true };
+        });
+      }),
   }),
 });
 
