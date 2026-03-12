@@ -9,6 +9,10 @@ import { useSession } from "@/src/hooks/use-session";
 import { useTheme } from "@/src/hooks/use-theme";
 import { supabaseBrowserClient } from "@/src/supabaseClient";
 
+// Dev-only: diagnose NEXT_PUBLIC env injection in browser bundle
+const _devSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const _devAnonKeyLen = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "").length;
+
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -18,6 +22,10 @@ export default function HomePage() {
   const t = useTranslations("home");
   const tCommon = useTranslations("common");
   const { session } = useSession();
+
+  // Dev diagnostic: surface env var status so we can see it in the browser
+  const isDev = process.env.NODE_ENV === "development";
+  const supabaseUrlOk = _devSupabaseUrl.startsWith("https://");
   const { theme } = useTheme();
   const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
 
@@ -47,6 +55,17 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-6 px-4 py-10 sm:px-6 lg:px-8">
+      {isDev && !supabaseUrlOk && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300">
+          <strong>⚠️ Dev Warning:</strong> <code>NEXT_PUBLIC_SUPABASE_URL</code> is empty in the
+          browser bundle. Restart the dev server: <code>bun run dev</code>
+        </div>
+      )}
+      {isDev && supabaseUrlOk && (
+        <div className="rounded-lg border border-green-300 bg-green-50 px-4 py-2 font-mono text-xs text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-300">
+          ✓ Supabase URL: {_devSupabaseUrl} · key length: {_devAnonKeyLen}
+        </div>
+      )}
       <div className="grid items-center gap-10 lg:grid-cols-[1fr_400px]">
         <section className="space-y-6">
           <img src="/logo.png" alt="DaemonChat Logo" className="h-12 w-auto object-contain" />
