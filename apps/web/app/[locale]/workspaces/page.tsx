@@ -174,7 +174,7 @@ export default function WorkspacesPage() {
       title={t("title")}
       description={t("description")}
       actions={
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
+        <Button size="sm" onClick={() => setCreateOpen(true)} data-testid="workspace-create-btn">
           {t("create")}
         </Button>
       }
@@ -331,7 +331,7 @@ export default function WorkspacesPage() {
 
         {/* ——— Create workspace dialog ——— */}
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" data-testid="workspace-create-dialog">
             <DialogHeader>
               <DialogTitle>{t("createDialogTitle")}</DialogTitle>
               <DialogDescription>{t("createDialogDesc")}</DialogDescription>
@@ -380,6 +380,7 @@ export default function WorkspacesPage() {
                 {t("cancel")}
               </Button>
               <Button
+                data-testid="workspace-create-submit"
                 onClick={() => {
                   if (wsName.trim() && wsSlug.trim()) {
                     createWorkspace.mutate({ name: wsName.trim(), slug: wsSlug.trim() });
@@ -404,7 +405,7 @@ export default function WorkspacesPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" data-testid="workspace-invite-dialog">
             <DialogHeader>
               <DialogTitle>{t("inviteDialogTitle")}</DialogTitle>
               <DialogDescription>{t("inviteDialogDesc")}</DialogDescription>
@@ -450,6 +451,7 @@ export default function WorkspacesPage() {
                 {t("cancel")}
               </Button>
               <Button
+                data-testid="workspace-invite-submit"
                 onClick={() => {
                   if (!inviteUserId || !selectedWs?.id) return;
                   inviteMember.mutate({
@@ -476,7 +478,7 @@ export default function WorkspacesPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-sm" data-testid="workspace-delete-dialog">
             <DialogHeader>
               <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
               <DialogDescription>{t("deleteDialogDesc", { name: deleteWsName })}</DialogDescription>
@@ -496,6 +498,7 @@ export default function WorkspacesPage() {
                 size="sm"
                 variant="destructive"
                 disabled={deleteWorkspace.isPending}
+                data-testid="workspace-delete-confirm"
                 onClick={() => {
                   if (!deleteWsId) return;
                   deleteWorkspace.mutate({ workspaceId: deleteWsId });
@@ -514,7 +517,7 @@ export default function WorkspacesPage() {
             if (!open) setRemoveMemberId(null);
           }}
         >
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-sm" data-testid="workspace-remove-dialog">
             <DialogHeader>
               <DialogTitle>{t("removeDialogTitle")}</DialogTitle>
               <DialogDescription>{t("removeDialogDesc")}</DialogDescription>
@@ -527,6 +530,7 @@ export default function WorkspacesPage() {
                 size="sm"
                 variant="destructive"
                 disabled={removeMember.isPending}
+                data-testid="workspace-remove-confirm"
                 onClick={() => {
                   if (!removeMemberId || !selectedWs?.id) return;
                   removeMember.mutate({

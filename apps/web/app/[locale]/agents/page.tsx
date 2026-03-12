@@ -458,7 +458,7 @@ export default function AgentsPage() {
           open={Boolean(deletingAgentId)}
           onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" data-testid="agent-delete-dialog">
             <DialogHeader>
               <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
               <DialogDescription>
@@ -483,6 +483,7 @@ export default function AgentsPage() {
               <Button
                 variant="destructive"
                 disabled={deleteAgent.isPending || !deletingAgentId}
+                data-testid="agent-delete-confirm"
                 onClick={() => {
                   if (!deletingAgentId) return;
                   deleteAgent.mutate({ agentId: deletingAgentId });
@@ -504,7 +505,7 @@ export default function AgentsPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md" data-testid="agent-publish-dialog">
             <DialogHeader>
               <DialogTitle>
                 {publishAgentId && publishedAgentIds.has(publishAgentId)
@@ -562,6 +563,7 @@ export default function AgentsPage() {
                 {t("cancel")}
               </Button>
               <Button
+                data-testid="agent-publish-confirm"
                 onClick={() => {
                   if (!publishAgentId) return;
                   publishTemplate.mutate({

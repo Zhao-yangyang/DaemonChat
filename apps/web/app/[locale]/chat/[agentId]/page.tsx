@@ -9,20 +9,13 @@ import { trpc } from "@daemon/hooks";
 import {
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Input,
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Input,
-  Label,
   ScrollArea,
   Select,
   SelectContent,
@@ -47,6 +40,10 @@ import { MessageBubble } from "@/src/components/chat/message-bubble";
 import type { ChatMessage } from "@/src/components/chat/message-bubble";
 import { ChatComposer } from "@/src/components/chat/chat-composer";
 import type { PendingAttachment } from "@/src/components/chat/chat-composer";
+import { SessionActionDialog } from "@/src/components/chat/session-action-dialog";
+import type { SessionActionDialogState } from "@/src/components/chat/session-action-dialog";
+import { SessionRenameDialog } from "@/src/components/chat/session-rename-dialog";
+import type { SessionRenameDialogState } from "@/src/components/chat/session-rename-dialog";
 
 const hasVisibleText = (value: string | null | undefined): boolean =>
   typeof value === "string" && value.trim().length > 0;
@@ -146,15 +143,8 @@ export default function ChatPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   // Dialog state: replaces window.confirm / window.prompt
-  const [sessionDialog, setSessionDialog] = useState<{
-    type: "archive" | "unarchive" | "delete";
-    sessionKey: string;
-    sessionId: string;
-  } | null>(null);
-  const [renameDialog, setRenameDialog] = useState<{
-    sessionKey: string;
-    currentName: string;
-  } | null>(null);
+  const [sessionDialog, setSessionDialog] = useState<SessionActionDialogState | null>(null);
+  const [renameDialog, setRenameDialog] = useState<SessionRenameDialogState | null>(null);
   const [renameInput, setRenameInput] = useState("");
   const [lastForkedSession, setLastForkedSession] = useState<{
     sessionKey: string;
@@ -964,95 +954,26 @@ export default function ChatPage() {
         />
       </div>
 
-      {/* Session action confirm dialog (archive / unarchive / delete) */}
-      <Dialog
-        open={Boolean(sessionDialog)}
-        onOpenChange={(open) => {
-          if (!open) setSessionDialog(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {sessionDialog?.type === "archive"
-                ? t("archive")
-                : sessionDialog?.type === "unarchive"
-                  ? t("unarchive")
-                  : t("deleteSession")}
-            </DialogTitle>
-            <DialogDescription>
-              {sessionDialog?.type === "archive"
-                ? t("confirmArchive", { name: getSessionLabel(sessionDialog.sessionKey) })
-                : sessionDialog?.type === "unarchive"
-                  ? t("confirmUnarchive", {
-                      name: getSessionLabel(sessionDialog?.sessionKey ?? ""),
-                    })
-                  : t("confirmDeleteSession", {
-                      name: getSessionLabel(sessionDialog?.sessionKey ?? ""),
-                    })}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setSessionDialog(null)}>
-              {t("cancel")}
-            </Button>
-            <Button
-              size="sm"
-              variant={sessionDialog?.type === "delete" ? "destructive" : "default"}
-              onClick={() => void executeSessionDialogAction()}
-              disabled={
-                archiveSessionMutation.isPending ||
-                unarchiveSessionMutation.isPending ||
-                deleteSessionMutation.isPending
-              }
-            >
-              {sessionDialog?.type === "archive"
-                ? t("archive")
-                : sessionDialog?.type === "unarchive"
-                  ? t("unarchive")
-                  : t("deleteSession")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SessionActionDialog
+        dialog={sessionDialog}
+        sessionLabel={getSessionLabel(sessionDialog?.sessionKey ?? "")}
+        isPending={
+          archiveSessionMutation.isPending ||
+          unarchiveSessionMutation.isPending ||
+          deleteSessionMutation.isPending
+        }
+        onClose={() => setSessionDialog(null)}
+        onConfirm={() => void executeSessionDialogAction()}
+      />
 
-      {/* Rename session dialog */}
-      <Dialog
-        open={Boolean(renameDialog)}
-        onOpenChange={(open) => {
-          if (!open) setRenameDialog(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{t("renameSession")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 py-1">
-            <Label htmlFor="rename-session-input">{t("sessionNameLabel")}</Label>
-            <Input
-              id="rename-session-input"
-              value={renameInput}
-              onChange={(e) => setRenameInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void executeRename();
-              }}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRenameDialog(null)}>
-              {t("cancel")}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => void executeRename()}
-              disabled={!renameInput.trim() || renameSessionMutation.isPending}
-            >
-              {renameSessionMutation.isPending ? t("renaming") : t("save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SessionRenameDialog
+        dialog={renameDialog}
+        value={renameInput}
+        isPending={renameSessionMutation.isPending}
+        onClose={() => setRenameDialog(null)}
+        onConfirm={() => void executeRename()}
+        onChange={setRenameInput}
+      />
     </DashboardShell>
   );
 }

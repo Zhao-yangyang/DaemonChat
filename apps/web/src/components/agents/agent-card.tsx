@@ -53,7 +53,7 @@ export function AgentCard({
   const t = useTranslations("agents");
 
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card className="transition-shadow hover:shadow-md" data-testid={`agent-card-${agent.id}`}>
       <CardContent className="flex items-center justify-between gap-4 py-4">
         {/* Left: name + model + id */}
         <div className="min-w-0">
@@ -90,11 +90,16 @@ export function AgentCard({
 
         {/* Right: action buttons */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button asChild size="sm">
+          <Button asChild size="sm" data-testid="agent-chat-btn">
             <Link href={`/chat/${agent.id}`}>{t("chat")}</Link>
           </Button>
 
-          <Button variant="outline" size="sm" onClick={() => onConfigOpen(agent)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onConfigOpen(agent)}
+            data-testid="agent-config-btn"
+          >
             {t("config")}
           </Button>
 
@@ -103,6 +108,7 @@ export function AgentCard({
             size="sm"
             onClick={() => onDeleteOpen(agent.id)}
             disabled={isDeletePending}
+            data-testid="agent-delete-btn"
           >
             {t("delete")}
           </Button>

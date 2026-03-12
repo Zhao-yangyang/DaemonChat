@@ -64,8 +64,41 @@ Example scoped command:
 - Avoid committing secrets. If environment variables are required, document them in the relevant app README.
 - Keep adapter-specific credentials isolated to their respective packages (e.g., `packages/adapters/*`).
 
-## Current Project Status (2026-03-10)
+## Current Project Status (2026-03-11)
 
+- **最新变更（2026-03-11）**：
+  - **i18n 全量改造 + 原生对话框替换**：
+    - chat、memory、transcripts、usage、workspaces、dashboard-shell 等所有页面文案已全面迁移至 `messages/zh.json` / `messages/en.json`，使用 `useTranslations()` 取代硬编码字符串。
+    - 所有 `window.confirm` / `window.prompt` / `window.alert` 已替换为 `@daemon/ui` 的 `<Dialog>` 组件，提供一致 UX 和可访问性。
+    - `chat/[agentId]/page.tsx` 引入 `sessionDialog`（archive/unarchive/delete）、`renameDialog` 两个 Dialog 状态，以及对应的 `executeSessionDialogAction()` / `executeRename()` 执行函数。
+    - `workspaces/page.tsx` 新增邀请成员 Dialog、移除成员 Dialog、删除工作区 Dialog，操作成功/失败均有 `toast` 提示。
+    - `memory/page.tsx` 删除记忆操作由内联按钮改为确认 Dialog。
+    - `usage/page.tsx`、`transcripts/page.tsx` 使用 `useLocale()` 实现 locale-aware 日期/数字/货币格式化。
+    - `dashboard-shell.tsx` 退出登录后跳转路径保留 locale 前缀（`/${locale}`）。
+  - **大页面组件拆分（agents / chat）**：
+    - `apps/web/src/components/agents/` 新增三个独立组件：
+      - `agent-card.tsx`：Agent 卡片展示（name/model/id/action buttons）。
+      - `agent-config-dialog.tsx`：Agent 配置 Dialog（system prompt/model/memoryTopK/temperature/visibility）。
+      - `create-agent-dialog.tsx`：新建 Agent Dialog（含工作区选择）。
+    - `apps/web/src/components/chat/` 新增两个独立组件：
+      - `chat-composer.tsx`：消息输入区（textarea + 发送/停止按钮 + 附件支持）。
+      - `message-bubble.tsx`：消息气泡（markdown 渲染 + 编辑/重发/分叉/重新生成）。
+    - `agents/page.tsx` 和 `chat/[agentId]/page.tsx` 大幅精简（分别从 1500+/1700+ 行降至 587/1074 行）。
+  - **`packages/platform/web` 完整实现**：
+    - `packages/platform/web/src/index.ts` 实现 `PlatformCapabilities` 接口：
+      - `clipboard.readText` / `clipboard.writeText`：使用 `navigator.clipboard` API，并提供 `execCommand` 降级兜底。
+      - `notifications.notify`：封装 `Notification` API，自动申请权限。
+      - `filesystem` / `tray`：Web 端不支持，保持 `notSupported` stub。
+  - **data-testid 全面补齐（E2E 前置）**：
+    - `agent-card.tsx`：`data-testid="agent-card-{id}"`、`agent-chat-btn`、`agent-config-btn`、`agent-delete-btn`。
+    - `agents/page.tsx`：`agent-delete-dialog`、`agent-delete-confirm`、`agent-publish-dialog`、`agent-publish-confirm`。
+    - `memory/page.tsx`：`memory-add-btn`、`memory-create-form`、`memory-create-submit`、`memory-list`、`memory-delete-item-btn`、`memory-delete-dialog`、`memory-delete-confirm`。
+    - `chat/[agentId]/page.tsx`：`session-action-dialog`、`session-action-confirm`、`session-rename-dialog`、`session-rename-confirm`。
+    - `workspaces/page.tsx`：`workspace-create-btn`、`workspace-create-dialog`、`workspace-create-submit`、`workspace-invite-dialog`、`workspace-invite-submit`、`workspace-delete-dialog`、`workspace-delete-confirm`、`workspace-remove-dialog`、`workspace-remove-confirm`。
+  - **E2E 测试覆盖扩展**：
+    - `apps/web/e2e/agents.spec.ts`（新增）：agents 页加载、Create Dialog 打开/关闭、Delete Dialog 打开/取消、Config Dialog 打开/关闭、Publish Dialog 打开/取消；含未登录冒烟测试。
+    - `apps/web/e2e/memory.spec.ts`（新增）：memory 页加载、agent selector、add 按钮切换 create form、submit 禁用态、memory-list 渲染、delete item → dialog 打开/取消、confirm 按钮可用性、语义搜索切换；含未登录冒烟测试。
+    - `apps/web/e2e/session.spec.ts`（新增）：chat 页加载、session archive/delete/rename dialog 打开/取消/确认按钮状态、rename input 空/非空时 confirm 禁用/启用、error boundary 未触发断言；含未登录冒烟测试。
 - Plan baseline is now `docs/plans/2026-02-03-ai-longterm-assistant-design.md` (V2), including gateway-aligned architecture constraints.
 - Phase 6 计划已完成：`docs/plans/2026-03-06-phase6-production-ready.md`（生产化就绪 + 产品差异化），含 E2E、错误边界、Toast、Landing、PDF 附件、Agent 可见性、Workspace 权限矩阵。
 - 后续迭代方案 Phase A–D 已完成（2026-03-09）：
@@ -321,6 +354,7 @@ Example scoped command:
   - `bun run test`
   - `bun run test:e2e`（在 `apps/web` 下，E2E 冒烟；本地建议 `CI= bun run test:e2e`）
   - focused tests where applicable (for example `apps/web/src/server/auth.test.ts`, `apps/web/app/api/chat/stream/route.test.ts`, `apps/web/app/api/chat/stream/anonymous/route.test.ts`, `apps/worker/src/claimJobs.test.ts`, `apps/worker/src/retry.test.ts`, `apps/web/src/features/historyFilters.test.ts`, `packages/api/src/__tests__/router.test.ts`)
+  - E2E 新增测试文件：`apps/web/e2e/agents.spec.ts`、`apps/web/e2e/memory.spec.ts`、`apps/web/e2e/session.spec.ts`（需 `storageState: "playwright/.auth/user.json"` 的用例须先运行 `auth.setup.ts`）
 - For manual product QA and demos, use:
   - `docs/runbooks/local-experience.md`
 - Local web dev default port is now `3333` (`@daemon/web` dev script and local runbook/loadtest defaults are aligned).

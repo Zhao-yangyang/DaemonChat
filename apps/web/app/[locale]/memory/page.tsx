@@ -277,6 +277,7 @@ function MemoryPageContent() {
               size="sm"
               className="shrink-0"
               onClick={() => setShowCreate(!showCreate)}
+              data-testid="memory-add-btn"
             >
               <Plus className="mr-1 size-4" />
               {t("addBtn")}
@@ -329,7 +330,7 @@ function MemoryPageContent() {
 
         {/* Create form */}
         {showCreate && (
-          <Card>
+          <Card data-testid="memory-create-form">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">{t("createTitle")}</CardTitle>
               <CardDescription>{t("createDesc")}</CardDescription>
@@ -418,6 +419,7 @@ function MemoryPageContent() {
                     })
                   }
                   disabled={!agentId || !createContent.trim() || !userId || createMemory.isPending}
+                  data-testid="memory-create-submit"
                 >
                   {createMemory.isPending ? t("saving") : t("save")}
                 </Button>
@@ -427,7 +429,7 @@ function MemoryPageContent() {
         )}
 
         {/* Memory list */}
-        <div className="space-y-2">
+        <div className="space-y-2" data-testid="memory-list">
           {isLoading
             ? Array.from({ length: 3 }).map((_, idx) => (
                 <Card key={`skel-${idx}`}>
@@ -559,6 +561,7 @@ function MemoryPageContent() {
                             className="text-destructive"
                             disabled={deleteMemory.isPending}
                             onClick={() => setDeleteMemoryId(item.id)}
+                            data-testid="memory-delete-item-btn"
                           >
                             {t("delete")}
                           </Button>
@@ -598,7 +601,7 @@ function MemoryPageContent() {
             if (!open) setDeleteMemoryId(null);
           }}
         >
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="sm:max-w-sm" data-testid="memory-delete-dialog">
             <DialogHeader>
               <DialogTitle>{t("delete")}</DialogTitle>
               <DialogDescription>{t("confirmDelete")}</DialogDescription>
@@ -611,6 +614,7 @@ function MemoryPageContent() {
                 size="sm"
                 variant="destructive"
                 disabled={deleteMemory.isPending}
+                data-testid="memory-delete-confirm"
                 onClick={() => {
                   if (deleteMemoryId) {
                     deleteMemory.mutate(
