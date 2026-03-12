@@ -15,15 +15,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Label,
   Skeleton,
-  Textarea,
 } from "@daemon/ui";
 import { API_KEY_REDACTED, detectPresetFromConfig, CUSTOM_PROVIDER_ID } from "@daemon/domain";
 import { DashboardShell } from "@/src/components/dashboard-shell";
@@ -36,6 +28,8 @@ import { AgentConfigDialog } from "@/src/components/agents/agent-config-dialog";
 import type { AgentConfigForm } from "@/src/components/agents/agent-config-dialog";
 import { CreateAgentDialog } from "@/src/components/agents/create-agent-dialog";
 import type { CreateAgentForm } from "@/src/components/agents/create-agent-dialog";
+import { AgentDeleteDialog } from "@/src/components/agents/agent-delete-dialog";
+import { AgentPublishDialog } from "@/src/components/agents/agent-publish-dialog";
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error && typeof error === "object") {
@@ -452,137 +446,43 @@ export default function AgentsPage() {
           onClose={closeConfigDialog}
         />
 
-        {/* ——— Keep the remaining dialogs (delete + publish) ——— */}
-        {/* Delete Confirmation Dialog */}
-        <Dialog
+        <AgentDeleteDialog
           open={Boolean(deletingAgentId)}
-          onOpenChange={(open) => (!open ? closeDeleteDialog() : undefined)}
-        >
-          <DialogContent className="sm:max-w-md" data-testid="agent-delete-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
-              <DialogDescription>
-                {deletingAgent
-                  ? t("deleteDialogConfirm", { name: deletingAgent.name })
-                  : t("deleteDialogConfirmDefault")}
-              </DialogDescription>
-            </DialogHeader>
-            {deleteErrorMessage ? (
-              <Alert variant="destructive">
-                <AlertDescription>{deleteErrorMessage}</AlertDescription>
-              </Alert>
-            ) : null}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={closeDeleteDialog}
-                disabled={deleteAgent.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={deleteAgent.isPending || !deletingAgentId}
-                data-testid="agent-delete-confirm"
-                onClick={() => {
-                  if (!deletingAgentId) return;
-                  deleteAgent.mutate({ agentId: deletingAgentId });
-                }}
-              >
-                {deleteAgent.isPending ? t("deleting") : t("confirmDelete")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Publish Template Dialog */}
-        <Dialog
-          open={Boolean(publishAgentId)}
-          onOpenChange={(open) => {
-            if (!open) {
-              setPublishAgentId(null);
-              publishTemplate.reset();
-            }
+          agentName={deletingAgent?.name ?? null}
+          isPending={deleteAgent.isPending}
+          error={deleteErrorMessage}
+          onClose={closeDeleteDialog}
+          onConfirm={() => {
+            if (!deletingAgentId) return;
+            deleteAgent.mutate({ agentId: deletingAgentId });
           }}
-        >
-          <DialogContent className="sm:max-w-md" data-testid="agent-publish-dialog">
-            <DialogHeader>
-              <DialogTitle>
-                {publishAgentId && publishedAgentIds.has(publishAgentId)
-                  ? t("updateTemplateDialogTitle")
-                  : t("publishDialogTitle")}
-              </DialogTitle>
-              <DialogDescription>
-                {publishAgentId && publishedAgentIds.has(publishAgentId)
-                  ? t("updateTemplateDialogDesc")
-                  : t("publishDialogDesc")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="publish-desc">{t("publishDescLabel")}</Label>
-                <Textarea
-                  id="publish-desc"
-                  rows={3}
-                  value={publishDesc}
-                  onChange={(e) => setPublishDesc(e.target.value)}
-                  placeholder={t("publishDescPlaceholder")}
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={publishPublic}
-                  onChange={(e) => setPublishPublic(e.target.checked)}
-                  className="rounded"
-                />
-                {t("publishPublic")}
-              </label>
-              {publishTemplate.error ? (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    {getErrorMessage(publishTemplate.error, t("publishError"))}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-              {publishTemplate.isSuccess ? (
-                <Alert>
-                  <AlertDescription>{t("publishSuccess")}</AlertDescription>
-                </Alert>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setPublishAgentId(null);
-                  publishTemplate.reset();
-                }}
-                disabled={publishTemplate.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                data-testid="agent-publish-confirm"
-                onClick={() => {
-                  if (!publishAgentId) return;
-                  publishTemplate.mutate({
-                    agentId: publishAgentId,
-                    description: publishDesc,
-                    isPublic: publishPublic,
-                  });
-                }}
-                disabled={publishTemplate.isPending || !publishAgentId || publishTemplate.isSuccess}
-              >
-                {publishTemplate.isPending
-                  ? t("publishSubmitting")
-                  : publishAgentId && publishedAgentIds.has(publishAgentId)
-                    ? t("confirmUpdate")
-                    : t("confirmPublish")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        />
+
+        <AgentPublishDialog
+          open={Boolean(publishAgentId)}
+          isUpdate={Boolean(publishAgentId && publishedAgentIds.has(publishAgentId))}
+          description={publishDesc}
+          isPublic={publishPublic}
+          isPending={publishTemplate.isPending}
+          isSuccess={publishTemplate.isSuccess}
+          error={
+            publishTemplate.error ? getErrorMessage(publishTemplate.error, t("publishError")) : null
+          }
+          onDescriptionChange={setPublishDesc}
+          onIsPublicChange={setPublishPublic}
+          onClose={() => {
+            setPublishAgentId(null);
+            publishTemplate.reset();
+          }}
+          onSubmit={() => {
+            if (!publishAgentId) return;
+            publishTemplate.mutate({
+              agentId: publishAgentId,
+              description: publishDesc,
+              isPublic: publishPublic,
+            });
+          }}
+        />
       </div>
     </DashboardShell>
   );

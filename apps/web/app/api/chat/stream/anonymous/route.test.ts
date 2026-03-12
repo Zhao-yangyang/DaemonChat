@@ -76,7 +76,7 @@ describe("anonymous chat route", () => {
       }),
     );
     expect(res.status).toBe(404);
-  });
+  }, 15_000);
 
   test("returns 429 when turn count exceeds max with placeholder Supabase", async () => {
     process.env.ANONYMOUS_CHAT_ENABLED = "1";

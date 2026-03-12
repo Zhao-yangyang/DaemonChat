@@ -15,19 +15,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Skeleton,
   Tooltip,
   TooltipContent,
@@ -37,6 +24,12 @@ import { Trash2, UserPlus, X } from "lucide-react";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
 import { formatId, formatTime } from "@/src/lib/format";
+import { WorkspaceCreateDialog } from "@/src/components/workspaces/workspace-create-dialog";
+import { WorkspaceInviteDialog } from "@/src/components/workspaces/workspace-invite-dialog";
+import {
+  WorkspaceDeleteDialog,
+  WorkspaceRemoveDialog,
+} from "@/src/components/workspaces/workspace-confirm-dialogs";
 
 type WorkspaceRole = "owner" | "admin" | "member" | "viewer";
 
@@ -329,221 +322,70 @@ export default function WorkspacesPage() {
           ) : null}
         </div>
 
-        {/* ——— Create workspace dialog ——— */}
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogContent className="sm:max-w-md" data-testid="workspace-create-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("createDialogTitle")}</DialogTitle>
-              <DialogDescription>{t("createDialogDesc")}</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="ws-name">{t("nameLabel")}</Label>
-                <Input
-                  id="ws-name"
-                  value={wsName}
-                  onChange={(e) => setWsName(e.target.value)}
-                  placeholder={t("namePlaceholder")}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="ws-slug">{t("slugLabel")}</Label>
-                <Input
-                  id="ws-slug"
-                  value={wsSlug}
-                  onChange={(e) =>
-                    setWsSlug(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/[^a-z0-9-]/g, "-")
-                        .replace(/-{2,}/g, "-"),
-                    )
-                  }
-                  placeholder="product-team"
-                />
-                <p className="text-xs text-muted-foreground">{t("slugHint")}</p>
-              </div>
-              {createWorkspace.error ? (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    {createWorkspace.error.message || t("createError")}
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
-                disabled={createWorkspace.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                data-testid="workspace-create-submit"
-                onClick={() => {
-                  if (wsName.trim() && wsSlug.trim()) {
-                    createWorkspace.mutate({ name: wsName.trim(), slug: wsSlug.trim() });
-                  }
-                }}
-                disabled={!wsName.trim() || !wsSlug.trim() || createWorkspace.isPending}
-              >
-                {createWorkspace.isPending ? t("creating") : t("createBtn")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <WorkspaceCreateDialog
+          open={createOpen}
+          name={wsName}
+          slug={wsSlug}
+          isPending={createWorkspace.isPending}
+          error={createWorkspace.error?.message ?? null}
+          onNameChange={setWsName}
+          onSlugChange={setWsSlug}
+          onClose={() => setCreateOpen(false)}
+          onSubmit={() => {
+            if (wsName.trim() && wsSlug.trim()) {
+              createWorkspace.mutate({ name: wsName.trim(), slug: wsSlug.trim() });
+            }
+          }}
+        />
 
-        {/* ——— Invite member dialog ——— */}
-        <Dialog
+        <WorkspaceInviteDialog
           open={inviteOpen}
-          onOpenChange={(open) => {
-            if (!open) {
-              setInviteOpen(false);
-              setInviteUserId("");
-              setInviteRole("member");
-            }
+          userId={inviteUserId}
+          role={inviteRole}
+          isPending={inviteMember.isPending}
+          onUserIdChange={setInviteUserId}
+          onRoleChange={setInviteRole}
+          onClose={() => {
+            setInviteOpen(false);
+            setInviteUserId("");
+            setInviteRole("member");
           }}
-        >
-          <DialogContent className="sm:max-w-md" data-testid="workspace-invite-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("inviteDialogTitle")}</DialogTitle>
-              <DialogDescription>{t("inviteDialogDesc")}</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="invite-user-id">{t("userIdLabel")}</Label>
-                <Input
-                  id="invite-user-id"
-                  value={inviteUserId}
-                  onChange={(e) => setInviteUserId(e.target.value.trim())}
-                  placeholder={t("userIdPlaceholder")}
-                  autoFocus
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="invite-role">{t("roleLabel")}</Label>
-                <Select
-                  value={inviteRole}
-                  onValueChange={(v) => setInviteRole(v as "admin" | "member" | "viewer")}
-                >
-                  <SelectTrigger id="invite-role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">{t("roleAdmin")}</SelectItem>
-                    <SelectItem value="member">{t("roleMember")}</SelectItem>
-                    <SelectItem value="viewer">{t("roleViewer")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setInviteOpen(false);
-                  setInviteUserId("");
-                  setInviteRole("member");
-                }}
-                disabled={inviteMember.isPending}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                data-testid="workspace-invite-submit"
-                onClick={() => {
-                  if (!inviteUserId || !selectedWs?.id) return;
-                  inviteMember.mutate({
-                    workspaceId: selectedWs.id,
-                    userId: inviteUserId,
-                    role: inviteRole,
-                  });
-                }}
-                disabled={!inviteUserId.trim() || inviteMember.isPending}
-              >
-                {inviteMember.isPending ? t("inviting") : t("invite")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          onSubmit={() => {
+            if (!inviteUserId || !selectedWs?.id) return;
+            inviteMember.mutate({
+              workspaceId: selectedWs.id,
+              userId: inviteUserId,
+              role: inviteRole,
+            });
+          }}
+        />
 
-        {/* ——— Delete workspace confirm dialog ——— */}
-        <Dialog
+        <WorkspaceDeleteDialog
           open={Boolean(deleteWsId)}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDeleteWsId(null);
-              setDeleteWsName("");
-            }
+          workspaceName={deleteWsName}
+          isPending={deleteWorkspace.isPending}
+          onClose={() => {
+            setDeleteWsId(null);
+            setDeleteWsName("");
           }}
-        >
-          <DialogContent className="sm:max-w-sm" data-testid="workspace-delete-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("deleteDialogTitle")}</DialogTitle>
-              <DialogDescription>{t("deleteDialogDesc", { name: deleteWsName })}</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setDeleteWsId(null);
-                  setDeleteWsName("");
-                }}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={deleteWorkspace.isPending}
-                data-testid="workspace-delete-confirm"
-                onClick={() => {
-                  if (!deleteWsId) return;
-                  deleteWorkspace.mutate({ workspaceId: deleteWsId });
-                }}
-              >
-                {deleteWorkspace.isPending ? t("deleting") : t("confirmDelete")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          onConfirm={() => {
+            if (!deleteWsId) return;
+            deleteWorkspace.mutate({ workspaceId: deleteWsId });
+          }}
+        />
 
-        {/* ——— Remove member confirm dialog ——— */}
-        <Dialog
+        <WorkspaceRemoveDialog
           open={Boolean(removeMemberId)}
-          onOpenChange={(open) => {
-            if (!open) setRemoveMemberId(null);
+          isPending={removeMember.isPending}
+          onClose={() => setRemoveMemberId(null)}
+          onConfirm={() => {
+            if (!removeMemberId || !selectedWs?.id) return;
+            removeMember.mutate({
+              workspaceId: selectedWs.id,
+              memberId: removeMemberId,
+            });
           }}
-        >
-          <DialogContent className="sm:max-w-sm" data-testid="workspace-remove-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("removeDialogTitle")}</DialogTitle>
-              <DialogDescription>{t("removeDialogDesc")}</DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" size="sm" onClick={() => setRemoveMemberId(null)}>
-                {t("cancel")}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={removeMember.isPending}
-                data-testid="workspace-remove-confirm"
-                onClick={() => {
-                  if (!removeMemberId || !selectedWs?.id) return;
-                  removeMember.mutate({
-                    workspaceId: selectedWs.id,
-                    memberId: removeMemberId,
-                  });
-                }}
-              >
-                {removeMember.isPending ? t("removing") : t("remove")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        />
       </div>
     </DashboardShell>
   );

@@ -10,28 +10,27 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Dialog,
+  Input,
+  Label,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
-  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
   Skeleton,
-  Textarea,
 } from "@daemon/ui";
 import { Search, Sparkles, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { DashboardShell } from "@/src/components/dashboard-shell";
 import { useSession } from "@/src/hooks/use-session";
+import { MemoryCreateForm } from "@/src/components/memory/memory-create-form";
+import { MemoryItemCard } from "@/src/components/memory/memory-item-card";
+import type { MemoryItemEditState } from "@/src/components/memory/memory-item-card";
 
 const PAGE_SIZE = 12;
 const MEMORY_TYPES = ["fact", "rule", "preference", "task"] as const;
@@ -73,10 +72,12 @@ function MemoryPageContent() {
 
   // Edit state
   const [editId, setEditId] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const [editTags, setEditTags] = useState("");
-  const [editSensitivity, setEditSensitivity] = useState<Sensitivity>("public");
-  const [editEligible, setEditEligible] = useState(true);
+  const [editState, setEditState] = useState<MemoryItemEditState>({
+    content: "",
+    tags: "",
+    sensitivity: "public",
+    contextEligible: true,
+  });
   // Delete confirm dialog
   const [deleteMemoryId, setDeleteMemoryId] = useState<string | null>(null);
 
@@ -187,10 +188,12 @@ function MemoryPageContent() {
     contextEligible: boolean;
   }) => {
     setEditId(item.id);
-    setEditContent(item.content);
-    setEditTags(item.tags.join(", "));
-    setEditSensitivity(item.sensitivity);
-    setEditEligible(item.contextEligible);
+    setEditState({
+      content: item.content,
+      tags: item.tags.join(", "),
+      sensitivity: item.sensitivity,
+      contextEligible: item.contextEligible,
+    });
   };
 
   return (
@@ -330,102 +333,38 @@ function MemoryPageContent() {
 
         {/* Create form */}
         {showCreate && (
-          <Card data-testid="memory-create-form">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">{t("createTitle")}</CardTitle>
-              <CardDescription>{t("createDesc")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Textarea
-                value={createContent}
-                onChange={(e) => setCreateContent(e.target.value)}
-                placeholder={t("createContentPlaceholder")}
-                className="min-h-16"
-              />
-              <div className="grid gap-3 sm:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label>{t("typeLabel")}</Label>
-                  <Select value={createType} onValueChange={(v) => setCreateType(v as MemoryType)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MEMORY_TYPES.map((mt) => (
-                        <SelectItem key={mt} value={mt}>
-                          {getTypeLabel(mt)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{t("sensitivityLabel")}</Label>
-                  <Select
-                    value={createSensitivity}
-                    onValueChange={(v) => setCreateSensitivity(v as Sensitivity)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SENSITIVITY_OPTIONS.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {getSensitivityLabel(s)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{t("tagsLabel")}</Label>
-                  <Input
-                    value={createTags}
-                    onChange={(e) => setCreateTags(e.target.value)}
-                    placeholder={t("tagsPlaceholder")}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>{t("contextEligibleLabel")}</Label>
-                  <Select
-                    value={createEligible ? "yes" : "no"}
-                    onValueChange={(v) => setCreateEligible(v === "yes")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="yes">{t("contextEligibleYes")}</SelectItem>
-                      <SelectItem value="no">{t("contextEligibleNo")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    createMemory.mutate({
-                      agentId,
-                      scopeType: "user",
-                      scopeId: userId,
-                      type: createType,
-                      content: createContent,
-                      tags: createTags
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter(Boolean),
-                      sensitivity: createSensitivity,
-                      contextEligible: createEligible,
-                    })
-                  }
-                  disabled={!agentId || !createContent.trim() || !userId || createMemory.isPending}
-                  data-testid="memory-create-submit"
-                >
-                  {createMemory.isPending ? t("saving") : t("save")}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <MemoryCreateForm
+            agentId={agentId}
+            userId={userId}
+            content={createContent}
+            type={createType}
+            tags={createTags}
+            sensitivity={createSensitivity}
+            contextEligible={createEligible}
+            isPending={createMemory.isPending}
+            getTypeLabel={getTypeLabel}
+            getSensitivityLabel={getSensitivityLabel}
+            onContentChange={setCreateContent}
+            onTypeChange={setCreateType}
+            onTagsChange={setCreateTags}
+            onSensitivityChange={setCreateSensitivity}
+            onContextEligibleChange={setCreateEligible}
+            onSubmit={() =>
+              createMemory.mutate({
+                agentId,
+                scopeType: "user",
+                scopeId: userId,
+                type: createType,
+                content: createContent,
+                tags: createTags
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                sensitivity: createSensitivity,
+                contextEligible: createEligible,
+              })
+            }
+          />
         )}
 
         {/* Memory list */}
@@ -439,140 +378,42 @@ function MemoryPageContent() {
                 </Card>
               ))
             : displayItems.map((item) => (
-                <Card key={item.id} className="transition-shadow hover:shadow-sm">
-                  <CardContent className="py-3">
-                    {editId === item.id ? (
-                      <div className="space-y-3">
-                        <Textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          className="min-h-16"
-                        />
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs">{t("editTagsLabel")}</Label>
-                            <Input
-                              value={editTags}
-                              onChange={(e) => setEditTags(e.target.value)}
-                              placeholder={t("editTagsPlaceholder")}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">{t("sensitivityLabel")}</Label>
-                            <Select
-                              value={editSensitivity}
-                              onValueChange={(v) => setEditSensitivity(v as Sensitivity)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {SENSITIVITY_OPTIONS.map((s) => (
-                                  <SelectItem key={s} value={s}>
-                                    {getSensitivityLabel(s)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">{t("contextEligibleLabel")}</Label>
-                            <Select
-                              value={editEligible ? "yes" : "no"}
-                              onValueChange={(v) => setEditEligible(v === "yes")}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="yes">{t("contextEligibleYes")}</SelectItem>
-                                <SelectItem value="no">{t("contextEligibleNo")}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button size="xs" variant="ghost" onClick={() => setEditId(null)}>
-                            {t("cancel")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            disabled={updateMemory.isPending || !editContent.trim()}
-                            onClick={() =>
-                              updateMemory.mutate({
-                                agentId,
-                                memoryId: item.id,
-                                content: editContent.trim(),
-                                tags: editTags
-                                  .split(",")
-                                  .map((s) => s.trim())
-                                  .filter(Boolean),
-                                sensitivity: editSensitivity,
-                                contextEligible: editEligible,
-                              })
-                            }
-                          >
-                            {updateMemory.isPending ? t("saving") : t("save")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-sm leading-relaxed">{item.content}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${TYPE_COLORS[item.type as MemoryType] ?? ""}`}
-                          >
-                            {getTypeLabel(item.type as MemoryType) ?? item.type}
-                          </span>
-                          <Badge variant="secondary" className="text-xs">
-                            {getSensitivityLabel(item.sensitivity as Sensitivity)}
-                          </Badge>
-                          {!item.contextEligible && (
-                            <Badge variant="outline" className="text-xs text-muted-foreground">
-                              {t("notInjected")}
-                            </Badge>
-                          )}
-                          {item.tags.map((tag) => (
-                            <Badge key={tag} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            onClick={() =>
-                              beginEdit({
-                                id: item.id,
-                                content: item.content,
-                                tags: item.tags,
-                                sensitivity: item.sensitivity as Sensitivity,
-                                contextEligible: item.contextEligible,
-                              })
-                            }
-                          >
-                            {t("edit")}
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            className="text-destructive"
-                            disabled={deleteMemory.isPending}
-                            onClick={() => setDeleteMemoryId(item.id)}
-                            data-testid="memory-delete-item-btn"
-                          >
-                            {t("delete")}
-                          </Button>
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {new Date(item.createdAt).toLocaleDateString(locale)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                <MemoryItemCard
+                  key={item.id}
+                  item={item}
+                  locale={locale}
+                  isEditing={editId === item.id}
+                  editState={editState}
+                  isSavePending={updateMemory.isPending}
+                  isDeletePending={deleteMemory.isPending}
+                  getTypeLabel={getTypeLabel}
+                  getSensitivityLabel={getSensitivityLabel}
+                  onEditStart={() =>
+                    beginEdit({
+                      id: item.id,
+                      content: item.content,
+                      tags: item.tags,
+                      sensitivity: item.sensitivity as Sensitivity,
+                      contextEligible: item.contextEligible,
+                    })
+                  }
+                  onEditCancel={() => setEditId(null)}
+                  onEditChange={(patch) => setEditState((prev) => ({ ...prev, ...patch }))}
+                  onEditSave={() =>
+                    updateMemory.mutate({
+                      agentId,
+                      memoryId: item.id,
+                      content: editState.content.trim(),
+                      tags: editState.tags
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                      sensitivity: editState.sensitivity,
+                      contextEligible: editState.contextEligible,
+                    })
+                  }
+                  onDeleteRequest={() => setDeleteMemoryId(item.id)}
+                />
               ))}
 
           {!isLoading && agentId && displayItems.length === 0 && (
